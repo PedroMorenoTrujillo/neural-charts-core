@@ -1,5 +1,5 @@
-import { invalid, ok } from '../diagnostics.js';
-import type { Result } from '../diagnostics.js';
+import { invalid, ok, notifyTickFallback } from '../diagnostics.js';
+import type { Result, DevelopmentNoticeSink } from '../diagnostics.js';
 import type { Domain, DomainPlan, Extent } from './domain.js';
 import { createLinearScale } from './linear.js';
 import type { LinearScale } from './linear.js';
@@ -32,11 +32,11 @@ export function createTimeScale(domain: Domain, range: readonly [number,number],
   const s=createLinearScale(domain,range,clamp);if(s.status==='invalid')return s;
   return ok(Object.freeze({...s.value,map:(t:number)=>isTimestamp(t)?s.value.map(t):null,invert:(p:number)=>{const t=s.value.invert(p);return t!==null&&t>=MIN_DATE&&t<=MAX_DATE?t:null;}}));
 }
-export function selectTimeTicks(domain: Domain, options: TimeTickOptions): Result<TimeTickPlan> {
+export function selectTimeTicks(domain: Domain, options: TimeTickOptions, noticeSink?: DevelopmentNoticeSink): Result<TimeTickPlan> {
   if(!validTimeDomain(domain))return invalid('INVALID_DOMAIN','OUTSIDE_DATE_RANGE','domain');
-  const target=options.targetCount??6;
-  if(!Number.isInteger(target)||target<2||target>12||('targetCount'in options&&options.targetCount===undefined))return invalid('INVALID_CONFIG','BAD_TICK_TARGET','targetCount');
-  if(typeof options.nice!=='boolean'||('manual'in options&&options.manual===undefined)||(options.manual&&options.nice))return invalid('INVALID_CONFIG','BAD_TICK_OPTIONS','ticks');
+  const target='targetCount'in options?options.targetCount:6;
+  if(typeof target!=='number'||!Number.isInteger(target)||target<2||target>12)return invalid('INVALID_CONFIG','BAD_TICK_TARGET','targetCount');
+  if(typeof options.nice!=='boolean'||('manual'in options&&(!Array.isArray(options.manual)||options.nice)))return invalid('INVALID_CONFIG','BAD_TICK_OPTIONS','ticks');
   const copied=Object.freeze([...domain])as Domain;
   if(options.manual){
     if(!Array.isArray(options.manual)||options.manual.length>200)return invalid('INVALID_CONFIG','RESOURCE_LIMIT','ticks');
@@ -52,5 +52,8 @@ export function selectTimeTicks(domain: Domain, options: TimeTickOptions): Resul
     const error=Math.abs(ticks.length-target),expansion=options.nice?BigInt(domain[0])-BigInt(lo)+BigInt(hi)-BigInt(domain[1]):0n,rank=ranks[interval.unit];
     if(!best||error<best.error||(error===best.error&&(expansion<best.expansion||(expansion===best.expansion&&(rank<best.rank||(rank===best.rank&&interval.step>best.step))))))best={plan:Object.freeze({domain:options.nice?Object.freeze([lo,hi]as const):copied,ticks,interval,fallback:false}),error,expansion,rank,step:interval.step};
   }
-  return ok(best?.plan??Object.freeze({domain:copied,ticks:copied,interval:null,fallback:true}));
+  if(best)return ok(best.plan);
+  const plan=Object.freeze({domain:copied,ticks:copied,interval:null,fallback:true});
+  notifyTickFallback(noticeSink);
+  return ok(plan);
 }

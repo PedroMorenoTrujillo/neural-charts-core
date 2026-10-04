@@ -67,6 +67,8 @@ export function createBandScale(frame: CategoryFrame, gapRatio: number): Result<
     const start = leading === 0 || gapRatio === 0 ? at(leading) : normalizeZero(center - frame.direction * width / 2);
     const end = trailing === 1 || gapRatio === 0 ? at(trailing) : normalizeZero(center + frame.direction * width / 2);
     if (!isFiniteNumber(start) || !isFiniteNumber(end) || (width > 0 && start === end) || Math.min(start, end) < Math.min(...frame.range) || Math.max(start, end) > Math.max(...frame.range)) return invalid('INVALID_DOMAIN', 'UNREPRESENTABLE', 'bands');
+    const previous = bands[i - 1];
+    if (previous && (frame.direction > 0 ? previous.end > start : previous.end < start)) return invalid('INVALID_DOMAIN', 'UNREPRESENTABLE', 'bands');
     bands.push(Object.freeze({ index: i, id: frame.ids[i]!, start, end, center, width }));
   }
   const map = new Map(bands.map(b => [b.id, b]));

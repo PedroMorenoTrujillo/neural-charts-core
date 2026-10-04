@@ -8,7 +8,7 @@ const steps: Readonly<Record<UtcUnit, readonly number[]>> = {
 };
 export const UTC_INTERVALS: readonly UtcInterval[] = Object.freeze((Object.keys(steps) as UtcUnit[]).flatMap(unit => steps[unit].map(step => Object.freeze({ unit, step }))));
 export const isTimestamp = (n: unknown): n is number => isFiniteNumber(n) && Number.isInteger(n) && n >= MIN_DATE && n <= MAX_DATE;
-export const validInterval = (interval: UtcInterval): boolean => !!interval && !!steps[interval.unit]?.includes(interval.step);
+export const validInterval = (interval: UtcInterval): boolean => !!interval && typeof interval==='object' && !Array.isArray(interval) && typeof interval.unit==='string' && Object.hasOwn(steps,interval.unit) && isFiniteNumber(interval.step) && steps[interval.unit].includes(interval.step);
 const durations: Partial<Record<UtcUnit, number>> = { millisecond:1, second:1000, minute:60000, hour:3600000, day:86400000, week:604800000 };
 function floorDiv(n: bigint, d: bigint): bigint { const q = n / d; return n < 0n && n % d !== 0n ? q - 1n : q; }
 function indexAt(t: number, interval: UtcInterval): bigint {

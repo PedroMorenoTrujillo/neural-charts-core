@@ -1,5 +1,5 @@
-import { invalid, ok } from '../diagnostics.js';
-import type { Result } from '../diagnostics.js';
+import { invalid, ok, notifyTickFallback } from '../diagnostics.js';
+import type { Result, DevelopmentNoticeSink } from '../diagnostics.js';
 import { validDomain } from './domain.js';
 import type { Domain } from './domain.js';
 import { isFiniteNumber, normalizeZero, ulp } from './finite.js';
@@ -17,10 +17,10 @@ const ceil = (n: bigint, d: bigint): bigint => -floor(-n, d);
 function canonical(c: bigint, e: number): Decimal { while (c % 10n === 0n) { c /= 10n; e++; } return { c, e }; }
 export function validateTickOptions(domain: Domain, options: TickOptions): Result<number> {
   if (!validDomain(domain)) return invalid('INVALID_DOMAIN', 'REVERSED', 'domain');
-  const target = options.targetCount ?? 6;
-  if (!Number.isInteger(target) || target < 2 || target > 12 || ('targetCount' in options && options.targetCount === undefined)) return invalid('INVALID_CONFIG', 'BAD_TICK_TARGET', 'targetCount');
-  if (typeof options.nice !== 'boolean' || ('manual' in options && options.manual === undefined) || (options.manual && options.nice)) return invalid('INVALID_CONFIG', 'BAD_TICK_OPTIONS', 'ticks');
-  if (options.manual) {
+  const target = 'targetCount' in options ? options.targetCount : 6;
+  if (typeof target !== 'number' || !Number.isInteger(target) || target < 2 || target > 12) return invalid('INVALID_CONFIG', 'BAD_TICK_TARGET', 'targetCount');
+  if (typeof options.nice !== 'boolean' || ('manual' in options && (!Array.isArray(options.manual) || options.nice))) return invalid('INVALID_CONFIG', 'BAD_TICK_OPTIONS', 'ticks');
+  if ('manual' in options) {
     if (!Array.isArray(options.manual) || options.manual.length > 200) return invalid('INVALID_CONFIG', 'RESOURCE_LIMIT', 'ticks');
     for (let i = 0; i < options.manual.length; i++) {
       const v = options.manual[i];
@@ -30,7 +30,7 @@ export function validateTickOptions(domain: Domain, options: TickOptions): Resul
   }
   return ok(target);
 }
-export function selectNumericTicks(domain: Domain, options: TickOptions): Result<TickPlan> {
+export function selectNumericTicks(domain: Domain, options: TickOptions, noticeSink?: DevelopmentNoticeSink): Result<TickPlan> {
   const validated = validateTickOptions(domain, options);
   if (validated.status === 'invalid') return validated;
   const frozenDomain = Object.freeze([...domain]) as Domain;
@@ -69,5 +69,8 @@ export function selectNumericTicks(domain: Domain, options: TickOptions): Result
     const wins = !best || error < best.error || (error === best.error && (expansion < best.expansion || (expansion === best.expansion && (rank < best.rank || (rank === best.rank && step > best.step)))));
     if (wins) best = { plan: Object.freeze({ domain: options.nice ? Object.freeze([ticks[0]!, ticks[ticks.length - 1]!] as const) : frozenDomain, ticks: Object.freeze(ticks), step, fallback: false }), error, expansion, rank, step, exponent: common };
   }
-  return ok(best?.plan ?? Object.freeze({ domain: frozenDomain, ticks: frozenDomain, step: null, fallback: true }));
+  if (best) return ok(best.plan);
+  const plan = Object.freeze({ domain: frozenDomain, ticks: frozenDomain, step: null, fallback: true });
+  notifyTickFallback(noticeSink);
+  return ok(plan);
 }
