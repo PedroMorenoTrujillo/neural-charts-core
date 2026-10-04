@@ -15,3 +15,10 @@ test('errors are bounded and no retry loop',()=>{
   const clock=new FakeClock(),s=createRevisionScheduler({clock,prepare:()=>ok(1),commit:()=>ok(undefined)},{revision:Number.MAX_SAFE_INTEGER});expect(s.submit(1,'data',true)).toMatchObject({diagnostic:{reason:'REVISION_EXHAUSTED'}});
   const bad=createRevisionScheduler({clock:{request:()=>{throw Error('clock');},cancel:()=>{}},prepare:()=>ok(1),commit:()=>ok(undefined)});bad.submit(1,'data',true);expect(bad.getSnapshot().pending).toBe(false);bad.destroy();
 });
+test('a throwing cancellation releases pending ownership and still destroys',()=>{
+  const diagnostics:any[]=[];
+  const scheduler=createRevisionScheduler({clock:{request:()=>0,cancel:()=>{throw Error('cancel failed');}},prepare:()=>ok(1),commit:()=>ok(undefined),onDiagnostic:d=>diagnostics.push(d)});
+  scheduler.submit(1,'data',true);scheduler.destroy();scheduler.destroy();
+  expect(scheduler.getSnapshot()).toMatchObject({destroyed:true,pending:false});
+  expect(diagnostics).toHaveLength(1);expect(diagnostics[0]).toMatchObject({code:'LIFECYCLE_ERROR',reason:'PLATFORM_UNAVAILABLE',path:'clock'});
+});

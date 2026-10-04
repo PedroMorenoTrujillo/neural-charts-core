@@ -7,7 +7,7 @@ export interface RevisionScheduler<S> {submit(snapshot:S,reason:DirtyReason,runn
 export function createRevisionScheduler<S,F>(options:{clock:FrameClock;prepare(snapshot:S,token:RevisionToken,reasons:ReadonlySet<DirtyReason>):Result<F>;commit(candidate:F,token:RevisionToken):Result<void>;onDiagnostic?:(diagnostic:Diagnostic)=>void},initialState?:Readonly<{revision:number}>):RevisionScheduler<S>{
   let revision=initialState?.revision??0,committedRevision=0,generation=0,latest:S|undefined,runnable=false,executing=false,destroyed=false,dirty=new Set<DirtyReason>();
   let scheduled:{handle:number;generation:number}|null=null;
-  function cancel():void{const token=scheduled;scheduled=null;if(token!==null)options.clock.cancel(token.handle);}
+  function cancel():void{const token=scheduled;scheduled=null;if(token!==null){try{options.clock.cancel(token.handle);}catch{notify(options.onDiagnostic,invalid('LIFECYCLE_ERROR','PLATFORM_UNAVAILABLE','clock').diagnostic);}}}
   function schedule():void{
     if(destroyed||executing||!runnable||!dirty.size||scheduled!==null)return;
     const token={handle:0,generation};scheduled=token;

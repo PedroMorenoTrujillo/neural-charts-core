@@ -58,6 +58,32 @@ test('fault policy, normal compute failure and mount cleanup',async({page})=>{
 test('100 mount/destroy cycles and native observer',async({page})=>{
   const result=await page.evaluate(async()=>{const N=(globalThis as any).NC,h=document.getElementById('host')!;let subscriptions=0,pending=0;
     for(let i=0;i<100;i++){const clock=new N.FakeClock();let cb:any;const c=N.mountFoundation(h,{instancePrefix:'cycle',initialSnapshot:1,clock,sizeObserver:{observe:(_:any,f:any)=>{subscriptions++;cb=f;return{disconnect:()=>subscriptions--};}},validateAndCopy:(x:any)=>N.ok(x),compute:(x:any,size:any,r:any)=>N.ok({...N.frame(r,[{key:'r',kind:'rect',x,y:0,width:1,height:1}]),...size})}).value;cb({width:100,height:100});clock.flush();c.update(2);c.destroy();pending+=clock.pendingCount;}
-    const native=N.mountFoundation(h,{instancePrefix:'native',initialSnapshot:1,validateAndCopy:(x:any)=>N.ok(x),compute:(x:any,size:any,r:any)=>N.ok({...N.frame(r),...size})}).value;await new Promise(resolve=>setTimeout(resolve,100));const active=native.getSnapshot().phase;native.destroy();return{subscriptions,pending,children:h.children.length,active};});
+    const native=N.mountFoundation(h,{instancePrefix:'native',initialSnapshot:1,validateAndCopy:(x:any)=>N.ok(x),compute:(x:any,size:any,r:any)=>N.ok({...N.frame(r),...size})}).value;await new Promise(resolve=>setTimeout(resolve,100));const active=native.getSnapshot().phase;native.update(2);native.destroy();return{subscriptions,pending,children:h.children.length,active};});
   expect(result).toEqual({subscriptions:0,pending:0,children:0,active:'active'});
+});
+test('writer and mount failure edges retain foreign DOM',async({page})=>{
+  const result=await page.evaluate(()=>{const N=(globalThis as any).NC,h=document.getElementById('host')!,clock=new N.FakeClock(),results:string[]=[];
+    const detached=document.implementation.createHTMLDocument().createElement('div');results.push(N.createBrowserPorts(detached).status);results.push(N.createBrowserPorts(detached,{clock}).status);
+    const throwing=document.createElement('div');document.body.append(throwing);throwing.appendChild=()=>{throw Error('append');};results.push(N.reserveInstance(throwing,'throws').status);results.push(N.createSvgWriter(throwing,'throws').status);
+    const mountOptions={instancePrefix:'edges',initialSnapshot:1,clock,sizeObserver:{observe:(_:any,cb:any)=>({disconnect:()=>{}})},validateAndCopy:(x:any)=>N.ok(x),compute:()=>N.ok(N.frame())};
+    results.push(N.mountFoundation(h,{...mountOptions,validateAndCopy:()=>{throw Error('validator');}}).status);
+    const own=N.reserveInstance(h,'direct').value,w=N.createSvgWriter(h,'direct').value;
+    const foreign=document.createElement('span');foreign.id=N.clipId('direct','c');document.body.append(foreign);
+    results.push(w.prepare(N.frame(1,[{key:'r',kind:'rect',x:0,y:0,width:1,height:1,clipKey:'c'}],[{key:'c',kind:'clip-rect',x:0,y:0,width:1,height:1}]),new Map()).status);foreign.remove();
+    const apply=(f:any,tokens=new Map())=>{const p=w.prepare(f,tokens);return p.status==='ok'?w.apply(p.value):p;};
+    const def={key:'c',kind:'clip-rect',x:0,y:0,width:1,height:1};apply(N.frame(1,[{key:'r',kind:'rect',x:0,y:0,width:1,height:1,clipKey:'c',presentation:{fill:{kind:'none'}}}],[def]));apply(N.frame(2,[{key:'r',kind:'rect',x:0,y:0,width:1,height:1,clipKey:'c',presentation:{fill:{kind:'token',name:'--nc-direct',fallback:{kind:'solid',value:'#000'}}}}],[{...def,width:2}]),new Map([['--nc-direct','#FFF']]));
+    const paint=h.querySelector('[data-nc-layer="marks"] rect')!.getAttribute('fill');const saved=w.prepare(N.frame(3,[]),new Map()).value;results.push(w.apply({revision:3}).status);h.querySelector('[data-nc-layer="grid"]')!.remove();results.push(w.apply(saved).status);results.push(w.prepare(N.frame(4,[]),new Map()).status);results.push(w.apply(saved).status);w.clear();w.dispose();own.release();
+    const foreignChild=document.createElement('span');h.append(foreignChild);let cb:any;const diags:any[]=[];
+    const c=N.mountFoundation(h,{...mountOptions,sizeObserver:{observe:(_:any,f:any)=>{cb=f;return{disconnect:()=>{}};}},compute:(_:any,size:any,r:any)=>N.ok({...N.frame(r+1),...size}),onDiagnostic:(d:any)=>diags.push(d)}).value;cb({width:100,height:100});clock.flush();const mismatch=c.getSnapshot().phase;c.destroy();
+    let disconnected=0;
+    const sync=N.mountFoundation(h,{...mountOptions,clock:{request:()=>{throw Error('clock');},cancel:()=>{}},sizeObserver:{observe:(_:any,f:any)=>{f({width:100,height:100});return{disconnect:()=>{disconnected++;}};}}}).value;
+    const syncPhase=sync.getSnapshot().phase;sync.destroy();
+    return{results,paint,mismatch,foreignPreserved:h.firstChild===foreignChild,reason:diags[0].reason,syncPhase,disconnected};});
+  expect(result).toEqual({results:Array(10).fill('invalid'),paint:'#fff',mismatch:'faulted',foreignPreserved:true,reason:'FRAME_MISMATCH',syncPhase:'faulted',disconnected:1});
+});
+test('native focus reenters with update or zero size',async({page})=>{
+  const result=await page.evaluate(()=>{const N=(globalThis as any).NC,h=document.getElementById('host')!;const outcomes:any[]=[];
+    for(const action of ['update','zero']){const clock=new N.FakeClock();let cb:any;const c=N.mountFoundation(h,{instancePrefix:action,initialSnapshot:1,clock,sizeObserver:{observe:(_:any,f:any)=>{cb=f;return{disconnect:()=>{}};}},validateAndCopy:(x:any)=>N.ok(x),compute:(x:any,size:any,r:any)=>N.ok({...N.frame(r,x===2?[]:[{key:'r',kind:'rect',x,y:0,width:1,height:1}]),...size})}).value;cb({width:100,height:100});clock.flush();const r=h.querySelector('rect')as SVGElement;r.setAttribute('tabindex','0');r.focus();r.addEventListener('blur',()=>action==='update'?c.update(3):cb({width:0,height:100}),{once:true});c.update(2);clock.flush();if(action==='update')clock.flush();outcomes.push({phase:c.getSnapshot().phase,x:h.querySelector('rect')?.getAttribute('x')??null,pending:clock.pendingCount});c.destroy();}
+    return outcomes;});
+  expect(result).toEqual([{phase:'active',x:'3',pending:0},{phase:'suspended',x:null,pending:0}]);
 });
