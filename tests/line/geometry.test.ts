@@ -53,6 +53,8 @@ it('clipped values remain in stroke/data but are excluded from hits and explicit
 it('auto markers are all-or-none at the 200 count and 8px spacing limits', () => {
   const p = project({ kind: 'linear', domain: [0, 10] }, [[0, 1], [.5, 2], [10, 3]]); expect(p.series[0]!.markers).toHaveLength(0);
   expect(project({ kind: 'linear', domain: [0, 10] }, [[0, 1], [1, 2]]).series[0]!.markers).toHaveLength(2);
+  expect(project({ kind: 'linear', domain: [0, 10] }, [[0, 1], [.8, 2]]).series[0]!.markers).toHaveLength(2);
+  expect(project({ kind: 'linear', domain: [0, 10] }, [[0, 1], [.799, 2]]).series[0]!.markers).toHaveLength(0);
   expect(project({ kind: 'linear', domain: [0, 10] }, [[0, 1], [10, 2]], { markers: 'off' }).series[0]!.markers).toHaveLength(0);
 });
 it('IDs have unambiguous length-prefixed identities; palette uses stable UTF-16 hash', () => {

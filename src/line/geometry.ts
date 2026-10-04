@@ -31,9 +31,13 @@ export function runCommands<T>(runs: readonly (readonly ProjectedPoint<T>[])[], 
 }
 export function projectLine<T>(data: NormalizedLine<T>, state: ChartState, plot: Plot, xDomain: Domain | null, yDomain: Domain, preparedScales?: Readonly<{ mapX(value: string | number): number | null; mapY(value: number): number | null }>): ChartResult<LineProjection<T>> {
   const xAxis = data.spec.axes.x, yAxis = data.spec.axes.y;
+  let mapX: (value: string | number) => number | null;
+  let mapY: (value: number) => number | null;
+  if (preparedScales) { mapX = preparedScales.mapX; mapY = preparedScales.mapY; }
+  else {
   const yScale = createLinearScale(yDomain, yAxis.reversed ? [plot.y, plot.y + plot.height] : [plot.y + plot.height, plot.y], false);
   if (yScale.status === 'invalid') return yScale;
-  let mapX: (value: string | number) => number | null;
+  mapY = yScale.value.map;
   if (xAxis.kind === 'category') {
     const frame = createCategoryFrame(xAxis.values.map(v => v.id), [plot.x, plot.x + plot.width], xAxis.edgeSpacing ?? .5);
     if (frame.status === 'invalid') return frame;
@@ -45,8 +49,7 @@ export function projectLine<T>(data: NormalizedLine<T>, state: ChartState, plot:
     if (scale.status === 'invalid') return scale;
     mapX = v => typeof v === 'number' ? scale.value.map(v) : null;
   }
-  if (preparedScales) mapX = preparedScales.mapX;
-  const mapY = preparedScales?.mapY ?? yScale.value.map;
+  }
   const hidden = new Set(state.hiddenSeriesIds), series: ProjectedSeries<T>[] = [];
   for (const s of data.series) if (!hidden.has(s.spec.id)) {
     const points: ProjectedPoint<T>[] = [], byId = new Map<string, ProjectedPoint<T>>();
