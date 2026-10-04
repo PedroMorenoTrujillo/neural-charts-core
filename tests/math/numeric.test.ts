@@ -70,5 +70,5 @@ test('tick validation, manual authority and finite fallback', () => {
   for (const opts of [{nice:true,manual:[1]}, {nice:false,targetCount:1}, {nice:false,targetCount:2.1}, {nice:false,targetCount:13}, {nice:false,targetCount:undefined}, {nice:false,manual:undefined}, {nice:false,manual:[NaN]}, {nice:false,manual:[2]}, {nice:false,manual:[0,0]}, {nice:false,manual:Array(201).fill(0)}, {nice:'yes'}]) expect(selectNumericTicks([0,1],opts as any).status).toBe('invalid');
   expect(selectNumericTicks([1,0], { nice:false }).status).toBe('invalid');
   const fallback = value(selectNumericTicks([Number.MAX_VALUE / 2, Number.MAX_VALUE], { nice:true })); expect(fallback.ticks.every(Number.isFinite)).toBe(true);
-  expect(value(selectNumericTicks([nextDown(Number.MAX_VALUE),Number.MAX_VALUE],{nice:true})).fallback).toBe(true);
+  expect(value(selectNumericTicks([1,nextUp(1)],{nice:false})).fallback).toBe(true);
 });
