@@ -1,5 +1,5 @@
 {
   "extends": "../tsconfig.json",
-  "compilerOptions": { "rootDir": "../../..", "types": ["node"] },
+  "compilerOptions": { "rootDir": "../../..", "types": ["node"], "paths": { "@neural-charts/core/line": ["../src/line.ts"] } },
   "include": ["**/*.ts", "../src/**/*.ts"]
 }

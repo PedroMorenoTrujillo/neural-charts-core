@@ -17,7 +17,7 @@ function run<T extends unknown[]>(name: string, property: fc.IProperty<T>, seed:
   const extended = process.env.NC_PROPERTY_EXTENDED === '1', result = fc.check(property, { seed: Number(process.env.NC_PROPERTY_SEED ?? seed), ...(process.env.NC_PROPERTY_PATH ? { path: process.env.NC_PROPERTY_PATH } : {}), numRuns: extended ? 10000 : 1000, interruptAfterTimeLimit: 10000, markInterruptAsFailure: true, verbose: 1 });
   const dir = path.resolve('artifacts/nc-01b/property', extended ? 'extended' : 'ordinary'); fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(path.join(dir, name + '.json'), JSON.stringify({ name, seed: result.seed, successfulRuns: result.numRuns, interrupted: result.interrupted, failed: result.failed, counterexample: result.counterexample, shrinkPath: result.counterexamplePath, timestamp: new Date().toISOString() }, null, 2));
-  requireTrue(!result.failed && !result.interrupted && result.numRuns === (extended ? 10000 : 1000), `Property ${name} failed: seed=${result.seed}, path=${result.counterexamplePath}, counterexample=${JSON.stringify(result.counterexample)} ${result.errorInstance?.message ?? ''}`);
+  requireTrue(!result.failed && !result.interrupted && result.numRuns === (extended ? 10000 : 1000), `Property ${name} failed: seed=${result.seed}, path=${result.counterexamplePath}, counterexample=${JSON.stringify(result.counterexample)} ${result.errorInstance instanceof Error ? result.errorInstance.message : ''}`);
 }
 const values = fc.array(fc.oneof(fc.constant(null), fc.integer({ min: -10, max: 10 })), { minLength: 0, maxLength: 24 });
 type LinearSpec = Extract<LineChartSpec, { axes: { x: { kind: 'linear' } } }>;
