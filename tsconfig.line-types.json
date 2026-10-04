@@ -1,0 +1,5 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": { "module": "NodeNext", "moduleResolution": "NodeNext" },
+  "files": ["tests/line/types.ts"]
+}

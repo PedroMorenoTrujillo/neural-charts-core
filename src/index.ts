@@ -1,2 +1,4 @@
-// Scaffold only. Public contracts require the NC-01A specification.
-export {};
+export type {
+  ChartDiagnosticCode, ChartDiagnostic, ChartResult, ChartStatus, ChartState,
+  ChartStateBinding, ChartStateChange, ChartTheme,
+} from './public/chart-types.js';
