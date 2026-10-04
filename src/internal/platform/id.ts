@@ -12,8 +12,13 @@ export function reserveInstance(host:HTMLElement,prefix:string):Result<IdReserva
   if(!host.isConnected||host.getRootNode()!==doc)return invalid('INVALID_CONFIG','UNSUPPORTED_HOST','host');
   const id=`nc-${prefix}-owner`,owners=documents.get(doc)??new Map<string,object>();
   if(hosts.has(host)||owners.has(prefix)||doc.getElementById(id))return invalid('INVALID_CONFIG','ID_COLLISION','instancePrefix');
-  const token={},sentinel=doc.createElement('span');sentinel.id=id;sentinel.hidden=true;
-  try{host.appendChild(sentinel);}catch{return invalid('LIFECYCLE_ERROR','PLATFORM_UNAVAILABLE','host');}
+  const token={};let sentinel:HTMLElement|undefined;
+  try{sentinel=doc.createElement('span');sentinel.id=id;sentinel.hidden=true;host.appendChild(sentinel);}catch{try{sentinel?.remove();}catch{try{sentinel?.parentNode?.removeChild(sentinel);}catch{/* No map ownership was acquired. */}}return invalid('LIFECYCLE_ERROR','PLATFORM_UNAVAILABLE','host');}
   owners.set(prefix,token);documents.set(doc,owners);hosts.set(host,token);let released=false;
-  return ok(Object.freeze({release:()=>{if(released)return;released=true;sentinel.remove();if(owners.get(prefix)===token)owners.delete(prefix);if(hosts.get(host)===token)hosts.delete(host);if(owners.size===0)documents.delete(doc);}}));
+  let owned:{doc:Document;host:HTMLElement;sentinel:HTMLElement}|undefined={doc,host,sentinel:sentinel!};
+  return ok(Object.freeze({release:()=>{
+    if(released)return;released=true;const current=owned!;owned=undefined;
+    if(owners.get(prefix)===token)owners.delete(prefix);if(hosts.get(current.host)===token)hosts.delete(current.host);if(owners.size===0)documents.delete(current.doc);
+    try{current.sentinel.remove();}catch{try{current.sentinel.parentNode?.removeChild(current.sentinel);}catch{/* Map ownership was already released. */}}
+  }}));
 }

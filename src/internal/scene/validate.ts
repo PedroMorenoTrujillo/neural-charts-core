@@ -50,7 +50,8 @@ export function validateSceneFrame(input:unknown):Result<SceneFrame>{
       if(!c||typeof c!=='object')return invalid('INVALID_CONFIG','BAD_COMMAND',p);
       const specific:Record<string,readonly string[]>={rect:['x','y','width','height','rx'],path:['commands'],line:['x1','y1','x2','y2'],circle:['cx','cy','r'],text:['x','y','text','anchor','baseline','fontSize','fontFamily','fontWeight']};
       const required:Record<string,readonly string[]>={rect:['x','y','width','height'],path:['commands'],line:['x1','y1','x2','y2'],circle:['cx','cy','r'],text:['x','y','text']};
-      const allowed=specific[c.kind];if(!allowed||!fields(c,['key','kind','presentation','classes','clipKey','translate','semantic',...allowed],['key','kind',...required[c.kind]!])||!validKey(c.key)||keys.has(c.key))return invalid('INVALID_CONFIG','BAD_COMMAND',p);
+      if(typeof c.kind!=='string'||!Object.hasOwn(specific,c.kind))return invalid('INVALID_CONFIG','BAD_COMMAND',p);
+      const allowed=specific[c.kind]!;if(!fields(c,['key','kind','presentation','classes','clipKey','translate','semantic',...allowed],['key','kind',...required[c.kind]!])||!validKey(c.key)||keys.has(c.key))return invalid('INVALID_CONFIG','BAD_COMMAND',p);
       keys.add(c.key);
       if('presentation'in c&&!presentation(c.presentation))return invalid('INVALID_CONFIG','BAD_PRESENTATION',`${p}.presentation`);
       if('classes'in c&&(!Array.isArray(c.classes)||c.classes.length>16||!c.classes.every(n=>typeof n==='string'&&/^nc-[a-z0-9][a-z0-9-]{0,63}$/.test(n))))return invalid('INVALID_CONFIG','BAD_CLASSES',p);

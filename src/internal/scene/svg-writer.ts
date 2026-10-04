@@ -36,15 +36,27 @@ function attributes(c:SceneCommand,tokens:ReadonlyMap<string,string>,prefix:stri
   return a;
 }
 export function createSvgWriter(host:HTMLElement,instancePrefix:string):Result<SceneWriter>{
-  const doc=host.ownerDocument,svg=doc.createElementNS(NS,'svg'),defs=doc.createElementNS(NS,'defs');
+  let dom:{doc:Document;host:HTMLElement;svg:SVGSVGElement;defs:SVGDefsElement}|undefined;
   const groups=new Map<Layer,SVGGElement>(),maps=new Map<Layer,Map<string,Cache>>(),clips=new Map<string,Cache>();
   let prepared=new WeakMap<object,{generation:number;width:number;height:number;layers:Map<Layer,Planned[]>;defs:readonly ClipDef[]}>();
   let disposed=false,generation=0,lastRevision=0,semantics=new Map<string,SemanticBinding>();
-  svg.setAttribute('aria-hidden','true');svg.setAttribute('focusable','false');svg.appendChild(defs);
-  for(const layer of LAYERS){const g=doc.createElementNS(NS,'g');g.setAttribute('data-nc-layer',layer);g.setAttribute('fill','none');g.setAttribute('stroke','none');g.setAttribute('stroke-width','1');g.setAttribute('opacity','1');groups.set(layer,g);maps.set(layer,new Map());svg.appendChild(g);}
-  try{host.appendChild(svg);}catch{return invalid('LIFECYCLE_ERROR','PLATFORM_UNAVAILABLE','host');}
-  function dispose():void{if(disposed)return;disposed=true;generation++;prepared=new WeakMap();svg.remove();svg.replaceChildren();for(const map of maps.values())map.clear();clips.clear();semantics.clear();groups.clear();maps.clear();}
-  function focusFallback(node:Element):void{if(doc.activeElement&&node.contains(doc.activeElement))host.focus({preventScroll:true});}
+  let nodeAttributes=new WeakMap<SVGElement,Readonly<Record<string,string>>>();
+  let allocated:SVGSVGElement|undefined;
+  try{
+    const doc=host.ownerDocument,svg=doc.createElementNS(NS,'svg');allocated=svg;
+    const defs=doc.createElementNS(NS,'defs');
+    svg.setAttribute('aria-hidden','true');svg.setAttribute('focusable','false');svg.appendChild(defs);
+    for(const layer of LAYERS){const g=doc.createElementNS(NS,'g');g.setAttribute('data-nc-layer',layer);g.setAttribute('fill','none');g.setAttribute('stroke','none');g.setAttribute('stroke-width','1');g.setAttribute('opacity','1');groups.set(layer,g);maps.set(layer,new Map());svg.appendChild(g);}
+    host.appendChild(svg);dom={doc,host,svg,defs};allocated=undefined;
+  }catch{try{allocated?.remove();}catch{try{allocated?.parentNode?.removeChild(allocated);}catch{/* The caller also owns the fallback subtree. */}}return invalid('LIFECYCLE_ERROR','PLATFORM_UNAVAILABLE','host');}
+  function dispose():void{
+    if(disposed)return;disposed=true;generation++;prepared=new WeakMap();nodeAttributes=new WeakMap();
+    const owned=dom;dom=undefined;
+    for(const map of maps.values())map.clear();clips.clear();semantics.clear();groups.clear();maps.clear();
+    try{owned!.svg.remove();}catch{try{owned!.svg.parentNode?.removeChild(owned!.svg);}catch{/* Continue releasing remaining owned state. */}}
+    try{owned!.svg.replaceChildren();}catch{/* The detached subtree is no longer retained by the writer. */}
+  }
+  function focusFallback(node:Element):void{const {doc,host}=dom!;if(doc.activeElement&&node.contains(doc.activeElement))host.focus({preventScroll:true});}
   function patchAttributes(node:Element,wanted:Readonly<Record<string,string>>,previous:Readonly<Record<string,string>>):void{
     for(const [key,v]of Object.entries(wanted))if(previous[key]!==v)node.setAttribute(key,v);
     for(const key of Object.keys(previous))if(!(key in wanted))node.removeAttribute(key);
@@ -52,6 +64,7 @@ export function createSvgWriter(host:HTMLElement,instancePrefix:string):Result<S
   const writer:SceneWriter={
     prepare:(input,tokens)=>{
       if(disposed)return invalid('LIFECYCLE_ERROR','DESTROYED','writer');
+      const {doc}=dom!;
       const validated=validateSceneFrame(input);if(validated.status==='invalid')return validated;
       const frame=validated.value;if(frame.revision<=lastRevision)return invalid('INVALID_CONFIG','STALE_REVISION','revision');
       const refs=new Set<string>(),layers=new Map<Layer,Planned[]>();
@@ -67,6 +80,7 @@ export function createSvgWriter(host:HTMLElement,instancePrefix:string):Result<S
       if(disposed)return invalid('LIFECYCLE_ERROR','DESTROYED','writer');
       const plan=prepared.get(scene);if(!plan||plan.generation!==generation||scene.revision<=lastRevision)return invalid('INVALID_CONFIG','STALE_REVISION','revision');
       prepared.delete(scene);
+      const {doc,host,svg,defs}=dom!;
       try{
         if(svg.parentNode!==host||defs.parentNode!==svg||LAYERS.some(l=>groups.get(l)!.parentNode!==svg))throw new Error('Owned DOM missing');
         const nextClips=new Map<string,Cache>();
@@ -76,11 +90,12 @@ export function createSvgWriter(host:HTMLElement,instancePrefix:string):Result<S
         const active=doc.activeElement;
         for(const layer of LAYERS){const group=groups.get(layer)!,previous=maps.get(layer)!,items=plan.layers.get(layer)!,next=new Map<string,Cache>();let cursor=group.firstChild;
           for(const item of items){const old=previous.get(item.key);if(old&&old.element.parentNode!==group)throw new Error('Owned mark missing');
-            if(old&&old.element!==item.node){focusFallback(old.element);if(cursor===old.element)cursor=old.element.nextSibling;old.element.remove();}
-            patchAttributes(item.node,item.attributes,old?.element===item.node?old.attributes:{});
-            if(item.text!==null&&item.node.textContent!==item.text)item.node.textContent=item.text;
-            if(item.node!==cursor)group.insertBefore(item.node,cursor);cursor=item.node.nextSibling;
-            next.set(item.key,{kind:item.kind,element:item.node,attributes:item.attributes});if(item.semantic)nextSemantics.set(`${layer}:${item.key}`,item.semantic);
+            const node=old?.kind===item.kind?old.element:item.node;
+            if(old&&old.element!==node){focusFallback(old.element);if(cursor===old.element)cursor=old.element.nextSibling;old.element.remove();}
+            patchAttributes(node,item.attributes,nodeAttributes.get(node)??{});nodeAttributes.set(node,item.attributes);
+            if(item.text!==null&&node.textContent!==item.text)node.textContent=item.text;
+            if(node!==cursor)group.insertBefore(node,cursor);cursor=node.nextSibling;
+            next.set(item.key,{kind:item.kind,element:node,attributes:item.attributes});if(item.semantic)nextSemantics.set(`${layer}:${item.key}`,item.semantic);
           }
           for(const [key,entry]of previous)if(!next.has(key)){focusFallback(entry.element);entry.element.remove();}
           nextMaps.set(layer,next);
@@ -92,7 +107,7 @@ export function createSvgWriter(host:HTMLElement,instancePrefix:string):Result<S
         return ok(undefined);
       }catch{dispose();return invalid('INTERNAL_INVARIANT','DOM_COMMIT_FAILED','writer');}
     },
-    clear:()=>{if(disposed)return;generation++;prepared=new WeakMap();for(const map of maps.values()){for(const entry of map.values()){focusFallback(entry.element);entry.element.remove();}map.clear();}for(const clip of clips.values())clip.element.remove();clips.clear();semantics.clear();svg.setAttribute('width','0');svg.setAttribute('height','0');svg.removeAttribute('viewBox');},dispose
+    clear:()=>{if(disposed)return;const {svg}=dom!;generation++;prepared=new WeakMap();nodeAttributes=new WeakMap();for(const map of maps.values()){for(const entry of map.values()){focusFallback(entry.element);entry.element.remove();}map.clear();}for(const clip of clips.values())clip.element.remove();clips.clear();semantics.clear();svg.setAttribute('width','0');svg.setAttribute('height','0');svg.removeAttribute('viewBox');},dispose
   };
   return ok(Object.freeze(writer));
 }

@@ -1,6 +1,7 @@
 import {test,expect}from'@playwright/test';
 import fs from'node:fs';
 import path from'node:path';
+import {waitForActive}from'./wait-for-active.js';
 test.beforeEach(async({page})=>{await page.setContent('<div id="host" style="width:100px;height:100px"></div><div id="other" style="width:100px;height:100px"></div>');await page.addScriptTag({path:path.resolve('artifacts/nc-01a/browser-harness.js')});});
 test.afterEach(async({page},info)=>{if(process.env.NC_COVERAGE==='1'&&info.project.name==='chromium'){const coverage=await page.evaluate(()=> (globalThis as any).__coverage__);fs.mkdirSync('artifacts/nc-01a/browser-coverage',{recursive:true});fs.writeFileSync(`artifacts/nc-01a/browser-coverage/${info.testId.replace(/[^a-z0-9]/gi,'_')}.json`,JSON.stringify(coverage));}});
 test('writer attributes, identities, ordering, clips and validation atomicity',async({page})=>{
@@ -58,8 +59,10 @@ test('fault policy, normal compute failure and mount cleanup',async({page})=>{
 test('100 mount/destroy cycles and native observer',async({page})=>{
   const result=await page.evaluate(async()=>{const N=(globalThis as any).NC,h=document.getElementById('host')!;let subscriptions=0,pending=0;
     for(let i=0;i<100;i++){const clock=new N.FakeClock();let cb:any;const c=N.mountFoundation(h,{instancePrefix:'cycle',initialSnapshot:1,clock,sizeObserver:{observe:(_:any,f:any)=>{subscriptions++;cb=f;return{disconnect:()=>subscriptions--};}},validateAndCopy:(x:any)=>N.ok(x),compute:(x:any,size:any,r:any)=>N.ok({...N.frame(r,[{key:'r',kind:'rect',x,y:0,width:1,height:1}]),...size})}).value;cb({width:100,height:100});clock.flush();c.update(2);c.destroy();pending+=clock.pendingCount;}
-    const native=N.mountFoundation(h,{instancePrefix:'native',initialSnapshot:1,validateAndCopy:(x:any)=>N.ok(x),compute:(x:any,size:any,r:any)=>N.ok({...N.frame(r),...size})}).value;await new Promise(resolve=>setTimeout(resolve,100));const active=native.getSnapshot().phase;native.update(2);native.destroy();return{subscriptions,pending,children:h.children.length,active};});
-  expect(result).toEqual({subscriptions:0,pending:0,children:0,active:'active'});
+    (globalThis as any).nativeController=N.mountFoundation(h,{instancePrefix:'native',initialSnapshot:1,validateAndCopy:(x:any)=>N.ok(x),compute:(x:any,size:any,r:any)=>N.ok({...N.frame(r),...size})}).value;return{subscriptions,pending};});
+  await waitForActive(page);
+  const final=await page.evaluate(()=>{const native=(globalThis as any).nativeController,active=native.getSnapshot().phase;native.update(2);native.destroy();delete(globalThis as any).nativeController;return{children:document.getElementById('host')!.children.length,active};});
+  expect({...result,...final}).toEqual({subscriptions:0,pending:0,children:0,active:'active'});
 });
 test('writer and mount failure edges retain foreign DOM',async({page})=>{
   const result=await page.evaluate(()=>{const N=(globalThis as any).NC,h=document.getElementById('host')!,clock=new N.FakeClock(),results:string[]=[];
