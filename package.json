@@ -1,0 +1,13 @@
+{
+  "name": "@neural-charts/core",
+  "version": "0.0.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "type": "module",
+  "dependencies": {},
+  "optionalDependencies": {},
+  "peerDependencies": {},
+  "scripts": {
+    "prepublishOnly": "node ../../tooling/package-audit/block-publish.mjs"
+  }
+}
