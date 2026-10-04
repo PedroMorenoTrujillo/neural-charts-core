@@ -91,13 +91,13 @@ export function createSvgWriter(host:HTMLElement,instancePrefix:string):Result<S
         for(const layer of LAYERS){const group=groups.get(layer)!,previous=maps.get(layer)!,items=plan.layers.get(layer)!,next=new Map<string,Cache>();let cursor=group.firstChild;
           for(const item of items){const old=previous.get(item.key);if(old&&old.element.parentNode!==group)throw new Error('Owned mark missing');
             const node=old?.kind===item.kind?old.element:item.node;
-            if(old&&old.element!==node){focusFallback(old.element);if(cursor===old.element)cursor=old.element.nextSibling;old.element.remove();}
-            patchAttributes(node,item.attributes,nodeAttributes.get(node)??{});nodeAttributes.set(node,item.attributes);
+            if(old&&old.element!==node){nodeAttributes.set(old.element,old.attributes);focusFallback(old.element);if(cursor===old.element)cursor=old.element.nextSibling;old.element.remove();}
+            patchAttributes(node,item.attributes,old?.element===node?old.attributes:nodeAttributes.get(node)??{});
             if(item.text!==null&&node.textContent!==item.text)node.textContent=item.text;
             if(node!==cursor)group.insertBefore(node,cursor);cursor=node.nextSibling;
             next.set(item.key,{kind:item.kind,element:node,attributes:item.attributes});if(item.semantic)nextSemantics.set(`${layer}:${item.key}`,item.semantic);
           }
-          for(const [key,entry]of previous)if(!next.has(key)){focusFallback(entry.element);entry.element.remove();}
+          for(const [key,entry]of previous)if(!next.has(key)){nodeAttributes.set(entry.element,entry.attributes);focusFallback(entry.element);entry.element.remove();}
           nextMaps.set(layer,next);
         }
         for(const [key,entry]of clips)if(!nextClips.has(key))entry.element.remove();

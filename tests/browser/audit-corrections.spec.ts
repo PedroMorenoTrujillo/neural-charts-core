@@ -58,12 +58,14 @@ test('F03 outstanding plans rebase attributes, identity, clipping and order',asy
     const p3=w.prepare(N.frame(3,[other,{key:'a',kind:'rect',x:2,y:3,width:10,height:10}]),new Map()).value;
     const statuses=[w.apply(p2).status,w.apply(p3).status],group=h.querySelector('[data-nc-layer="marks"]')!;
     const identity=group.children[0]===b&&group.children[1]===a,removed=['fill','stroke','opacity','transform','clip-path'].every(k=>!a!.hasAttribute(k));
-    const p4=w.prepare(N.frame(4,[{...other,x:30}]),new Map()).value,p5=w.prepare(N.frame(5,[{...other,x:40}]),new Map()).value;
-    statuses.push(w.apply(p4).status,w.apply(p5).status);const deletion=group.children.length===1&&group.children[0]===b&&b!.getAttribute('x')==='40';
-    const p6=w.prepare(N.frame(6,[other]),new Map()).value;w.clear();const clear=w.apply(p6).status;
-    const p7=w.prepare(N.frame(7,[other]),new Map()).value;w.dispose();const disposed=w.apply(p7).status;
-    return{statuses,identity,removed,noClips:h.querySelectorAll('clipPath').length===0,deletion,clear,disposed,remaining:h.children.length};
-  });expect(result).toEqual({statuses:['ok','ok','ok','ok'],identity:true,removed:true,noClips:true,deletion:true,clear:'invalid',disposed:'invalid',remaining:1});
+    w.apply(w.prepare(N.frame(4,[other,{key:'a',kind:'rect',x:0,y:0,width:10,height:10,presentation:rect.presentation,semantic:rect.semantic}]),new Map()).value);
+    const p5=w.prepare(N.frame(5,[{...other,x:30}]),new Map()).value,p6=w.prepare(N.frame(6,[{...other,x:40},{key:'a',kind:'rect',x:2,y:3,width:10,height:10}]),new Map()).value;
+    statuses.push(w.apply(p5).status);const deletion=group.children.length===1&&group.children[0]===b;
+    statuses.push(w.apply(p6).status);const restored=group.children[1]===a&&!a!.hasAttribute('fill')&&!a!.hasAttribute('stroke')&&!a!.hasAttribute('opacity')&&b!.getAttribute('x')==='40';
+    const p7=w.prepare(N.frame(7,[other]),new Map()).value;w.clear();const clear=w.apply(p7).status;
+    const p8=w.prepare(N.frame(8,[other]),new Map()).value;w.dispose();const disposed=w.apply(p8).status;
+    return{statuses,identity,removed,noClips:h.querySelectorAll('clipPath').length===0,deletion,restored,clear,disposed,remaining:h.children.length};
+  });expect(result).toEqual({statuses:['ok','ok','ok','ok'],identity:true,removed:true,noClips:true,deletion:true,restored:true,clear:'invalid',disposed:'invalid',remaining:1});
 });
 
 test('F07 destroy and fault-destroy release resources even if disconnect throws',async({page})=>{
@@ -87,12 +89,13 @@ test('F07 retained destroyed controllers do not retain detached documents or cal
     await page.evaluate(fault=>{
       const G=globalThis as any,iframe=document.createElement('iframe');document.body.append(iframe);const doc=iframe.contentDocument!,h=doc.createElement('div');doc.body.append(h);
       const c=G.NC.mountFoundation(h,G.memoryOptions).value;if(fault){G.memorySize({width:100,height:100});G.memoryOptions.clock.flush();}c.destroy();
+      G.retainedWriter=G.NC.createSvgWriter(h,'memory-direct').value;G.retainedReservation=G.NC.reserveInstance(h,'memory-direct').value;G.retainedWriter.dispose();G.retainedReservation.release();
       G.retainedController=c;G.weakHost=new WeakRef(h);G.weakDoc=new WeakRef(doc);G.memoryOptions=null;h.remove();iframe.remove();
     },fault);
     await cdp.send('HeapProfiler.collectGarbage');
     const result=await page.evaluate(()=>{const G=globalThis as any;return{host:!!G.weakHost.deref(),doc:!!G.weakDoc.deref(),callbacks:G.weakCallbacks.map((r:any)=>!!r.deref()),state:G.retainedController.getSnapshot().phase};});
     expect(result).toEqual({host:false,doc:false,callbacks:[false,false,false],state:'destroyed'});
-    await page.evaluate(()=>{delete(globalThis as any).retainedController;});
+    await page.evaluate(()=>{delete(globalThis as any).retainedController;delete(globalThis as any).retainedWriter;delete(globalThis as any).retainedReservation;});
   }
 });
 
