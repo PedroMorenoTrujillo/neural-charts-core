@@ -40,7 +40,9 @@ export function normalizeLine<T>(spec: LineChartSpec<T>): NormalizedLine<T> {
 }
 export function lineDomains<T>(data: NormalizedLine<T>, state: ChartState): ChartResult<Domains> {
   const x = data.spec.axes.x, y = data.spec.axes.y, hidden = new Set(state.hiddenSeriesIds), ys: number[] = [];
-  for (const s of data.series) if (!hidden.has(s.spec.id)) {
+  for (const s of data.series) {
+    if (s.yExtent.status === 'invalid') return s.yExtent;
+    if (hidden.has(s.spec.id)) continue;
     if (s.yExtent.status === 'constant') ys.push(s.yExtent.value);
     else if (s.yExtent.status === 'span') ys.push(...s.yExtent.domain);
   }

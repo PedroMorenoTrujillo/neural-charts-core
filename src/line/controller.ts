@@ -162,8 +162,10 @@ function mount<T>(host: HTMLElement | null, initial: Accepted<T> | null, options
   function invalidateInteraction(): void { sequence++; pinned = false; detailWanted = false; hover = null; const previous = focusSuppressed; focusSuppressed = true; tooltip?.close(true); focusSuppressed = previous; overlayWriter?.clear(); }
   function interactionJob(stage: 'intent' | 'measure' = 'intent', activate: InteractionJob<T>['activate'] = null, sample?: InteractionJob<T>['sample'], navigation = false): void {
     if (!interaction || !computed?.index || !committed || phase !== 'active' || table?.isOpen()) return;
-    interaction.submit({ main: committedRevision, layout: layoutGeneration, sequence, stage, target: gridFocused || pinned ? current : hover, keyboard: gridFocused, detail: detailWanted, navigate: navigation, activate, ...(sample ? { sample } : {}) }, 'paint', true);
+    const detailFocused = detailOwnsFocus();
+    interaction.submit({ main: committedRevision, layout: layoutGeneration, sequence, stage, target: gridFocused || pinned || detailFocused ? current : hover, keyboard: gridFocused || detailFocused, detail: detailWanted, navigate: navigation, activate, ...(sample ? { sample } : {}) }, 'paint', true);
   }
+  function detailOwnsFocus(): boolean { return !!shell && shell.detail.contains(shell.root.ownerDocument.activeElement); }
   function tokenCurrent(job: InteractionJob<T>): boolean { return !destroyed && phase === 'active' && job.main === committedRevision && job.layout === layoutGeneration && job.sequence === sequence && !table?.isOpen(); }
   function matrix(): DOMMatrix | null {
     const svg = shell?.base.querySelector('svg'); if (!svg) return null;
@@ -210,7 +212,7 @@ function mount<T>(host: HTMLElement | null, initial: Accepted<T> | null, options
     if (target && job.activate && tokenCurrent(job)) activate(target, job.activate);
     return ok(undefined);
   }
-  function closeDetail(): void { sequence++; detailWanted = false; pinned = false; hover = null; tooltip?.close(true); interactionJob(); }
+  function closeDetail(): void { sequence++; detailWanted = false; pinned = false; hover = null; const previous = focusSuppressed; focusSuppressed = true; tooltip?.close(true); focusSuppressed = previous; gridFocused = !!shell && shell.root.ownerDocument.activeElement === shell.grid; interactionJob(); }
   function legendToggle(id: string): void {
     if (!committed || !computed || !accepted || main?.getSnapshot().pending || computed.view !== 'ready' && computed.view !== 'empty' && computed.view !== 'no-visible-series') return;
     const next = toggleState(committed.state, id, committed.data.series.map(s => s.spec.id));
@@ -250,7 +252,11 @@ function mount<T>(host: HTMLElement | null, initial: Accepted<T> | null, options
       semanticUpdate(!!previous && !!current && (previous.series.series.spec.id !== current.series.series.spec.id || previous.point.point.id !== current.point.point.id));
       if (hadFocus && focused) {
         if (focused.isConnected && !focused.hidden && !('disabled' in focused && (focused as HTMLButtonElement).disabled) && !focused.closest('[hidden]')) { if (shell.root.ownerDocument.activeElement !== focused) focused.focus({ preventScroll: true }); }
-        else { focusSuppressed = true; (shell.grid.hidden ? shell.root : shell.grid).focus({ preventScroll: true }); focusSuppressed = false; }
+        else {
+          const now = shell.root.ownerDocument.activeElement as HTMLElement | null;
+          // A paged view may have deliberately focused its replacement heading/control.
+          if (!now || now === shell.root || !shell.root.contains(now) || now.closest('[hidden]') || 'disabled' in now && (now as HTMLButtonElement).disabled) { focusSuppressed = true; (shell.grid.hidden ? shell.root : shell.grid).focus({ preventScroll: true }); focusSuppressed = false; }
+        }
       }
       gridFocused = shell.root.ownerDocument.activeElement === shell.grid; if (gridFocused && current) interactionJob();
       return ok(undefined);
@@ -284,10 +290,10 @@ function mount<T>(host: HTMLElement | null, initial: Accepted<T> | null, options
     interaction = createRevisionScheduler({ clock: ports.value.clock, prepare: prepareInteraction, commit: commitInteraction, onDiagnostic: report });
     events = attachLineInteraction(shell.body, shell.grid, shell.detail, {
       revision: () => committedRevision, enabled: () => !!computed?.index && phase === 'active' && !table?.isOpen(),
-      pointer(x, y, intent) { if (intent === 'hover' && (gridFocused || pinned)) return; sequence++; detailWanted = true; interactionJob('intent', intent === 'hover' ? null : intent, { x, y, intent }); },
-      leave() { if (!gridFocused && !pinned) { sequence++; hover = null; detailWanted = false; tooltip?.close(); interactionJob(); } },
+      pointer(x, y, intent) { if (intent === 'hover' && (gridFocused || pinned || detailOwnsFocus())) return; sequence++; detailWanted = true; interactionJob('intent', intent === 'hover' ? null : intent, { x, y, intent }); },
+      leave() { if (!gridFocused && !pinned && !detailOwnsFocus()) { sequence++; hover = null; detailWanted = false; tooltip?.close(); interactionJob(); } },
       focus() { gridFocused = true; if (focusSuppressed || !computed?.index) return; current ??= firstTarget(computed.index); hover = null; sequence++; detailWanted = true; semanticUpdate(false); interactionJob(); },
-      blur() { gridFocused = false; if (!pinned) { sequence++; detailWanted = false; tooltip?.close(); interactionJob(); } },
+      blur(next) { gridFocused = false; if (next && shell?.detail.contains(next as Node)) return; if (!pinned) { sequence++; detailWanted = false; tooltip?.close(); interactionJob(); } },
       key(key, ctrl) {
         if (key === 'Escape') { closeDetail(); return true; }
         if (!computed?.index || !current) return false;

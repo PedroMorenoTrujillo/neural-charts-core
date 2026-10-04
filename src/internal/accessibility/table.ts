@@ -5,7 +5,7 @@ export interface TableView { update(source: TableSource, available: boolean): vo
 export function createTableView(shell: Shell, onOpen: () => void): TableView {
   let owned: Shell | null = shell, source: TableSource | null = null, available = false, opened = false, page = 0, callback: (() => void) | null = onOpen;
   let heading: HTMLHeadingElement | null = null;
-  const render = (): void => {
+  const render = (pageAction: string | null = null): void => {
     if (!owned || !source || !opened) return;
     const document = owned.root.ownerDocument, total = source.series.reduce((n, s) => n + s.data.length, 0), pages = Math.max(1, Math.ceil(total / 100)); page = Math.min(page, pages - 1);
     const pane = owned.table, title = document.createElement('h3'), controls = document.createElement('div'), close = document.createElement('button'), previous = document.createElement('button'), next = document.createElement('button'), announcement = document.createElement('div'), table = document.createElement('table'), caption = document.createElement('caption'), thead = document.createElement('thead'), headRow = document.createElement('tr'), tbody = document.createElement('tbody');
@@ -26,7 +26,7 @@ export function createTableView(shell: Shell, onOpen: () => void): TableView {
       skipped = 0; if (!remaining) break;
     }
     const references = document.createElement('ul'); for (const value of source.references) { const li = document.createElement('li'); li.textContent = value; references.append(li); }
-    const focused = document.activeElement as HTMLElement | null, action = focused?.dataset.ncTableAction, hadFocus = pane.contains(focused);
+    const focused = document.activeElement as HTMLElement | null, action = pageAction ?? focused?.dataset.ncTableAction, hadFocus = !!pageAction || pane.contains(focused);
     pane.replaceChildren(title, controls, announcement, table, references);
     if (action && hadFocus) {
       const button = action === 'previous' ? previous : action === 'next' ? next : close;
@@ -46,7 +46,7 @@ export function createTableView(shell: Shell, onOpen: () => void): TableView {
   const click = (event: Event): void => {
     const element = (event.target as HTMLElement | null)?.closest('button'), action = element?.dataset.ncTableAction;
     if (!owned?.table.contains(element ?? null) || element?.disabled) return;
-    if (action === 'close') close(); else if (action === 'previous' || action === 'next') { page += action === 'next' ? 1 : -1; render(); }
+    if (action === 'close') close(); else if (action === 'previous' || action === 'next') { page += action === 'next' ? 1 : -1; render(action); }
   };
   const key = (event: KeyboardEvent): void => { if (event.key === 'Escape') { event.preventDefault(); close(); } };
   shell.tableToggle.addEventListener('click', toggle); shell.table.addEventListener('click', click); shell.table.addEventListener('keydown', key);

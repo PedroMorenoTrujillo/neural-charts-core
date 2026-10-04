@@ -1,4 +1,4 @@
-export type InteractionHandlers = Readonly<{ revision(): number; enabled(): boolean; pointer(x: number, y: number, intent: 'hover' | 'pointer' | 'touch'): void; leave(): void; focus(): void; blur(): void; key(key: string, ctrl: boolean): boolean; closeDetail(): void; reposition(): void }>;
+export type InteractionHandlers = Readonly<{ revision(): number; enabled(): boolean; pointer(x: number, y: number, intent: 'hover' | 'pointer' | 'touch'): void; leave(): void; focus(): void; blur(next: EventTarget | null): void; key(key: string, ctrl: boolean): boolean; closeDetail(): void; reposition(): void }>;
 export function attachLineInteraction(body: HTMLElement, grid: HTMLElement, detail: HTMLElement, handlers: InteractionHandlers): Readonly<{ destroy(): void }> {
   let callback: InteractionHandlers | null = handlers;
   type Gesture = { id: number; x: number; y: number; revision: number; touch: boolean };
@@ -11,7 +11,7 @@ export function attachLineInteraction(body: HTMLElement, grid: HTMLElement, deta
   add(body, 'pointerup', ((event: PointerEvent) => { const g = gesture; gesture = null; if (!g || !callback?.enabled() || g.id !== event.pointerId || g.revision !== callback.revision() || excluded(event)) return; if (Math.hypot(event.clientX - g.x, event.clientY - g.y) <= 8) callback.pointer(event.clientX, event.clientY, g.touch ? 'touch' : 'pointer'); }) as EventListener, { passive: true });
   add(body, 'pointercancel', (() => { gesture = null; }) as EventListener, { passive: true });
   add(body, 'pointerleave', (() => { gesture = null; callback?.leave(); }) as EventListener, { passive: true });
-  add(grid, 'focus', (() => callback?.focus()) as EventListener); add(grid, 'blur', (() => callback?.blur()) as EventListener);
+  add(grid, 'focus', (() => callback?.focus()) as EventListener); add(grid, 'blur', ((event: FocusEvent) => callback?.blur(event.relatedTarget)) as EventListener);
   add(grid, 'keydown', ((event: KeyboardEvent) => { if (!event.altKey && !event.metaKey && callback?.key(event.key, event.ctrlKey)) event.preventDefault(); }) as EventListener);
   add(detail, 'keydown', ((event: KeyboardEvent) => { if (event.key === 'Escape') { event.preventDefault(); callback?.closeDetail(); } }) as EventListener);
   const document = body.ownerDocument, window = document.defaultView!;
