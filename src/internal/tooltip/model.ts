@@ -3,7 +3,8 @@ export type TooltipSeries = Readonly<{ id: string; name: string; color: string; 
 export type TooltipRow = Readonly<{ seriesId: string; name: string; value: number | null; availability: 'value' | 'null' | 'absent'; color: string; dash: Dash }>;
 export type TooltipModel = Readonly<{ revision: number; seriesId: string; pointId: string; x: string | number; header: string; rows: readonly TooltipRow[] }>;
 export function fullX(x: string | number, kind: 'category' | 'linear' | 'time', labels: ReadonlyMap<string, string>): string {
-  return typeof x === 'string' ? labels.get(x) ?? x : kind === 'time' ? new Date(x).toISOString() : String(x === 0 ? 0 : x);
+  if (typeof x === 'string') { const label = labels.get(x) ?? x; return label === x ? x : `${label} (${x})`; }
+  return kind === 'time' ? new Date(x).toISOString() : String(x === 0 ? 0 : x);
 }
 export function tooltipModel(revision: number, seriesId: string, pointId: string, x: string | number, kind: 'category' | 'linear' | 'time', mode: 'point' | 'shared', series: readonly TooltipSeries[], labels: ReadonlyMap<string, string>): TooltipModel {
   const rows: TooltipRow[] = [];

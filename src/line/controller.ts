@@ -15,9 +15,10 @@ import { shellFrame } from '../internal/layout/frame.js';
 import type { ShellFrame } from '../internal/layout/frame.js';
 import { planAxes } from '../internal/axes/plan.js';
 import type { AxesPlan } from '../internal/axes/plan.js';
-import { emptyLayers, axesScene, referenceScene, frame } from '../internal/axes/scene.js';
+import { emptyLayers, axesScene, referenceScene, referenceOutside, frame } from '../internal/axes/scene.js';
 import type { Layers } from '../internal/axes/scene.js';
 import { createShell, shellIds, applyShell } from '../internal/chart/shell.js';
+import { cleanup, removeOwnedNode } from '../internal/chart/cleanup.js';
 import type { Shell } from '../internal/chart/shell.js';
 import { resolvePalette } from '../internal/chart/presentation.js';
 import type { Palette, ResolvedFont } from '../internal/chart/presentation.js';
@@ -47,7 +48,7 @@ import type { HitIndex, HitTarget } from './hit-index.js';
 type Computed<T> = Readonly<{ shell: ShellFrame; palette: Palette; font: ResolvedFont; axes: AxesPlan | null; index: HitIndex<T> | null; layers: Layers; view: NonNullable<LineSnapshot['view']>; statusText: string; legend: readonly LegendItem[]; tooltipSeries: readonly TooltipSeries[]; table: TableSource }>;
 type Accepted<T> = Readonly<{ data: NormalizedLine<T>; state: ChartState; domains: Domains; cached?: Readonly<{ epoch: number; width: number; height: number; value: Computed<T> }> }>;
 type MainPrepared<T> = Readonly<{ input: Accepted<T>; computed: Computed<T>; scene: PreparedScene | null }>;
-type InteractionJob<T> = Readonly<{ main: number; layout: number; sequence: number; stage: 'intent' | 'measure'; target: HitTarget<T> | null; keyboard: boolean; detail: boolean; navigate: boolean; activate: 'pointer' | 'touch' | 'keyboard' | null; sample?: Readonly<{ x: number; y: number; intent: 'hover' | 'pointer' | 'touch' }> }>;
+type InteractionJob<T> = Readonly<{ main: number; layout: number; sequence: number; stage: 'intent' | 'measure'; target: HitTarget<T> | null; keyboard: boolean; detail: boolean; sample?: Readonly<{ x: number; y: number; intent: 'hover' }> }>;
 type InteractionPrepared<T> = Readonly<{ job: InteractionJob<T>; target: HitTarget<T> | null; scene: PreparedScene | null; model: TooltipModel | null; bounds: Rect; placement: PlacementResult | null; noop: boolean }>;
 function invoke<T>(callback: ((value: T) => void) | null, value: T): void { try { callback?.(value); } catch { /* Application callbacks cannot break chart lifecycle. */ } }
 
@@ -71,7 +72,7 @@ function mount<T>(host: HTMLElement | null, initial: Accepted<T> | null, options
   const instanceId = options!.instanceId, mode = initial!.data.spec.state?.mode ?? 'internal', reservations: IdReservation[] = [];
   let measurer: TextMeasurer | null = null, main: RevisionScheduler<Accepted<T>> | null = null, interaction: RevisionScheduler<InteractionJob<T>> | null = null;
   let baseWriter: SceneWriter | null = null, overlayWriter: SceneWriter | null = null, observer: Readonly<{ disconnect(): void }> | null = null, media: MediaQueryList | null = null;
-  let legend: LegendView | null = null, semantic: SemanticView | null = null, table: TableView | null = null, tooltip: TooltipView | null = null, events: Readonly<{ destroy(): void }> | null = null;
+  let legend: LegendView | null = null, semantic: SemanticView | null = null, table: TableView | null = null, tooltip: TooltipView | null = null, events: ReturnType<typeof attachLineInteraction> | null = null;
   let fontSet: FontFaceSet | null = null; const fontHolder: { callback: (() => void) | null } = { callback: null };
   let phase: LineSnapshot['phase'] = 'suspended', size = { width: 0, height: 0 }, epoch = 0, layoutGeneration = 0, sequence = 0, fontDirty = false, inCommit = false, disposeRequested = false;
   let revision = 0, committedRevision = 0, current: HitTarget<T> | null = null, hover: HitTarget<T> | null = null, gridFocused = false, focusSuppressed = false, pinned = false, detailWanted = false, destroyed = false;
@@ -79,22 +80,22 @@ function mount<T>(host: HTMLElement | null, initial: Accepted<T> | null, options
   const ids = shellIds(instanceId);
   function scalarSnapshot(): LineSnapshot { return Object.freeze({ phase, revision, committedRevision, view: destroyed || phase === 'faulted' || phase === 'suspended' ? null : lastView, size: Object.freeze({ ...size }) }); }
   function resources(): void {
-    main?.destroy(); interaction?.destroy(); main = null; interaction = null;
-    try { observer?.disconnect(); } catch { /* Complete remaining cleanup. */ } observer = null;
-    fontHolder.callback = null; if (fontSet) { fontSet.removeEventListener('loadingdone', fontsChanged); fontSet.removeEventListener('loadingerror', fontsChanged); } fontSet = null;
-    media?.removeEventListener('change', mediaChanged); media = null;
-    events?.destroy(); events = null; legend?.destroy(); legend = null; semantic?.destroy(); semantic = null; table?.destroy(); table = null; tooltip?.destroy(); tooltip = null;
-    try { baseWriter?.dispose(); } catch { /* A disposal already drops writer references. */ } try { overlayWriter?.dispose(); } catch { /* Finish sibling disposal. */ } baseWriter = null; overlayWriter = null;
-    measurer?.destroy(); measurer = null; accepted = null; committed = null; computed = null; current = null; hover = null; onPointActivate = null; onStateChange = null;
+    cleanup(() => main?.destroy()); cleanup(() => interaction?.destroy()); main = null; interaction = null;
+    cleanup(() => observer?.disconnect()); observer = null;
+    fontHolder.callback = null; cleanup(() => fontSet?.removeEventListener('loadingdone', fontsChanged)); cleanup(() => fontSet?.removeEventListener('loadingerror', fontsChanged)); fontSet = null;
+    cleanup(() => media?.removeEventListener('change', mediaChanged)); media = null;
+    cleanup(() => events?.destroy()); events = null; cleanup(() => legend?.destroy()); legend = null; cleanup(() => semantic?.destroy()); semantic = null; cleanup(() => table?.destroy()); table = null; cleanup(() => tooltip?.destroy()); tooltip = null;
+    cleanup(() => baseWriter?.dispose()); cleanup(() => overlayWriter?.dispose()); baseWriter = null; overlayWriter = null;
+    cleanup(() => measurer?.destroy()); measurer = null; accepted = null; committed = null; computed = null; current = null; hover = null; onPointActivate = null; onStateChange = null;
     initial = null; options = null; host = null;
   }
   function dispose(): void {
     resources(); onDiagnostic = null;
-    try { shell?.root.remove(); failureRoot?.remove(); } catch { /* Reservations still release below. */ } shell = null; failureRoot = null;
-    for (const reservation of reservations.reverse()) reservation.release(); reservations.length = 0; ownedHost = null; lastView = null; disposeRequested = false;
+    removeOwnedNode(shell?.root ?? null); removeOwnedNode(failureRoot); shell = null; failureRoot = null;
+    for (const reservation of reservations.splice(0).reverse()) cleanup(() => reservation.release()); ownedHost = null; lastView = null; disposeRequested = false;
   }
   function destroy(): void {
-    if (destroyed) return; revision = main?.getSnapshot().revision ?? revision; destroyed = true; phase = 'destroyed'; sequence++; main?.destroy(); interaction?.destroy();
+    if (destroyed) return; revision = main?.getSnapshot().revision ?? revision; destroyed = true; phase = 'destroyed'; sequence++; cleanup(() => main?.destroy()); cleanup(() => interaction?.destroy());
     if (inCommit) disposeRequested = true; else dispose();
   }
   function fault(diagnostic: ChartDiagnostic): void {
@@ -112,8 +113,8 @@ function mount<T>(host: HTMLElement | null, initial: Accepted<T> | null, options
   function mediaChanged(): void { if (accepted?.data.spec.theme === 'auto') { epoch++; submit('paint'); } }
   function ensureMedia(): void {
     if (!ownedHost) return;
-    if (accepted?.data.spec.theme === 'auto' && !media) { try { media = ownedHost.ownerDocument.defaultView?.matchMedia('(prefers-color-scheme: dark)') ?? null; media?.addEventListener('change', mediaChanged); } catch { media = null; } }
-    else if (accepted?.data.spec.theme !== 'auto' && media) { media.removeEventListener('change', mediaChanged); media = null; }
+    if (accepted?.data.spec.theme === 'auto' && !media) { try { media = ownedHost.ownerDocument.defaultView?.matchMedia('(prefers-color-scheme: dark)') ?? null; } catch { return; } media?.addEventListener('change', mediaChanged); }
+    else if (accepted?.data.spec.theme !== 'auto' && media) { cleanup(() => media?.removeEventListener('change', mediaChanged)); media = null; }
   }
   function compute(input: Accepted<T>): ChartResult<Computed<T>> {
     if (!ownedHost || !measurer) return invalid('LIFECYCLE_ERROR', 'PLATFORM_UNAVAILABLE', 'host');
@@ -129,9 +130,9 @@ function mount<T>(host: HTMLElement | null, initial: Accepted<T> | null, options
         index = buildHitIndex(projection.value, x => typeof x === 'string' ? data.ranks.get(x)! : x); axesScene(axes, spec.axes.x, spec.axes.y, palette, layers); lineScene(projection.value, palette, layers);
       }
     }
-    const referenceInfo = axes ? referenceScene(spec.references ?? [], axes, palette, layers, text => { const rendered = ellipsis(text, Math.max(0, axes!.plot.width - 8), s => measurer!.measure(s, font, direction)), m = measurer!.measure(rendered ?? '', font, direction); return { text: rendered, width: m.width, height: m.height }; }) : [];
+    const referenceInfo = axes ? referenceScene(spec.references ?? [], axes, palette, layers, text => { const rendered = ellipsis(text, Math.max(0, axes!.plot.width - 8), s => measurer!.measure(s, font, direction)), m = measurer!.measure(rendered ?? '', font, direction); return { text: rendered, width: m.width, height: m.height }; }, data.ranks) : [];
     const context = [spec.axes.x.title ? `X: ${spec.axes.x.title}.` : '', spec.axes.y.title ? `Y: ${spec.axes.y.title}.` : '', axes?.x.domain ? `Displayed X domain ${fullX(axes.x.domain[0], spec.axes.x.kind, data.labels)} to ${fullX(axes.x.domain[1], spec.axes.x.kind, data.labels)}.` : '', axes?.y.domain ? `Displayed Y domain ${axes.y.domain[0]} to ${axes.y.domain[1]}.` : ''].filter(Boolean).join(' ');
-    const references = (spec.references ?? []).map(r => `${r.label ?? r.id}. ${r.axis.toUpperCase()} ${r.axis === 'x' ? fullX(r.value, spec.axes.x.kind, data.labels) : String(r.value)}.${referenceInfo.find(info => info.id === r.id)?.outside ? ' Outside displayed domain.' : ''}`);
+    const references = (spec.references ?? []).map(r => `${r.label ?? r.id}. ${r.axis.toUpperCase()} ${r.axis === 'x' ? fullX(r.value, spec.axes.x.kind, data.labels) : String(r.value)}.${(referenceInfo.find(info => info.id === r.id)?.outside ?? referenceOutside(r, input.domains, data.ranks)) ? ' Outside displayed domain.' : ''}`);
     const tableSource: TableSource = { title: spec.title, kind: spec.axes.x.kind, labels: data.labels, series: spec.series, hidden, context, references };
     const statusText = view === 'ready' ? axes?.tooSmall ? 'Chart is too small to display points. Enlarge the chart or view the data table.' : '' : spec.status && 'message' in spec.status ? spec.status.message ?? (view === 'loading' ? 'Loading chart data.' : 'No observations.') : view === 'no-visible-series' ? 'No visible series. Use the legend to show a series.' : view === 'loading' ? 'Loading chart data.' : view === 'error' ? 'Chart data unavailable.' : 'No visible observations.';
     const legendItems = data.series.map((s, i) => ({ id: s.spec.id, name: s.spec.name, color: s.spec.color ?? palette.series[s.colorIndex]!, dash: s.dash, width: layout.legendPosition === 'end' ? 160 : layout.buttonWidths[i]! }));
@@ -159,11 +160,11 @@ function mount<T>(host: HTMLElement | null, initial: Accepted<T> | null, options
   function tooltipFor(target: HitTarget<T>): TooltipModel {
     return tooltipModel(committedRevision, target.series.series.spec.id, target.point.point.id, target.point.point.x, committed!.data.spec.axes.x.kind, committed!.data.spec.tooltip?.mode === 'shared' ? 'shared' : 'point', computed!.tooltipSeries, committed!.data.labels);
   }
-  function invalidateInteraction(): void { sequence++; pinned = false; detailWanted = false; hover = null; const previous = focusSuppressed; focusSuppressed = true; tooltip?.close(true); focusSuppressed = previous; overlayWriter?.clear(); }
-  function interactionJob(stage: 'intent' | 'measure' = 'intent', activate: InteractionJob<T>['activate'] = null, sample?: InteractionJob<T>['sample'], navigation = false): void {
+  function invalidateInteraction(keepDetail = false): void { sequence++; pinned = false; events?.pin(false, committedRevision); detailWanted = keepDetail; hover = null; const previous = focusSuppressed; focusSuppressed = true; if (!keepDetail) tooltip?.close(true); focusSuppressed = previous; overlayWriter?.clear(); }
+  function interactionJob(stage: 'intent' | 'measure' = 'intent', sample?: InteractionJob<T>['sample']): void {
     if (!interaction || !computed?.index || !committed || phase !== 'active' || table?.isOpen()) return;
     const detailFocused = detailOwnsFocus();
-    interaction.submit({ main: committedRevision, layout: layoutGeneration, sequence, stage, target: gridFocused || pinned || detailFocused ? current : hover, keyboard: gridFocused || detailFocused, detail: detailWanted, navigate: navigation, activate, ...(sample ? { sample } : {}) }, 'paint', true);
+    interaction.submit({ main: committedRevision, layout: layoutGeneration, sequence, stage, target: gridFocused || pinned || detailFocused ? current : hover, keyboard: gridFocused || detailFocused, detail: detailWanted, ...(sample ? { sample } : {}) }, 'paint', true);
   }
   function detailOwnsFocus(): boolean { return !!shell && shell.detail.contains(shell.root.ownerDocument.activeElement); }
   function tokenCurrent(job: InteractionJob<T>): boolean { return !destroyed && phase === 'active' && job.main === committedRevision && job.layout === layoutGeneration && job.sequence === sequence && !table?.isOpen(); }
@@ -172,7 +173,7 @@ function mount<T>(host: HTMLElement | null, initial: Accepted<T> | null, options
     const m = svg.getScreenCTM(); return m && [m.a, m.b, m.c, m.d, m.e, m.f].every(Number.isFinite) && m.a * m.d - m.b * m.c !== 0 ? m : null;
   }
   function toClient(m: DOMMatrix, x: number, y: number): Readonly<{ x: number; y: number }> { return { x: m.a * x + m.c * y + m.e, y: m.b * x + m.d * y + m.f }; }
-  function activate(target: HitTarget<T>, source: NonNullable<InteractionJob<T>['activate']>): void {
+  function activate(target: HitTarget<T>, source: 'pointer' | 'touch' | 'keyboard'): void {
     if (!committed || !onPointActivate) return;
     const event = { seriesId: target.series.series.spec.id, source, revision: committedRevision, xKind: committed.data.spec.axes.x.kind, point: target.point.point } as LinePointActivation<T>;
     invoke(onPointActivate, Object.freeze(event));
@@ -200,19 +201,14 @@ function mount<T>(host: HTMLElement | null, initial: Accepted<T> | null, options
     if (candidate.noop || !tokenCurrent(candidate.job) || !computed || !shell) return ok(undefined);
     const result = candidate.scene ? overlayWriter!.apply(candidate.scene) : ok(undefined); if (result.status === 'invalid') { fault(result.diagnostic); return result; }
     const { job, target, model } = candidate;
-    if (job.sample?.intent === 'hover') hover = target;
-    else if (job.sample) {
-      current = target ?? current; hover = null; pinned = job.sample.intent === 'touch' && !!target; detailWanted = !!target;
-      if (target) { focusSuppressed = true; shell.grid.focus({ preventScroll: true }); focusSuppressed = false; gridFocused = true; semanticUpdate(true); }
-    } else if (job.navigate) semanticUpdate(true);
+    if (job.sample) hover = target;
     if (model && tokenCurrent(job)) {
       if (job.stage === 'intent') { tooltip!.write(model, candidate.bounds, computed.palette, computed.font, committed!.data.spec.direction ?? 'ltr'); interactionJob('measure'); }
       else if (candidate.placement) tooltip!.show(candidate.placement, model);
     } else tooltip?.close();
-    if (target && job.activate && tokenCurrent(job)) activate(target, job.activate);
     return ok(undefined);
   }
-  function closeDetail(): void { sequence++; detailWanted = false; pinned = false; hover = null; const previous = focusSuppressed; focusSuppressed = true; tooltip?.close(true); focusSuppressed = previous; gridFocused = !!shell && shell.root.ownerDocument.activeElement === shell.grid; interactionJob(); }
+  function closeDetail(): void { sequence++; detailWanted = false; pinned = false; events?.pin(false, committedRevision); hover = null; const previous = focusSuppressed; focusSuppressed = true; tooltip?.close(true); focusSuppressed = previous; gridFocused = !!shell && shell.root.ownerDocument.activeElement === shell.grid; interactionJob(); }
   function legendToggle(id: string): void {
     if (!committed || !computed || !accepted || main?.getSnapshot().pending || computed.view !== 'ready' && computed.view !== 'empty' && computed.view !== 'no-visible-series') return;
     const next = toggleState(committed.state, id, committed.data.series.map(s => s.spec.id));
@@ -240,7 +236,8 @@ function mount<T>(host: HTMLElement | null, initial: Accepted<T> | null, options
       const focused = shell.root.ownerDocument.activeElement as HTMLElement | null, hadFocus = !!focused && shell.root.contains(focused), previous = current, previousKind = committed?.data.spec.axes.x.kind, c = candidate.computed, spec = candidate.input.data.spec;
       if (candidate.scene) { const applied = baseWriter!.apply(candidate.scene); if (applied.status === 'invalid') { fault(applied.diagnostic); return applied; } } else baseWriter!.clear();
       if (destroyed) return ok(undefined);
-      invalidateInteraction(); applyShell(shell, c.shell, c.palette, c.font, spec.direction ?? 'ltr', spec.title, spec.description);
+      const keepDetail = shell.detail.contains(focused) && committed?.data === candidate.input.data && committed?.state === candidate.input.state;
+      invalidateInteraction(keepDetail); applyShell(shell, c.shell, c.palette, c.font, spec.direction ?? 'ltr', spec.title, spec.description);
       for (const container of [shell.base, shell.overlay]) { const svg = container.querySelector('svg'); if (svg) { svg.setAttribute('aria-hidden', 'true'); svg.setAttribute('focusable', 'false'); svg.setAttribute('direction', spec.direction ?? 'ltr'); svg.style.letterSpacing = '0px'; svg.style.pointerEvents = 'none'; } }
       shell.root.setAttribute('aria-busy', String(c.view === 'loading')); shell.status.hidden = !c.statusText; if (shell.status.textContent !== c.statusText) shell.status.textContent = c.statusText;
       const disabled = (spec.status?.kind ?? 'ready') !== 'ready'; legend!.update(c.legend, candidate.input.state, disabled);
@@ -249,6 +246,7 @@ function mount<T>(host: HTMLElement | null, initial: Accepted<T> | null, options
       committed = candidate.input; computed = c; committedRevision = token.revision; lastView = c.view; layoutGeneration++;
       const priorProjection = previous ? c.axes?.mapX(previous.point.point.x) ?? null : null, clamped = priorProjection === null || !c.axes ? null : Math.max(c.axes.plot.x, Math.min(priorProjection, c.axes.plot.x + c.axes.plot.width));
       current = c.index ? reconcileTarget(c.index, previous, previousKind === spec.axes.x.kind, clamped) : null; hover = null;
+      if (keepDetail && !current) closeDetail();
       semanticUpdate(!!previous && !!current && (previous.series.series.spec.id !== current.series.series.spec.id || previous.point.point.id !== current.point.point.id));
       if (hadFocus && focused) {
         if (focused.isConnected && !focused.hidden && !('disabled' in focused && (focused as HTMLButtonElement).disabled) && !focused.closest('[hidden]')) { if (shell.root.ownerDocument.activeElement !== focused) focused.focus({ preventScroll: true }); }
@@ -258,7 +256,7 @@ function mount<T>(host: HTMLElement | null, initial: Accepted<T> | null, options
           if (!now || now === shell.root || !shell.root.contains(now) || now.closest('[hidden]') || 'disabled' in now && (now as HTMLButtonElement).disabled) { focusSuppressed = true; (shell.grid.hidden ? shell.root : shell.grid).focus({ preventScroll: true }); focusSuppressed = false; }
         }
       }
-      gridFocused = shell.root.ownerDocument.activeElement === shell.grid; if (gridFocused && current) interactionJob();
+      gridFocused = shell.root.ownerDocument.activeElement === shell.grid; if ((gridFocused || detailOwnsFocus()) && current) interactionJob();
       return ok(undefined);
     } catch { const diagnostic = invalid('INTERNAL_INVARIANT', 'DOM_WRITE_FAILED', 'controller').diagnostic; fault(diagnostic); return { status: 'invalid', diagnostic }; }
     finally { inCommit = false; if (disposeRequested) dispose(); }
@@ -271,7 +269,7 @@ function mount<T>(host: HTMLElement | null, initial: Accepted<T> | null, options
     const state = orderedState(data.spec.state?.mode === 'controlled' ? data.spec.state.value : accepted.state, data.series.map(s => s.spec.id)), domains = lineDomains(data, state); if (domains.status === 'invalid') return domains;
     const checked = preflight({ data, state, domains: domains.value }); if (checked.status === 'invalid') return checked;
     const previous = accepted; accepted = checked.value; const result = submit('data'); if (result.status === 'invalid') { accepted = previous; return result; }
-    ensureMedia();
+    try { ensureMedia(); } catch { fault(invalid('LIFECYCLE_ERROR', 'PLATFORM_UNAVAILABLE', 'theme').diagnostic); return invalid('LIFECYCLE_ERROR', 'FAULTED', 'controller'); }
     if (mode === 'internal' && membershipChanged(previous.state, state)) invoke(onStateChange, Object.freeze({ state, effect: 'accepted', source: 'update', revision: result.value }));
     return result;
   }
@@ -290,16 +288,23 @@ function mount<T>(host: HTMLElement | null, initial: Accepted<T> | null, options
     interaction = createRevisionScheduler({ clock: ports.value.clock, prepare: prepareInteraction, commit: commitInteraction, onDiagnostic: report });
     events = attachLineInteraction(shell.body, shell.grid, shell.detail, {
       revision: () => committedRevision, enabled: () => !!computed?.index && phase === 'active' && !table?.isOpen(),
-      pointer(x, y, intent) { if (intent === 'hover' && (gridFocused || pinned || detailOwnsFocus())) return; sequence++; detailWanted = true; interactionJob('intent', intent === 'hover' ? null : intent, { x, y, intent }); },
+      pointer(x, y, intent) {
+        if (intent === 'hover') { if (gridFocused || pinned || detailOwnsFocus()) return; sequence++; detailWanted = true; interactionJob('intent', { x, y, intent }); return; }
+        const m = matrix(); if (!m || !computed?.index || !shell) return;
+        const target = pickPoint(computed.index, toClient(m.inverse(), x, y), { x, y }, (px, py) => toClient(m, px, py));
+        sequence++; current = target ?? current; hover = null; pinned = intent === 'touch' && !!target; events?.pin(pinned, committedRevision); detailWanted = !!target;
+        if (target) { focusSuppressed = true; shell.grid.focus({ preventScroll: true }); focusSuppressed = false; gridFocused = true; semanticUpdate(true); }
+        interactionJob(); if (target) activate(target, intent);
+      },
       leave() { if (!gridFocused && !pinned && !detailOwnsFocus()) { sequence++; hover = null; detailWanted = false; tooltip?.close(); interactionJob(); } },
       focus() { gridFocused = true; if (focusSuppressed || !computed?.index) return; current ??= firstTarget(computed.index); hover = null; sequence++; detailWanted = true; semanticUpdate(false); interactionJob(); },
       blur(next) { gridFocused = false; if (next && shell?.detail.contains(next as Node)) return; if (!pinned) { sequence++; detailWanted = false; tooltip?.close(); interactionJob(); } },
       key(key, ctrl) {
         if (key === 'Escape') { closeDetail(); return true; }
         if (!computed?.index || !current) return false;
-        if (key === 'Enter' || key === ' ' || key === 'Spacebar') { if (onPointActivate) { sequence++; interactionJob('intent', 'keyboard'); } return key !== 'Enter' || !!onPointActivate; }
+        if (key === 'Enter' || key === ' ' || key === 'Spacebar') { const handled = key !== 'Enter' || !!onPointActivate; activate(current, 'keyboard'); return handled; }
         if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(key)) return false;
-        const next = navigate(computed.index, current, key, ctrl); if (next !== current) { current = next; hover = null; pinned = false; sequence++; detailWanted = true; interactionJob('intent', null, undefined, true); } return true;
+        const next = navigate(computed.index, current, key, ctrl); if (next !== current) { current = next; hover = null; pinned = false; events?.pin(false, committedRevision); sequence++; detailWanted = true; semanticUpdate(true); interactionJob(); } return true;
       },
       closeDetail,
       reposition() { if (detailWanted) { sequence++; interactionJob(); } },
@@ -324,6 +329,7 @@ function mount<T>(host: HTMLElement | null, initial: Accepted<T> | null, options
         computed = null;
       } else phase = 'active'; submit('size');
     });
+    if (scalarSnapshot().phase === 'faulted' || destroyed) { dispose(); return invalid('LIFECYCLE_ERROR', 'PLATFORM_UNAVAILABLE', 'host'); }
     host = null; initial = null; options = null;
     return ok(Object.freeze({ update, refresh() { if (destroyed) return invalid('LIFECYCLE_ERROR', 'DESTROYED', 'controller'); if (phase === 'faulted') return invalid('LIFECYCLE_ERROR', 'FAULTED', 'controller'); epoch++; measurer?.invalidate(); return submit('paint'); }, getState: () => accepted ? orderedState(accepted.state, accepted.data.series.map(s => s.spec.id)) : Object.freeze({ hiddenSeriesIds: Object.freeze([]) }), getSnapshot: scalarSnapshot, destroy }));
   } catch { dispose(); return invalid('LIFECYCLE_ERROR', 'PLATFORM_UNAVAILABLE', 'host'); }

@@ -23,11 +23,16 @@ export function axesScene(plan: AxesPlan, x: AxisInput, y: AxisInput, palette: P
   if (plan.yTitle) layers.labels.push({ kind: 'text', key: 'y-title', x: plot.x, y: 18, text: plan.yTitle, anchor: plan.direction === 'rtl' ? 'end' : 'start', baseline: 'middle', presentation: textStyle, ...font });
 }
 export type ReferenceInput = Readonly<{ id: string; axis: 'x' | 'y'; value: string | number; label?: string; color?: string; dash?: Dash }>;
-export function referenceScene(references: readonly ReferenceInput[], plan: AxesPlan, palette: Palette, layers: Layers, label: (text: string, width: number) => Readonly<{ text: string | null; width: number; height: number }>): readonly Readonly<{ id: string; outside: boolean }>[] {
+export function referenceOutside(reference: ReferenceInput, domains: Readonly<{ x: readonly [number, number] | null; y: readonly [number, number] | null }>, categories: ReadonlyMap<string, number>): boolean {
+  if (typeof reference.value === 'string') return !categories.has(reference.value);
+  const domain = domains[reference.axis];
+  return !!domain && (reference.value < Math.min(...domain) || reference.value > Math.max(...domain));
+}
+export function referenceScene(references: readonly ReferenceInput[], plan: AxesPlan, palette: Palette, layers: Layers, label: (text: string, width: number) => Readonly<{ text: string | null; width: number; height: number }>, categories: ReadonlyMap<string, number> = new Map()): readonly Readonly<{ id: string; outside: boolean }>[] {
   const boxes: Readonly<{ x: number; y: number; width: number; height: number }>[] = [], result: { id: string; outside: boolean }[] = [], plot = plan.plot;
   for (const r of references) {
     const p = r.axis === 'x' ? plan.mapX(r.value) : typeof r.value === 'number' ? plan.mapY(r.value) : null;
-    const outside = p === null || (r.axis === 'x' ? p < plot.x || p > plot.x + plot.width : p < plot.y || p > plot.y + plot.height);
+    const outside = referenceOutside(r, { x: plan.x.domain, y: plan.y.domain }, categories);
     result.push({ id: r.id, outside }); if (outside || p === null || plan.tooSmall) continue;
     const color = r.color ?? palette.reference, dash = r.dash ?? 'dashed', presentation: Presentation = { stroke: { kind: 'solid', value: color }, strokeWidth: 1.5, dash: dashPattern(dash), lineCap: dash === 'dotted' ? 'round' : 'butt' }, key = `r:${r.id.length}:${r.id}`;
     layers['reference-lines'].push(r.axis === 'x' ? { kind: 'line', key, x1: p, y1: plot.y, x2: p, y2: plot.y + plot.height, clipKey: 'plot', presentation } : { kind: 'line', key, x1: plot.x, y1: p, x2: plot.x + plot.width, y2: p, clipKey: 'plot', presentation });

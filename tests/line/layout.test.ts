@@ -31,10 +31,10 @@ it('missing vertical metrics use a fixed line box without guessing widths', () =
   const document = { createElement() { return { getContext() { return { measureText() { return { width: 6 }; } }; } }; } } as unknown as Document;
   const r = createTextMeasurer(document); if (r.status !== 'ok') throw Error('fixture'); expect(r.value.measure('a', font, 'ltr')).toEqual({ width: 6, height: 15, baseline: 12 }); r.value.destroy();
 });
-it('legend slot is bounded and end placement is responsive at 640px', () => {
+it('legend slot is bounded and end placement is responsive at 640px inner width', () => {
   const names = Array.from({ length: 64 }, (_, i) => 'Series ' + i);
-  const narrow = shellFrame({ width: 320, height: 240 }, true, names, 'end', font, 'ltr', measurer), wide = shellFrame({ width: 640, height: 400 }, false, names, 'end', font, 'ltr', measurer);
-  expect(narrow.legendPosition).toBe('bottom'); expect(narrow.legend.height).toBe(72); expect(wide.legendPosition).toBe('end'); expect(wide.legend.width).toBe(160); expect(wide.body.width).toBe(448);
+  const narrow = shellFrame({ width: 320, height: 240 }, true, names, 'end', font, 'ltr', measurer), wide = shellFrame({ width: 664, height: 400 }, false, names, 'end', font, 'ltr', measurer);
+  expect(narrow.legendPosition).toBe('bottom'); expect(narrow.legend.height).toBe(72); expect(wide.legendPosition).toBe('end'); expect(wide.legend.width).toBe(160); expect(wide.body.width).toBe(472);
   expect(shellFrame({ width: 10, height: 10 }, false, [], 'bottom', font, 'ltr', measurer).body.height).toBe(0);
 });
 it('time formatting retains signed/extended ISO years and UTC interval precision', () => {

@@ -4,6 +4,7 @@ import type { TooltipModel } from './model.js';
 import { rowText } from './model.js';
 import type { Rect, PlacementResult } from './place.js';
 import { intersect } from './place.js';
+import { cleanup, removeOwnedNode } from '../chart/cleanup.js';
 export function allowedRect(host: HTMLElement): Rect {
   const doc = host.ownerDocument, win = doc.defaultView!, r = host.getBoundingClientRect(), style = win.getComputedStyle(host), sx = host.offsetWidth ? r.width / host.offsetWidth : 1, sy = host.offsetHeight ? r.height / host.offsetHeight : 1;
   const px = (name: string): number => parseFloat(style.getPropertyValue(name)) || 0;
@@ -29,6 +30,7 @@ export interface TooltipView { write(model: TooltipModel, bounds: Rect, palette:
 export function createTooltipView(shell: Shell): TooltipView {
   let owned: Shell | null = shell, portal: HTMLDivElement | null = null;
   const content = (element: HTMLElement, model: TooltipModel): void => {
+    element.dataset.ncPointId = model.pointId; element.dataset.ncSeriesId = model.seriesId; element.dataset.ncRevision = String(model.revision);
     const document = element.ownerDocument, header = document.createElement('div'); header.textContent = model.header; header.style.fontWeight = '600'; const rows: HTMLElement[] = [header];
     for (const row of model.rows) { const line = document.createElement('div'), swatch = document.createElement('span'); swatch.setAttribute('aria-hidden', 'true'); Object.assign(swatch.style, { display: 'inline-block', width: '16px', marginInlineEnd: '6px', borderTop: `2px ${row.dash === 'solid' ? 'solid' : row.dash === 'dashed' ? 'dashed' : 'dotted'} ${row.color}` }); line.append(swatch, document.createTextNode(rowText(row))); rows.push(line); }
     element.replaceChildren(...rows);
@@ -36,23 +38,24 @@ export function createTooltipView(shell: Shell): TooltipView {
   const close = (returnFocus = false): void => {
     if (!owned) return;
     if (returnFocus && owned.detail.contains(owned.root.ownerDocument.activeElement)) owned.grid.focus({ preventScroll: true });
-    portal?.remove(); portal = null; owned.detail.hidden = true; owned.detail.replaceChildren();
+    removeOwnedNode(portal); portal = null; owned.detail.hidden = true; owned.detail.replaceChildren();
   };
   return {
     write(model, bounds, palette, font, direction) {
       if (!owned) return;
       if (!portal) { portal = owned.root.ownerDocument.createElement('div'); portal.dataset.ncTooltip = ''; portal.setAttribute('role', 'tooltip'); portal.setAttribute('aria-hidden', 'true'); Object.assign(portal.style, { position: 'fixed', pointerEvents: 'none', zIndex: '1000', padding: '8px', boxSizing: 'border-box', overflowWrap: 'anywhere', lineHeight: '1.25', borderRadius: '4px' }); owned.root.ownerDocument.body.append(portal); }
       portal.style.visibility = 'hidden'; portal.style.left = '0'; portal.style.top = '0'; portal.style.maxWidth = `${Math.max(0, Math.min(280, bounds.width - 16))}px`; portal.style.fontFamily = font.family; portal.style.fontSize = `${font.size}px`; portal.style.fontWeight = String(font.weight); portal.style.color = palette.tooltipText; portal.style.backgroundColor = palette.tooltipSurface; portal.dir = direction;
-      content(portal, model); owned.detail.hidden = true;
+      content(portal, model);
     },
     measure() { if (!portal) return null; const r = portal.getBoundingClientRect(); return { width: r.width, height: r.height }; },
     show(placement, model) {
       if (!owned) return;
-      if (placement.kind === 'closed') { close(); return; }
-      if (placement.kind === 'docked') { portal?.remove(); portal = null; content(owned.detail, model); owned.detail.hidden = false; return; }
+      if (placement.kind === 'closed') { close(true); return; }
+      // A focused dock remains the active detail until focus leaves or it closes.
+      if (placement.kind === 'docked' || owned.detail.contains(owned.root.ownerDocument.activeElement)) { removeOwnedNode(portal); portal = null; content(owned.detail, model); owned.detail.hidden = false; return; }
       if (portal) { owned.detail.hidden = true; portal.style.left = `${placement.x}px`; portal.style.top = `${placement.y}px`; portal.style.visibility = 'visible'; }
     },
     close,
-    destroy() { close(); owned = null; portal = null; },
+    destroy() { cleanup(() => close()); const node = portal; owned = null; portal = null; removeOwnedNode(node); },
   };
 }

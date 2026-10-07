@@ -25,7 +25,7 @@ it('Shared irregular golden: value at3, explicit null at3, absent at3 despite3.0
 });
 it('Category missing golden: b=0 remains value; absent series is not null or interpolated', () => {
   const series = [{ id: 'a', name: 'A', color: '#123', dash: 'solid' as const, byX: new Map([['b', { y: 0 }]]) }, { id: 'b', name: 'B', color: '#456', dash: 'dashed' as const, byX: new Map([['a', { y: 4 }]]) }];
-  const m = tooltipModel(1, 'a', 'p', 'b', 'category', 'shared', series, new Map([['b', 'Beta']])); expect(m.header).toBe('Beta'); expect(m.rows.map(r => r.availability)).toEqual(['value', 'absent']); expect(rowText(m.rows[0]!)).toBe('A: 0'); expect(fullX(0, 'time', new Map())).toBe('1970-01-01T00:00:00.000Z');
+  const m = tooltipModel(1, 'a', 'p', 'b', 'category', 'shared', series, new Map([['b', 'Beta']])); expect(m.header).toBe('Beta (b)'); expect(m.rows.map(r => r.availability)).toEqual(['value', 'absent']); expect(rowText(m.rows[0]!)).toBe('A: 0'); expect(fullX(0, 'time', new Map())).toBe('1970-01-01T00:00:00.000Z');
 });
 it('nearest-X search enforces plot/tolerance, stable tie order and transformed CSS coordinates', () => {
   const { index: i } = index(), identity = (x: number, y: number) => ({ x, y });

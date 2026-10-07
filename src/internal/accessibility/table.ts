@@ -1,5 +1,6 @@
 import type { Shell } from '../chart/shell.js';
 import { fullX } from '../tooltip/model.js';
+import { subscriptions } from '../chart/cleanup.js';
 export type TableSource = Readonly<{ title: string; kind: 'category' | 'linear' | 'time'; labels: ReadonlyMap<string, string>; series: readonly Readonly<{ id: string; name: string; data: readonly Readonly<{ x: string | number; y: number | null }>[] }>[]; hidden: ReadonlySet<string>; context: string; references: readonly string[] }>;
 export interface TableView { update(source: TableSource, available: boolean): void; open(): void; close(returnFocus?: boolean): void; isOpen(): boolean; destroy(): void; }
 export function createTableView(shell: Shell, onOpen: () => void): TableView {
@@ -49,10 +50,12 @@ export function createTableView(shell: Shell, onOpen: () => void): TableView {
     if (action === 'close') close(); else if (action === 'previous' || action === 'next') { page += action === 'next' ? 1 : -1; render(action); }
   };
   const key = (event: KeyboardEvent): void => { if (event.key === 'Escape') { event.preventDefault(); close(); } };
-  shell.tableToggle.addEventListener('click', toggle); shell.table.addEventListener('click', click); shell.table.addEventListener('keydown', key);
+  const listeners = subscriptions();
+  try { listeners.add(shell.tableToggle, 'click', toggle); listeners.add(shell.table, 'click', click); listeners.add(shell.table, 'keydown', key as EventListener); }
+  catch (error) { owned = null; callback = null; throw error; }
   return {
     update(next, enabled) { source = next; available = enabled; if (!owned) return; if (!enabled) close(false); owned.tableToggle.hidden = !enabled; if (opened) render(); },
     open, close, isOpen: () => opened,
-    destroy() { owned?.tableToggle.removeEventListener('click', toggle); owned?.table.removeEventListener('click', click); owned?.table.removeEventListener('keydown', key); owned = null; source = null; callback = null; heading = null; opened = false; },
+    destroy() { owned = null; source = null; callback = null; heading = null; opened = false; listeners.clear(); },
   };
 }

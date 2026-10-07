@@ -1,5 +1,6 @@
 import type { Palette, ResolvedFont } from './presentation.js';
 import type { ShellFrame, Plot } from '../layout/frame.js';
+import { removeOwnedNode } from './cleanup.js';
 
 export type Shell = Readonly<{ root: HTMLDivElement; header: HTMLDivElement; title: HTMLDivElement; description: HTMLDivElement; tableToggle: HTMLButtonElement; body: HTMLDivElement; base: HTMLDivElement; overlay: HTMLDivElement; grid: HTMLDivElement; help: HTMLDivElement; semanticDetail: HTMLDivElement; status: HTMLDivElement; legend: HTMLDivElement; detail: HTMLDivElement; table: HTMLDivElement; style: HTMLStyleElement; ids: Readonly<Record<'title' | 'description' | 'help' | 'grid' | 'cellA' | 'cellB' | 'detail' | 'status' | 'table', string>> }>;
 export function shellIds(prefix: string): Shell['ids'] { const id = `nc-${prefix}-`; return { title: id + 'title', description: id + 'description', help: id + 'help', grid: id + 'grid', cellA: id + 'cell-a', cellB: id + 'cell-b', detail: id + 'detail', status: id + 'status', table: id + 'table' }; }
@@ -24,7 +25,8 @@ export function createShell(host: HTMLElement, prefix: string): Shell {
   Object.assign(legend.style, { overflow: 'auto', display: 'flex', alignContent: 'start', alignItems: 'start', gap: '8px', rowGap: '0px' });
   // Scoped rules provide native focus and high-contrast cues without changing host styles.
   style.textContent = `[data-nc-root="${prefix}"] button{background:transparent;color:inherit;border:1px solid currentColor;}[data-nc-root="${prefix}"] [data-nc-grid]:focus{outline:2px solid var(--nc-owned-focus);}[data-nc-root="${prefix}"] button:focus-visible,[data-nc-root="${prefix}"] [data-nc-detail]:focus-visible{outline:2px solid var(--nc-owned-focus);outline-offset:-2px;}@media(forced-colors:active){[data-nc-root="${prefix}"] [data-nc-grid]:focus,[data-nc-root="${prefix}"] button:focus-visible{outline:2px solid Highlight;}[data-nc-root="${prefix}"] button{border:1px solid ButtonText;background:ButtonFace;color:ButtonText;}}`;
-  header.append(title, description, tableToggle); body.append(base, overlay, grid, status, detail, table); root.append(style, header, body, legend, help, semanticDetail); host.append(root);
+  try { header.append(title, description, tableToggle); body.append(base, overlay, grid, status, detail, table); root.append(style, header, body, legend, help, semanticDetail); host.append(root); }
+  catch (error) { removeOwnedNode(root); throw error; }
   return { root, header, title, description, tableToggle, body, base, overlay, grid, help, semanticDetail, status, legend, detail, table, style, ids };
 }
 export function applyShell(shell: Shell, frame: ShellFrame, palette: Palette, font: ResolvedFont, direction: 'ltr' | 'rtl', title: string, description: string | undefined): void {
