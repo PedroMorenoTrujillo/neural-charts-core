@@ -31,8 +31,14 @@ export function createTooltipView(shell: Shell): TooltipView {
   let owned: Shell | null = shell, portal: HTMLDivElement | null = null;
   const content = (element: HTMLElement, model: TooltipModel): void => {
     element.dataset.ncPointId = model.pointId; element.dataset.ncSeriesId = model.seriesId; element.dataset.ncRevision = String(model.revision);
-    const document = element.ownerDocument, header = document.createElement('div'); header.textContent = model.header; header.style.fontWeight = '600'; const rows: HTMLElement[] = [header];
-    for (const row of model.rows) { const line = document.createElement('div'), swatch = document.createElement('span'); swatch.setAttribute('aria-hidden', 'true'); Object.assign(swatch.style, { display: 'inline-block', width: '16px', marginInlineEnd: '6px', borderTop: `2px ${row.dash === 'solid' ? 'solid' : row.dash === 'dashed' ? 'dashed' : 'dotted'} ${row.color}` }); line.append(swatch, document.createTextNode(rowText(row))); rows.push(line); }
+    const document = element.ownerDocument, header = document.createElement('div'); header.dataset.ncTooltipHeading = ''; header.textContent = model.header; Object.assign(header.style, { fontWeight: '600', marginBottom: '7px', lineHeight: '1.35' }); const rows: HTMLElement[] = [header];
+    for (const row of model.rows) {
+      const line = document.createElement('div'), swatch = document.createElement('span'), name = document.createElement('span'), value = document.createElement('span');
+      line.dataset.ncTooltipRow = ''; Object.assign(line.style, { display: 'grid', gridTemplateColumns: '16px minmax(0,1fr) auto', gap: '7px', alignItems: 'baseline', marginTop: '4px' });
+      swatch.setAttribute('aria-hidden', 'true'); Object.assign(swatch.style, { display: 'inline-block', width: '16px', alignSelf: 'center', borderTop: `2px ${row.dash === 'solid' ? 'solid' : row.dash === 'dashed' ? 'dashed' : 'dotted'} ${row.color}` });
+      name.textContent = row.name + ': '; name.style.color = 'var(--nc-detail-muted)'; value.textContent = rowText(row).slice(row.name.length + 2); value.dataset.ncTooltipValue = ''; Object.assign(value.style, { fontWeight: row.availability === 'value' ? '600' : '400', textAlign: 'end', fontVariantNumeric: 'tabular-nums' });
+      line.append(swatch, name, value); rows.push(line);
+    }
     element.replaceChildren(...rows);
   };
   const close = (returnFocus = false): void => {
@@ -43,8 +49,9 @@ export function createTooltipView(shell: Shell): TooltipView {
   return {
     write(model, bounds, palette, font, direction) {
       if (!owned) return;
-      if (!portal) { portal = owned.root.ownerDocument.createElement('div'); portal.dataset.ncTooltip = ''; portal.setAttribute('role', 'tooltip'); portal.setAttribute('aria-hidden', 'true'); Object.assign(portal.style, { position: 'fixed', pointerEvents: 'none', zIndex: '1000', padding: '8px', boxSizing: 'border-box', overflowWrap: 'anywhere', lineHeight: '1.25', borderRadius: '4px' }); owned.root.ownerDocument.body.append(portal); }
+      if (!portal) { portal = owned.root.ownerDocument.createElement('div'); portal.dataset.ncTooltip = ''; portal.dataset.ncTooltipOwner = owned.root.dataset.ncRoot!; portal.setAttribute('role', 'tooltip'); portal.setAttribute('aria-hidden', 'true'); Object.assign(portal.style, { position: 'fixed', pointerEvents: 'none', zIndex: '1000', padding: '10px 12px', boxSizing: 'border-box', overflowWrap: 'anywhere', lineHeight: '1.35', borderRadius: '5px', border: '1px solid', boxShadow: '0 3px 12px rgba(10,22,38,.14)' }); owned.root.ownerDocument.body.append(portal); }
       portal.style.visibility = 'hidden'; portal.style.left = '0'; portal.style.top = '0'; portal.style.maxWidth = `${Math.max(0, Math.min(280, bounds.width - 16))}px`; portal.style.fontFamily = font.family; portal.style.fontSize = `${font.size}px`; portal.style.fontWeight = String(font.weight); portal.style.color = palette.tooltipText; portal.style.backgroundColor = palette.tooltipSurface; portal.dir = direction;
+      portal.style.borderColor = palette.grid; portal.style.setProperty('--nc-detail-muted', palette.muted); owned.detail.style.setProperty('--nc-detail-muted', palette.muted); owned.detail.style.fontSize = `${font.size}px`; owned.detail.style.lineHeight = '1.35';
       content(portal, model);
     },
     measure() { if (!portal) return null; const r = portal.getBoundingClientRect(); return { width: r.width, height: r.height }; },

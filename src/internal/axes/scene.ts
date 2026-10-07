@@ -1,5 +1,5 @@
 import type { SceneCommand, SceneFrame, Layer, Presentation } from '../scene/model.js';
-import type { AxesPlan, AxisInput } from './plan.js';
+import type { AxesPlan, AxisInput, TickLabel } from './plan.js';
 import type { Palette, Dash } from '../chart/presentation.js';
 import { dashPattern } from '../chart/presentation.js';
 
@@ -8,19 +8,29 @@ export function emptyLayers(): Layers { return { background: [], grid: [], 'refe
 export function frame(revision: number, width: number, height: number, layers: Layers, plan?: AxesPlan): SceneFrame {
   return { revision, width, height, defs: plan && !plan.tooSmall ? [{ key: 'plot', kind: 'clip-rect', ...plan.plot }] : [], layers };
 }
+// Cull redundant interior truncations only at presentation time. Tick positions,
+// bounded layout boxes and full semantic values remain the accepted plan's.
+export function displayLabels(labels: readonly TickLabel[]): ReadonlySet<TickLabel> {
+  const visible = labels.filter(t => t.text), result = new Set<TickLabel>(), repeated = new Map<string, Set<string>>();
+  for (const t of visible) if (t.text!.endsWith('…')) { const full = repeated.get(t.text!) ?? new Set<string>(); full.add(t.full); repeated.set(t.text!, full); }
+  const seen = new Set<string>();
+  for (const t of [visible[0], visible[visible.length - 1]]) if (t) { result.add(t); seen.add(t.text!); }
+  for (const t of visible) if (!result.has(t) && (!seen.has(t.text!) || (repeated.get(t.text!)?.size ?? 0) <= 1)) { result.add(t); seen.add(t.text!); }
+  return result;
+}
 export function axesScene(plan: AxesPlan, x: AxisInput, y: AxisInput, palette: Palette, layers: Layers): void {
   if (plan.tooSmall) return;
   const plot = plan.plot, right = plot.x + plot.width, bottom = plot.y + plot.height, axis: Presentation = { stroke: { kind: 'solid', value: palette.axis }, strokeWidth: 1 };
   layers.axes.push({ kind: 'line', key: 'x-baseline', x1: plot.x, y1: bottom, x2: right, y2: bottom, presentation: axis }, { kind: 'line', key: 'y-baseline', x1: plot.x, y1: plot.y, x2: plot.x, y2: bottom, presentation: axis });
-  const textStyle: Presentation = { fill: { kind: 'solid', value: palette.text } }, font = { fontFamily: plan.font.family, fontSize: plan.font.size, fontWeight: plan.font.weight };
+  const textStyle: Presentation = { fill: { kind: 'solid', value: palette.muted } }, font = { fontFamily: plan.font.family, fontSize: plan.font.size, fontWeight: plan.font.weight }, shown = displayLabels(plan.x.labels);
   for (const [horizontal, input, ticks] of [[true, x, plan.x.labels], [false, y, plan.y.labels]] as const) for (let i = 0; i < ticks.length; i++) {
     const t = ticks[i]!, prefix = `${horizontal ? 'x' : 'y'}-tick-${i}`;
     layers.axes.push(horizontal ? { kind: 'line', key: prefix, x1: t.position, y1: bottom, x2: t.position, y2: bottom + 4, presentation: axis } : { kind: 'line', key: prefix, x1: plot.x - 4, y1: t.position, x2: plot.x, y2: t.position, presentation: axis });
     if ((input.grid ?? !horizontal) && (horizontal ? t.position !== plot.x : t.position !== bottom)) layers.grid.push(horizontal ? { kind: 'line', key: prefix + '-grid', x1: t.position, y1: plot.y, x2: t.position, y2: bottom, clipKey: 'plot', presentation: { stroke: { kind: 'solid', value: palette.grid }, strokeWidth: 1 } } : { kind: 'line', key: prefix + '-grid', x1: plot.x, y1: t.position, x2: right, y2: t.position, clipKey: 'plot', presentation: { stroke: { kind: 'solid', value: palette.grid }, strokeWidth: 1 } });
-    if (t.text) layers.labels.push({ kind: 'text', key: prefix + '-label', x: horizontal ? t.position : plot.x - 8, y: t.box.y + t.baseline, text: t.text, anchor: horizontal ? 'middle' : plan.direction === 'rtl' ? 'start' : 'end', baseline: 'alphabetic', presentation: textStyle, ...font });
+    if (t.text && (!horizontal || shown.has(t))) layers.labels.push({ kind: 'text', key: prefix + '-label', x: horizontal ? t.position : plot.x - 8, y: t.box.y + t.baseline, text: t.text, anchor: horizontal ? 'middle' : plan.direction === 'rtl' ? 'start' : 'end', baseline: 'alphabetic', presentation: textStyle, ...font });
   }
-  if (plan.xTitle) layers.labels.push({ kind: 'text', key: 'x-title', x: plot.x + plot.width / 2, y: bottom + 8 + 1.25 * plan.font.size + 10, text: plan.xTitle, anchor: 'middle', baseline: 'middle', presentation: textStyle, ...font });
-  if (plan.yTitle) layers.labels.push({ kind: 'text', key: 'y-title', x: plot.x, y: 18, text: plan.yTitle, anchor: plan.direction === 'rtl' ? 'end' : 'start', baseline: 'middle', presentation: textStyle, ...font });
+  if (plan.xTitle) layers.labels.push({ kind: 'text', key: 'x-title', x: plot.x + plot.width / 2, y: bottom + 8 + 1.25 * plan.font.size + 10, text: plan.xTitle, anchor: 'middle', baseline: 'middle', presentation: textStyle, ...font, fontWeight: 500 });
+  if (plan.yTitle) layers.labels.push({ kind: 'text', key: 'y-title', x: plot.x, y: 18, text: plan.yTitle, anchor: plan.direction === 'rtl' ? 'end' : 'start', baseline: 'middle', presentation: textStyle, ...font, fontWeight: 500 });
 }
 export type ReferenceInput = Readonly<{ id: string; axis: 'x' | 'y'; value: string | number; label?: string; color?: string; dash?: Dash }>;
 export function referenceOutside(reference: ReferenceInput, domains: Readonly<{ x: readonly [number, number] | null; y: readonly [number, number] | null }>, categories: ReadonlyMap<string, number>): boolean {

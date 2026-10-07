@@ -11,7 +11,7 @@ for(const [width,height]of [[320,240],[768,400],[1280,600]])for(const theme of [
     await page.setContent(`<style>html,body{margin:0}#host{width:${width}px;height:${height}px}</style><div id="host"></div>`);
     await page.addScriptTag({path:path.resolve('artifacts/nc-01b/browser-harness.js')});
     let spec=lineFixture(name==='gaps'?'null break':name==='reference'?'references':name==='statuses'?'loading':name==='lines'?'two series':name==='legend'?'two series':name==='steps'?'steps':'long labels');
-    spec={...spec,title:name,description:'Canonical NC-01B visual candidate',theme:theme as 'light'|'dark'};
+    spec={...spec,title:name,description:'Canonical NC-01B visual candidate',font:{family:'monospace',size:12,weight:400},theme:theme as 'light'|'dark'};
     await page.evaluate(spec=>{const w=globalThis as any;if(spec.title==='tooltip dock')document.body.style.transform='translate(0)';const r=w.NCLine.createLineChart(document.getElementById('host'),spec,{instanceId:'visual'});if(r.status!=='ok')throw Error(JSON.stringify(r));w.chart=r.value;},spec);
     await page.waitForFunction(()=>{const s=(globalThis as any).chart.getSnapshot();return s.phase==='active'&&s.revision===s.committedRevision;});
     if(name==='focus'||name.startsWith('tooltip')){const grid=page.locator('[role="grid"]');await grid.focus();if(name==='tooltip edge')await grid.press('End');if(name!=='focus')await expect(page.locator(name==='tooltip dock'?'[data-nc-detail]':'[data-nc-tooltip]')).toBeVisible();}

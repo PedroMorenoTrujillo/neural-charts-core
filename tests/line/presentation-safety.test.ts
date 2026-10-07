@@ -12,7 +12,7 @@ import type {SemanticModel} from '../../src/internal/accessibility/model.js';
 it('default semantic text, focus, references and every series have measurable contrast',()=>{
   const lum=(hex:string)=>{const c=[1,3,5].map(i=>parseInt(hex.slice(i,i+2),16)/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4);return c[0]!*.2126+c[1]!*.7152+c[2]!*.0722;};
   const contrast=(a:string,b:string)=>{const x=lum(a),y=lum(b);return(Math.max(x,y)+.05)/(Math.min(x,y)+.05);};
-  for(const theme of ['light','dark'] as const){const p=defaultPalette(theme,false);for(const color of [p.text,p.muted])expect(contrast(color,p.surface)).toBeGreaterThanOrEqual(4.5);for(const color of [p.axis,p.focus,p.reference,...p.series])expect(contrast(color,p.surface)).toBeGreaterThanOrEqual(3);expect(contrast(p.tooltipText,p.tooltipSurface)).toBeGreaterThanOrEqual(4.5);}
+  for(const theme of ['light','dark'] as const){const p=defaultPalette(theme,false);for(const color of [p.text,p.muted])expect(contrast(color,p.surface)).toBeGreaterThanOrEqual(4.5);for(const color of [p.axis,p.focus,p.reference,...p.series])expect(contrast(color,p.surface)).toBeGreaterThanOrEqual(3);for(const color of [p.tooltipText,p.muted])expect(contrast(color,p.tooltipSurface)).toBeGreaterThanOrEqual(4.5);for(const color of p.series)expect(contrast(color,p.tooltipSurface)).toBeGreaterThanOrEqual(3);}
 });
 it('tooltip disposal drops shell access and all subsequent operations remain inert',()=>{
   let replaced=0;const detail={hidden:false,replaceChildren(){replaced++;}};

@@ -20,7 +20,7 @@ import type { Layers } from '../internal/axes/scene.js';
 import { createShell, shellIds, applyShell } from '../internal/chart/shell.js';
 import { cleanup, removeOwnedNode } from '../internal/chart/cleanup.js';
 import type { Shell } from '../internal/chart/shell.js';
-import { resolvePalette } from '../internal/chart/presentation.js';
+import { resolvePalette, resolveDashes } from '../internal/chart/presentation.js';
 import type { Palette, ResolvedFont } from '../internal/chart/presentation.js';
 import { orderedState, toggleState, membershipChanged, derivedView } from '../internal/chart/state.js';
 import { createLegendView } from '../internal/legend/view.js';
@@ -122,12 +122,13 @@ function mount<T>(host: HTMLElement | null, initial: Accepted<T> | null, options
     let prefersDark = media?.matches ?? false; if (spec.theme === 'auto' && !media) { try { prefersDark = ownedHost.ownerDocument.defaultView?.matchMedia('(prefers-color-scheme: dark)').matches ?? false; } catch { /* Auto falls back to light. */ } }
     const palette = resolvePalette(ownedHost, spec.theme ?? 'light', prefersDark), layout = shellFrame(size, !!spec.description, data.series.map(s => s.spec.name), spec.legend?.position ?? 'bottom', font, direction, measurer), hidden = new Set(input.state.hiddenSeriesIds);
     const visible = data.series.filter(s => !hidden.has(s.spec.id)), view = derivedView(spec.status?.kind ?? 'ready', data.nonnullCount, visible.reduce((n, s) => n + s.valid.length, 0), data.series.length, hidden.size), layers = emptyLayers();
+    const dashes = resolveDashes(data.series, hidden, palette);
     let axes: AxesPlan | null = null, index: HitIndex<T> | null = null;
     if (view === 'ready') {
       const plan = planAxes({ x: spec.axes.x, y: spec.axes.y, domains: input.domains, width: layout.body.width, height: layout.body.height, font, direction, labels: data.labels, measurer }); if (plan.status === 'invalid') return plan; axes = plan.value;
       if (!axes.tooSmall && axes.y.domain) {
         const projection = projectLine(data, input.state, axes.plot, axes.x.domain, axes.y.domain, axes); if (projection.status === 'invalid') return projection;
-        index = buildHitIndex(projection.value, x => typeof x === 'string' ? data.ranks.get(x)! : x); axesScene(axes, spec.axes.x, spec.axes.y, palette, layers); lineScene(projection.value, palette, layers);
+        index = buildHitIndex(projection.value, x => typeof x === 'string' ? data.ranks.get(x)! : x); axesScene(axes, spec.axes.x, spec.axes.y, palette, layers); lineScene(projection.value, palette, layers, dashes);
       }
     }
     const referenceInfo = axes ? referenceScene(spec.references ?? [], axes, palette, layers, text => { const rendered = ellipsis(text, Math.max(0, axes!.plot.width - 8), s => measurer!.measure(s, font, direction)), m = measurer!.measure(rendered ?? '', font, direction); return { text: rendered, width: m.width, height: m.height }; }, data.ranks) : [];
@@ -135,8 +136,8 @@ function mount<T>(host: HTMLElement | null, initial: Accepted<T> | null, options
     const references = (spec.references ?? []).map(r => `${r.label ?? r.id}. ${r.axis.toUpperCase()} ${r.axis === 'x' ? fullX(r.value, spec.axes.x.kind, data.labels) : String(r.value)}.${(referenceInfo.find(info => info.id === r.id)?.outside ?? referenceOutside(r, input.domains, data.ranks)) ? ' Outside displayed domain.' : ''}`);
     const tableSource: TableSource = { title: spec.title, kind: spec.axes.x.kind, labels: data.labels, series: spec.series, hidden, context, references };
     const statusText = view === 'ready' ? axes?.tooSmall ? 'Chart is too small to display points. Enlarge the chart or view the data table.' : '' : spec.status && 'message' in spec.status ? spec.status.message ?? (view === 'loading' ? 'Loading chart data.' : 'No observations.') : view === 'no-visible-series' ? 'No visible series. Use the legend to show a series.' : view === 'loading' ? 'Loading chart data.' : view === 'error' ? 'Chart data unavailable.' : 'No visible observations.';
-    const legendItems = data.series.map((s, i) => ({ id: s.spec.id, name: s.spec.name, color: s.spec.color ?? palette.series[s.colorIndex]!, dash: s.dash, width: layout.legendPosition === 'end' ? 160 : layout.buttonWidths[i]! }));
-    const tooltipSeries = visible.map(s => ({ id: s.spec.id, name: s.spec.name, color: s.spec.color ?? palette.series[s.colorIndex]!, dash: s.dash, byX: s.byX }));
+    const legendItems = data.series.map((s, i) => ({ id: s.spec.id, name: s.spec.name, color: s.spec.color ?? palette.series[s.colorIndex]!, dash: dashes.get(s.spec.id)!, width: layout.legendPosition === 'end' ? 160 : layout.buttonWidths[i]! }));
+    const tooltipSeries = visible.map(s => ({ id: s.spec.id, name: s.spec.name, color: s.spec.color ?? palette.series[s.colorIndex]!, dash: dashes.get(s.spec.id)!, byX: s.byX }));
     return ok({ shell: layout, palette, font, axes, index, layers, view, statusText, legend: legendItems, tooltipSeries, table: tableSource });
   }
   function preflight(input: Accepted<T>): ChartResult<Accepted<T>> {
