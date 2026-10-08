@@ -17,7 +17,8 @@ it('compact reservations increase usable plot height while retaining both config
   const frame = shellFrame({ width: 320, height: 240 }, true, ['Completed'], 'bottom', font, 'ltr', measurer);
   const result = planAxes({ x: { kind: 'category', values: [{ id: 'a' }, { id: 'b' }], title: 'Day' }, y: { kind: 'linear', title: 'Sessions', nice: false }, domains: { x: null, y: [0, 10] }, width: frame.body.width, height: frame.body.height, compact: frame.compact, font, direction: 'ltr', labels: new Map(), measurer });
   if (result.status !== 'ok') throw Error('Expected valid compact chart');
-  expect(result.value.plot.height).toBe(69); expect(result.value.tooSmall).toBe(false);
+  // V04 reserves six additional pixels between tick text and the axis title.
+  expect(result.value.plot.height).toBe(63); expect(result.value.tooSmall).toBe(false);
   expect(result.value.xTitle).toBe('Day'); expect(result.value.yTitle).toBe('Sessions'); expect(result.value.y.domain).toEqual([0, 10]);
   expect(result.value.mapY(10)).toBe(result.value.plot.y); expect(result.value.mapY(0)).toBe(result.value.plot.y + result.value.plot.height);
 });

@@ -5,6 +5,7 @@ import { finiteExtent, normalizeNumericDomain } from '../internal/math/domain.js
 import { normalizeTimeDomain, timeExtent } from '../internal/math/time.js';
 import { ok } from '../internal/diagnostics.js';
 import { assignment } from '../internal/chart/presentation.js';
+import { duplicateCategoryLabels } from '../internal/tooltip/model.js';
 import type { Dash } from '../internal/chart/presentation.js';
 
 export type NormalizedSeries<T> = Readonly<{
@@ -16,6 +17,7 @@ export type NormalizedSeries<T> = Readonly<{
 export type NormalizedLine<T> = Readonly<{
   spec: LineChartSpec<T>; series: readonly NormalizedSeries<T>[];
   ranks: ReadonlyMap<string, number>; labels: ReadonlyMap<string, string>;
+  duplicateLabels: ReadonlySet<string>;
   xExtent: Extent; nonnullCount: number;
 }>;
 export type Domains = Readonly<{ x: Domain | null; y: Domain | null }>;
@@ -36,7 +38,7 @@ export function normalizeLine<T>(spec: LineChartSpec<T>): NormalizedLine<T> {
     const paint = assignment(s.id);
     return Object.freeze({ spec: s, points: s.data, valid: Object.freeze(valid), runs: Object.freeze(runs.map(r => Object.freeze(r))), byId, byX, yExtent: finiteExtent(ys), colorIndex: paint.colorIndex, dash: s.dash ?? paint.dash });
   });
-  return Object.freeze({ spec, series: Object.freeze(series), ranks, labels, xExtent: spec.axes.x.kind === 'time' ? timeExtent(xs) : finiteExtent(xs), nonnullCount });
+  return Object.freeze({ spec, series: Object.freeze(series), ranks, labels, duplicateLabels: duplicateCategoryLabels(labels), xExtent: spec.axes.x.kind === 'time' ? timeExtent(xs) : finiteExtent(xs), nonnullCount });
 }
 export function lineDomains<T>(data: NormalizedLine<T>, state: ChartState): ChartResult<Domains> {
   const x = data.spec.axes.x, y = data.spec.axes.y, hidden = new Set(state.hiddenSeriesIds), ys: number[] = [];

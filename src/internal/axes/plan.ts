@@ -9,7 +9,7 @@ import type { UtcInterval } from '../math/utc.js';
 import type { ResolvedFont } from '../chart/presentation.js';
 import type { Plot } from '../layout/frame.js';
 import type { TextMeasurer } from '../layout/text.js';
-import { ellipsis } from '../layout/text.js';
+import { ellipsis, categoryEllipsis } from '../layout/text.js';
 
 export type AxisInput = Readonly<{ kind: 'category' | 'linear' | 'time'; values?: readonly Readonly<{ id: string; label?: string }>[]; domain?: Domain; nice?: boolean; reversed?: boolean; edgeSpacing?: number; title?: string; grid?: boolean; ticks?: Readonly<{ targetCount?: number }>; labels?: Readonly<{ maxWidth?: number }> }>;
 export type TickLabel = Readonly<{ value: string | number; full: string; text: string | null; position: number; box: Plot; baseline: number }>;
@@ -64,7 +64,7 @@ export function planAxes(input: Readonly<{ x: AxisInput; y: AxisInput; domains: 
   let yWidth = 0, labelHeight = 1.25 * font.size;
   for (const value of sy.value.ticks) { const text = ellipsis(formatAxis(value, y.kind, sy.value.interval, labels), yCap, measure); if (text) { const m = measure(text); yWidth = Math.max(yWidth, m.width); labelHeight = Math.max(labelHeight, m.height); } }
   for (const value of sx.value.ticks) { const text = ellipsis(formatAxis(value, x.kind, sx.value.interval, labels), xCap, measure); if (text) labelHeight = Math.max(labelHeight, measure(text).height); }
-  const left = Math.min(width, 18 + yWidth), bottom = Math.min(height, (input.compact ? Math.max(10, Math.ceil(labelHeight / 2 - 4)) : 18) + labelHeight + (x.title ? 20 : 0));
+  const left = Math.min(width, 18 + yWidth), bottom = Math.min(height, (input.compact ? Math.max(10, Math.ceil(labelHeight / 2 - 4)) : 18) + labelHeight + (x.title ? input.compact ? 26 : 20 : 0));
   const plot: Plot = Object.freeze({ x: left, y: top, width: Math.max(0, width - left - 8), height: Math.max(0, height - top - bottom) });
   const makeLabels = (selection: TickSelection, axis: AxisInput, horizontal: boolean, maps: Readonly<{ mapX(value: string | number): number | null; mapY(value: number): number | null }>): readonly TickLabel[] => {
     const full = selection.ticks.map(v => formatAxis(v, axis.kind, selection.interval, labels)), duplicates = new Set(full.filter((s, i) => full.indexOf(s) !== i));
@@ -73,7 +73,7 @@ export function planAxes(input: Readonly<{ x: AxisInput; y: AxisInput; domains: 
       if (position === null || !Number.isFinite(position)) throw Error('Unrepresentable tick.');
       const original = duplicates.has(full[i]!) ? typeof value === 'number' && axis.kind === 'time' ? new Date(value).toISOString() : String(value) : full[i]!;
       const cap = horizontal ? Math.min(xCap, 2 * Math.max(0, Math.min(position, width - position))) : Math.min(yCap, yWidth);
-      const text = ellipsis(original, cap, measure), metrics = measure(text ?? '');
+      const text = axis.kind === 'category' ? categoryEllipsis(original, full, cap, measure) : ellipsis(original, cap, measure), metrics = measure(text ?? '');
       const box = horizontal ? { x: position - metrics.width / 2, y: plot.y + plot.height + 8, width: metrics.width, height: metrics.height } : { x: plot.x - 8 - metrics.width, y: position - metrics.height / 2, width: metrics.width, height: metrics.height };
       return { value, full: original, text: box.x >= 0 && box.y >= 0 && box.x + box.width <= width && box.y + box.height <= height ? text : null, position, box, baseline: metrics.baseline };
     });

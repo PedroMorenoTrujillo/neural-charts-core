@@ -31,7 +31,8 @@ export function createTooltipView(shell: Shell): TooltipView {
   let owned: Shell | null = shell, portal: HTMLDivElement | null = null;
   const content = (element: HTMLElement, model: TooltipModel): void => {
     element.dataset.ncPointId = model.pointId; element.dataset.ncSeriesId = model.seriesId; element.dataset.ncRevision = String(model.revision);
-    const document = element.ownerDocument, header = document.createElement('div'); header.dataset.ncTooltipHeading = ''; header.textContent = model.header; Object.assign(header.style, { fontWeight: '600', marginBottom: '7px', lineHeight: '1.35' }); const rows: HTMLElement[] = [header];
+    element.dataset.ncCategory = String(model.x);
+    const document = element.ownerDocument, header = document.createElement('div'); header.dataset.ncTooltipHeading = ''; header.textContent = model.displayHeader; Object.assign(header.style, { fontWeight: '600', marginBottom: '7px', lineHeight: '1.35' }); const rows: HTMLElement[] = [header];
     for (const row of model.rows) {
       const line = document.createElement('div'), swatch = document.createElement('span'), name = document.createElement('span'), value = document.createElement('span');
       line.dataset.ncTooltipRow = ''; Object.assign(line.style, { display: 'grid', gridTemplateColumns: '16px minmax(0,1fr) auto', gap: '7px', alignItems: 'baseline', marginTop: '4px' });

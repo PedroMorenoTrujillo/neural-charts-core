@@ -159,7 +159,7 @@ function mount<T>(host: HTMLElement | null, initial: Accepted<T> | null, options
     semantic.update({ rowCount: computed.index?.targets.length ?? 0, columnCount: computed.index?.columnCount ?? 0, current: current && model ? semanticPoint(current.series.series.spec.name, current.seriesIndex + 1, computed.index!.columns.get(current.point.point.x)!, model.header, current.point.point.y!, context, model) : null, summary: computed.statusText || 'Chart data. No points in the displayed domain. Use the data table.' }, computed.axes?.plot ?? { x: 0, y: 0, width: computed.shell.body.width, height: computed.shell.body.height }, navigation);
   }
   function tooltipFor(target: HitTarget<T>): TooltipModel {
-    return tooltipModel(committedRevision, target.series.series.spec.id, target.point.point.id, target.point.point.x, committed!.data.spec.axes.x.kind, committed!.data.spec.tooltip?.mode === 'shared' ? 'shared' : 'point', computed!.tooltipSeries, committed!.data.labels);
+    return tooltipModel(committedRevision, target.series.series.spec.id, target.point.point.id, target.point.point.x, committed!.data.spec.axes.x.kind, committed!.data.spec.tooltip?.mode === 'shared' ? 'shared' : 'point', computed!.tooltipSeries, committed!.data.labels, committed!.data.duplicateLabels);
   }
   function invalidateInteraction(keepDetail = false): void { sequence++; pinned = false; events?.pin(false, committedRevision); detailWanted = keepDetail; hover = null; const previous = focusSuppressed; focusSuppressed = true; if (!keepDetail) tooltip?.close(true); focusSuppressed = previous; overlayWriter?.clear(); }
   function interactionJob(stage: 'intent' | 'measure' = 'intent', sample?: InteractionJob<T>['sample']): void {

@@ -15,7 +15,7 @@ export function createShell(host: HTMLElement, prefix: string): Shell {
   grid.style.background = 'transparent'; grid.style.outlineOffset = '-2px'; hiddenText(help); hiddenText(semanticDetail);
   help.textContent = 'Use Left and Right to move through observations in data order, including in right-to-left charts. Up and Down move between series. Home and End move to series endpoints; Control with Home or End moves to chart endpoints. Escape closes detail. Tab leaves the chart. Enter or Space activates a point when available.';
   status.dataset.ncStatus = ''; status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite'); Object.assign(status.style, { overflow: 'auto', padding: '20px', fontSize: '13px', lineHeight: '1.5', boxSizing: 'border-box' });
-  detail.hidden = true; detail.dataset.ncDetail = ''; detail.setAttribute('role', 'region'); detail.setAttribute('aria-label', 'Point details'); detail.tabIndex = 0; Object.assign(detail.style, { position: 'absolute', inset: '0', overflow: 'auto', padding: '12px', boxSizing: 'border-box', zIndex: '3' });
+  detail.hidden = true; detail.dataset.ncDetail = ''; detail.setAttribute('role', 'region'); detail.setAttribute('aria-label', 'Point details'); detail.tabIndex = 0; Object.assign(detail.style, { position: 'absolute', insetInlineEnd: '0', insetBlockEnd: '0', width: '280px', maxWidth: '100%', maxHeight: '100%', overflow: 'auto', overflowWrap: 'anywhere', padding: '10px 12px', boxSizing: 'border-box', borderRadius: '5px', border: '1px solid', zIndex: '3' });
   table.hidden = true; table.dataset.ncTable = ''; Object.assign(table.style, { position: 'absolute', inset: '0', overflow: 'auto', padding: '12px', boxSizing: 'border-box', zIndex: '4' });
   tableToggle.type = 'button'; tableToggle.textContent = 'View data table'; tableToggle.setAttribute('aria-label', 'View data table'); tableToggle.setAttribute('aria-controls', ids.table); tableToggle.setAttribute('aria-expanded', 'false');
   tableToggle.dataset.ncTableToggle = '';
@@ -43,7 +43,7 @@ export function applyShell(shell: Shell, frame: ShellFrame, palette: Palette, fo
   shell.description.style.color = palette.muted; shell.status.style.color = palette.muted;
   shell.legend.style.flexDirection = frame.legendPosition === 'end' ? 'column' : 'row'; shell.legend.style.flexWrap = frame.legendPosition === 'end' ? 'nowrap' : 'wrap'; shell.legend.hidden = frame.legendPosition === 'none'; shell.legend.style.display = shell.legend.hidden ? 'none' : 'flex';
   shell.detail.style.backgroundColor = palette.surface; shell.table.style.backgroundColor = palette.surface;
-  shell.detail.style.borderBlockStart = `1px solid ${palette.grid}`;
+  shell.detail.style.borderColor = palette.grid;
   for (const element of [shell.tableToggle, shell.legend]) element.style.fontFamily = font.family;
   shell.legend.style.color = palette.text;
   box(shell.status, { x: 0, y: 0, width: frame.body.width, height: frame.body.height });
