@@ -17,7 +17,7 @@ export function createShell(host: HTMLElement, prefix: string): Shell {
   status.dataset.ncStatus = ''; status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite'); Object.assign(status.style, { overflow: 'auto', padding: '20px', fontSize: '13px', lineHeight: '1.5', boxSizing: 'border-box' });
   detail.hidden = true; detail.dataset.ncDetail = ''; detail.setAttribute('role', 'region'); detail.setAttribute('aria-label', 'Point details'); detail.tabIndex = 0; Object.assign(detail.style, { position: 'absolute', inset: '0', overflow: 'auto', padding: '12px', boxSizing: 'border-box', zIndex: '3' });
   table.hidden = true; table.dataset.ncTable = ''; Object.assign(table.style, { position: 'absolute', inset: '0', overflow: 'auto', padding: '12px', boxSizing: 'border-box', zIndex: '4' });
-  tableToggle.type = 'button'; tableToggle.textContent = 'View data table'; tableToggle.setAttribute('aria-controls', ids.table); tableToggle.setAttribute('aria-expanded', 'false');
+  tableToggle.type = 'button'; tableToggle.textContent = 'View data table'; tableToggle.setAttribute('aria-label', 'View data table'); tableToggle.setAttribute('aria-controls', ids.table); tableToggle.setAttribute('aria-expanded', 'false');
   tableToggle.dataset.ncTableToggle = '';
   Object.assign(tableToggle.style, { overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', minWidth: '0', fontSize: '12px', cursor: 'pointer' });
   for (const element of [base, overlay]) { Object.assign(element.style, { position: 'absolute', inset: '0', pointerEvents: 'none', overflow: 'hidden' }); element.setAttribute('aria-hidden', 'true'); }
@@ -34,9 +34,11 @@ export function createShell(host: HTMLElement, prefix: string): Shell {
 export function applyShell(shell: Shell, frame: ShellFrame, palette: Palette, font: ResolvedFont, direction: 'ltr' | 'rtl', title: string, description: string | undefined): void {
   shell.root.style.width = `${frame.width}px`; shell.root.style.height = `${frame.height}px`; shell.root.style.backgroundColor = palette.surface; shell.root.style.color = palette.text; shell.root.style.fontFamily = font.family; shell.root.style.fontSize = `${font.size}px`; shell.root.style.setProperty('--nc-owned-focus', palette.focus); shell.root.style.setProperty('--nc-owned-muted', palette.muted); shell.root.style.setProperty('--nc-owned-text', palette.text); shell.root.style.setProperty('--nc-owned-soft', palette.grid); shell.root.dir = direction;
   box(shell.header, frame.header); box(shell.body, frame.body); box(shell.legend, frame.legend);
-  box(shell.title, { x: direction === 'rtl' ? frame.tableWidth + 8 : 0, y: 0, width: frame.textWidth, height: 20 });
-  box(shell.description, { x: direction === 'rtl' ? frame.tableWidth + 8 : 0, y: 20, width: frame.textWidth, height: 22 });
+  box(shell.title, { x: direction === 'rtl' ? frame.tableWidth + 8 : 0, y: frame.compact ? 6 : 0, width: frame.textWidth, height: 20 });
+  box(shell.description, { x: frame.compact ? 0 : direction === 'rtl' ? frame.tableWidth + 8 : 0, y: frame.compact ? 32 : 20, width: frame.compact ? frame.header.width : frame.textWidth, height: frame.compact ? 18 : 22 });
+  shell.description.style.marginTop = frame.compact ? '0' : '4px';
   box(shell.tableToggle, { x: direction === 'rtl' ? 0 : Math.max(0, frame.header.width - frame.tableWidth), y: 0, width: frame.tableWidth, height: 32 });
+  shell.tableToggle.textContent = frame.compact ? 'Data table' : 'View data table';
   shell.title.textContent = title; shell.description.textContent = description ?? ''; shell.description.hidden = !description;
   shell.description.style.color = palette.muted; shell.status.style.color = palette.muted;
   shell.legend.style.flexDirection = frame.legendPosition === 'end' ? 'column' : 'row'; shell.legend.style.flexWrap = frame.legendPosition === 'end' ? 'nowrap' : 'wrap'; shell.legend.hidden = frame.legendPosition === 'none'; shell.legend.style.display = shell.legend.hidden ? 'none' : 'flex';

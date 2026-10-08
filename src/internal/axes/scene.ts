@@ -18,7 +18,7 @@ export function displayLabels(labels: readonly TickLabel[]): ReadonlySet<TickLab
   for (const t of visible) if (!result.has(t) && (!seen.has(t.text!) || (repeated.get(t.text!)?.size ?? 0) <= 1)) { result.add(t); seen.add(t.text!); }
   return result;
 }
-export function axesScene(plan: AxesPlan, x: AxisInput, y: AxisInput, palette: Palette, layers: Layers): void {
+export function axesScene(plan: AxesPlan, x: AxisInput, y: AxisInput, palette: Palette, layers: Layers, compact = false): void {
   if (plan.tooSmall) return;
   const plot = plan.plot, right = plot.x + plot.width, bottom = plot.y + plot.height, axis: Presentation = { stroke: { kind: 'solid', value: palette.axis }, strokeWidth: 1 };
   layers.axes.push({ kind: 'line', key: 'x-baseline', x1: plot.x, y1: bottom, x2: right, y2: bottom, presentation: axis }, { kind: 'line', key: 'y-baseline', x1: plot.x, y1: plot.y, x2: plot.x, y2: bottom, presentation: axis });
@@ -29,8 +29,8 @@ export function axesScene(plan: AxesPlan, x: AxisInput, y: AxisInput, palette: P
     if ((input.grid ?? !horizontal) && (horizontal ? t.position !== plot.x : t.position !== bottom)) layers.grid.push(horizontal ? { kind: 'line', key: prefix + '-grid', x1: t.position, y1: plot.y, x2: t.position, y2: bottom, clipKey: 'plot', presentation: { stroke: { kind: 'solid', value: palette.grid }, strokeWidth: 1 } } : { kind: 'line', key: prefix + '-grid', x1: plot.x, y1: t.position, x2: right, y2: t.position, clipKey: 'plot', presentation: { stroke: { kind: 'solid', value: palette.grid }, strokeWidth: 1 } });
     if (t.text && (!horizontal || shown.has(t))) layers.labels.push({ kind: 'text', key: prefix + '-label', x: horizontal ? t.position : plot.x - 8, y: t.box.y + t.baseline, text: t.text, anchor: horizontal ? 'middle' : plan.direction === 'rtl' ? 'start' : 'end', baseline: 'alphabetic', presentation: textStyle, ...font });
   }
-  if (plan.xTitle) layers.labels.push({ kind: 'text', key: 'x-title', x: plot.x + plot.width / 2, y: bottom + 8 + 1.25 * plan.font.size + 10, text: plan.xTitle, anchor: 'middle', baseline: 'middle', presentation: textStyle, ...font, fontWeight: 500 });
-  if (plan.yTitle) layers.labels.push({ kind: 'text', key: 'y-title', x: plot.x, y: 18, text: plan.yTitle, anchor: plan.direction === 'rtl' ? 'end' : 'start', baseline: 'middle', presentation: textStyle, ...font, fontWeight: 500 });
+  if (plan.xTitle) layers.labels.push({ kind: 'text', key: 'x-title', x: plot.x + plot.width / 2, y: bottom + 8 + 1.25 * plan.font.size + (compact ? 6 : 10), text: plan.xTitle, anchor: 'middle', baseline: 'middle', presentation: textStyle, ...font, fontWeight: 500 });
+  if (plan.yTitle) layers.labels.push({ kind: 'text', key: 'y-title', x: plot.x, y: compact ? 10 : 18, text: plan.yTitle, anchor: plan.direction === 'rtl' ? 'end' : 'start', baseline: 'middle', presentation: textStyle, ...font, fontWeight: 500 });
 }
 export type ReferenceInput = Readonly<{ id: string; axis: 'x' | 'y'; value: string | number; label?: string; color?: string; dash?: Dash }>;
 export function referenceOutside(reference: ReferenceInput, domains: Readonly<{ x: readonly [number, number] | null; y: readonly [number, number] | null }>, categories: ReadonlyMap<string, number>): boolean {

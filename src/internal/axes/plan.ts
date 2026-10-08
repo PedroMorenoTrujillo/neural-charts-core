@@ -55,8 +55,8 @@ export function filterLabels(labels: readonly TickLabel[]): readonly TickLabel[]
   for (const i of indices) { const label = labels[i]; if (label?.text && !accepted.some(other => overlap(label.box, other.box))) accepted.push(label); }
   const set = new Set(accepted); return Object.freeze(labels.map(label => set.has(label) ? label : { ...label, text: null }));
 }
-export function planAxes(input: Readonly<{ x: AxisInput; y: AxisInput; domains: Readonly<{ x: Domain | null; y: Domain | null }>; width: number; height: number; font: ResolvedFont; direction: 'ltr' | 'rtl'; labels: ReadonlyMap<string, string>; measurer: TextMeasurer }>): Result<AxesPlan> {
-  const { x, y, width, height, font, direction, labels, measurer } = input, top = 8 + (y.title ? 20 : 0), provisional: Plot = { x: 56, y: top, width: Math.max(0, width - 64), height: Math.max(0, height - top - 32) };
+export function planAxes(input: Readonly<{ x: AxisInput; y: AxisInput; domains: Readonly<{ x: Domain | null; y: Domain | null }>; width: number; height: number; font: ResolvedFont; direction: 'ltr' | 'rtl'; labels: ReadonlyMap<string, string>; measurer: TextMeasurer; compact?: boolean }>): Result<AxesPlan> {
+  const { x, y, width, height, font, direction, labels, measurer } = input, top = input.compact ? 4 + (y.title ? 16 : 0) : 8 + (y.title ? 20 : 0), provisional: Plot = { x: 56, y: top, width: Math.max(0, width - 64), height: Math.max(0, height - top - 32) };
   const xCount = x.ticks?.targetCount ?? target(provisional.width / 80), yCount = y.ticks?.targetCount ?? target(provisional.height / 48);
   let sx = select(x, input.domains.x, xCount, false), sy = select(y, input.domains.y, yCount, true);
   if (sx.status === 'invalid') return sx; if (sy.status === 'invalid') return sy;
@@ -64,7 +64,7 @@ export function planAxes(input: Readonly<{ x: AxisInput; y: AxisInput; domains: 
   let yWidth = 0, labelHeight = 1.25 * font.size;
   for (const value of sy.value.ticks) { const text = ellipsis(formatAxis(value, y.kind, sy.value.interval, labels), yCap, measure); if (text) { const m = measure(text); yWidth = Math.max(yWidth, m.width); labelHeight = Math.max(labelHeight, m.height); } }
   for (const value of sx.value.ticks) { const text = ellipsis(formatAxis(value, x.kind, sx.value.interval, labels), xCap, measure); if (text) labelHeight = Math.max(labelHeight, measure(text).height); }
-  const left = Math.min(width, 18 + yWidth), bottom = Math.min(height, 18 + labelHeight + (x.title ? 20 : 0));
+  const left = Math.min(width, 18 + yWidth), bottom = Math.min(height, (input.compact ? Math.max(10, Math.ceil(labelHeight / 2 - 4)) : 18) + labelHeight + (x.title ? 20 : 0));
   const plot: Plot = Object.freeze({ x: left, y: top, width: Math.max(0, width - left - 8), height: Math.max(0, height - top - bottom) });
   const makeLabels = (selection: TickSelection, axis: AxisInput, horizontal: boolean, maps: Readonly<{ mapX(value: string | number): number | null; mapY(value: number): number | null }>): readonly TickLabel[] => {
     const full = selection.ticks.map(v => formatAxis(v, axis.kind, selection.interval, labels)), duplicates = new Set(full.filter((s, i) => full.indexOf(s) !== i));

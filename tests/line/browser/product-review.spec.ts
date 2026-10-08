@@ -28,7 +28,7 @@ for (const [width, height] of [[320, 240], [390, 300], [768, 400], [1280, 600]] 
       await expect(page.locator(name === 'tooltip-dock' ? '[data-nc-detail]' : '[data-nc-tooltip]')).toBeVisible();
     }
     await page.evaluate(async () => { await document.fonts.ready; await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))); });
-    const first = await page.screenshot({ animations: 'disabled' }), second = await page.screenshot({ animations: 'disabled' });
+    const first = await page.screenshot({ animations: 'disabled', clip: { x: 0, y: 0, width, height } }), second = await page.screenshot({ animations: 'disabled', clip: { x: 0, y: 0, width, height } });
     expect(second.equals(first), 'Product captures must be repeatable').toBe(true);
     const dir = path.resolve('artifacts/nc-01b/visual-review', phase), id = `${name}-${width}x${height}-${theme}`;
     fs.mkdirSync(dir, { recursive: true }); fs.writeFileSync(path.join(dir, id + '.png'), first);

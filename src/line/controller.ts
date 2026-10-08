@@ -125,10 +125,10 @@ function mount<T>(host: HTMLElement | null, initial: Accepted<T> | null, options
     const dashes = resolveDashes(data.series, hidden, palette);
     let axes: AxesPlan | null = null, index: HitIndex<T> | null = null;
     if (view === 'ready') {
-      const plan = planAxes({ x: spec.axes.x, y: spec.axes.y, domains: input.domains, width: layout.body.width, height: layout.body.height, font, direction, labels: data.labels, measurer }); if (plan.status === 'invalid') return plan; axes = plan.value;
+      const plan = planAxes({ x: spec.axes.x, y: spec.axes.y, domains: input.domains, width: layout.body.width, height: layout.body.height, font, direction, labels: data.labels, measurer, compact: layout.compact }); if (plan.status === 'invalid') return plan; axes = plan.value;
       if (!axes.tooSmall && axes.y.domain) {
         const projection = projectLine(data, input.state, axes.plot, axes.x.domain, axes.y.domain, axes); if (projection.status === 'invalid') return projection;
-        index = buildHitIndex(projection.value, x => typeof x === 'string' ? data.ranks.get(x)! : x); axesScene(axes, spec.axes.x, spec.axes.y, palette, layers); lineScene(projection.value, palette, layers, dashes);
+        index = buildHitIndex(projection.value, x => typeof x === 'string' ? data.ranks.get(x)! : x); axesScene(axes, spec.axes.x, spec.axes.y, palette, layers, layout.compact); lineScene(projection.value, palette, layers, dashes);
       }
     }
     const referenceInfo = axes ? referenceScene(spec.references ?? [], axes, palette, layers, text => { const rendered = ellipsis(text, Math.max(0, axes!.plot.width - 8), s => measurer!.measure(s, font, direction)), m = measurer!.measure(rendered ?? '', font, direction); return { text: rendered, width: m.width, height: m.height }; }, data.ranks) : [];
