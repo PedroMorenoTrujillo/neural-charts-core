@@ -24,7 +24,7 @@ test('100 retained destroyed controllers release ownership, listeners, frames an
         for(let n=0;n<120&&(!c.getSnapshot().committedRevision||c.getSnapshot().revision!==c.getSnapshot().committedRevision);n++)await tick();
         const owned=host.querySelector('[data-nc-root]')!,grid=host.querySelector('[role="grid"]') as HTMLElement;if(!grid)throw Error(JSON.stringify({snapshot:c.getSnapshot(),diagnostics}));grid.focus();await tick();
         if(docked){const pane=host.querySelector('[data-nc-detail]') as HTMLElement;for(let n=0;n<120&&pane.hidden;n++)await tick();if(pane.hidden)throw Error('Dock not exercised in cleanup cycle '+i);}
-        const toggle=[...host.querySelectorAll('button')].find(b=>b.textContent==='View data table')!;toggle.click();await tick();
+        const toggle=host.querySelector('[data-nc-table-toggle]') as HTMLButtonElement;if(!toggle)throw Error('Owned table control missing');toggle.click();await tick();
         w.resourceRefs.push(new WeakRef(datum),new WeakRef(spec),new WeakRef(owned));
         c.update({...spec,title:'Updated cycle'});c.refresh();c.destroy();c.destroy();w.retainedControllers.push(c);await tick();
         const row={cycle:i,docked,listeners,observations,frames:frames.size,owned:host.querySelectorAll('[data-nc-root]').length,portals:document.querySelectorAll('[data-nc-tooltip]').length};cycles.push(row);
