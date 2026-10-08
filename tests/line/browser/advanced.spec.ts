@@ -95,5 +95,11 @@ test('synchronous geometry preflight rejects finite but unrepresentable projecti
 test('100k table and dense 10k scene have bounded DOM; retained controllers dispose deterministically', async ({ page }) => {
   const data = Array.from({ length: 10000 }, (_, x) => ({ id: String(x), x, y: x % 10 })); await mount(page, { axes: { x: { kind: 'linear' }, y: { kind: 'linear' } }, series: [{ id: 's', name: 'Dense', data, markers: 'auto' }] }); await expect(page.locator('[data-nc-layer="marks"] path')).toHaveCount(1); await expect(page.locator('[data-nc-layer="marks"] circle')).toHaveCount(0); expect(await page.locator('[data-nc-root] *').count()).toBeLessThanOrEqual(256);
   await page.evaluate(() => { const w = globalThis as any; w.chart.destroy(); w.retained = [w.chart]; });
-  await mount(page, { axes: { x: { kind: 'linear' }, y: { kind: 'linear' } }, series: [{ id: 's', name: 'Stress', data: Array.from({ length: 100000 }, (_, x) => ({ id: String(x), x, y: 1 })) }] }); await page.getByRole('button', { name: 'View data table' }).click(); await expect(page.locator('tbody tr')).toHaveCount(100); await page.evaluate(() => { const w = globalThis as any; w.chart.destroy(); w.retained.push(w.chart); }); await expect(page.locator('[data-nc-root], [data-nc-tooltip]')).toHaveCount(0);
+  // Build the stress data in the consumer's realm. Firefox's automation bridge
+  // makes 100k transferred objects costly even in the preserved historical bundle.
+  // Keep the real pointer click, row/resource bounds and retained-controller checks.
+  expect(await page.evaluate(() => {
+    const w = globalThis as any, spec = { family: 'line', title: 'Measurements', axes: { x: { kind: 'linear' }, y: { kind: 'linear' } }, series: [{ id: 's', name: 'Stress', data: Array.from({ length: 100000 }, (_, x) => ({ id: String(x), x, y: 1 })) }] };
+    const r = w.NCLine.createLineChart(document.getElementById('host'), spec, { instanceId: 'advanced' }); if (r.status === 'ok') w.chart = r.value; return r.status;
+  })).toBe('ok'); await settle(page); await page.getByRole('button', { name: 'View data table' }).click(); await expect(page.locator('tbody tr')).toHaveCount(100); await page.evaluate(() => { const w = globalThis as any; w.chart.destroy(); w.retained.push(w.chart); }); await expect(page.locator('[data-nc-root], [data-nc-tooltip]')).toHaveCount(0);
 });
