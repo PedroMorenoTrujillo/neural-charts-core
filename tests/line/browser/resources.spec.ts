@@ -18,14 +18,16 @@ test('100 retained destroyed controllers release ownership, listeners, frames an
     w.retainedControllers=[];w.resourceRefs=[];const cycles=[];
     try{
       for(let i=0;i<100;i++){
+        const docked=i%2===1;host.style.width=docked?'320px':'768px';host.style.height=docked?'240px':'400px';document.body.style.transform=docked?'translate(0)':'';
         const datum={cycle:i},spec={family:'line',title:'Resource cycle',axes:{x:{kind:'linear'},y:{kind:'linear'}},series:[{id:'s',name:'Series',data:[{id:'a',x:0,y:2,datum},{id:'b',x:1,y:4}]}]};
         const diagnostics:unknown[]=[];const mounted=w.NCLine.createLineChart(host,spec,{instanceId:'resources',onDiagnostic:(d:unknown)=>diagnostics.push(d)});if(mounted.status!=='ok')throw Error('Mount '+i);const c=mounted.value;
         for(let n=0;n<120&&(!c.getSnapshot().committedRevision||c.getSnapshot().revision!==c.getSnapshot().committedRevision);n++)await tick();
         const owned=host.querySelector('[data-nc-root]')!,grid=host.querySelector('[role="grid"]') as HTMLElement;if(!grid)throw Error(JSON.stringify({snapshot:c.getSnapshot(),diagnostics}));grid.focus();await tick();
+        if(docked){const pane=host.querySelector('[data-nc-detail]') as HTMLElement;for(let n=0;n<120&&pane.hidden;n++)await tick();if(pane.hidden)throw Error('Dock not exercised in cleanup cycle '+i);}
         const toggle=[...host.querySelectorAll('button')].find(b=>b.textContent==='View data table')!;toggle.click();await tick();
         w.resourceRefs.push(new WeakRef(datum),new WeakRef(spec),new WeakRef(owned));
         c.update({...spec,title:'Updated cycle'});c.refresh();c.destroy();c.destroy();w.retainedControllers.push(c);await tick();
-        const row={cycle:i,listeners,observations,frames:frames.size,owned:host.querySelectorAll('[data-nc-root]').length,portals:document.querySelectorAll('[data-nc-tooltip]').length};cycles.push(row);
+        const row={cycle:i,docked,listeners,observations,frames:frames.size,owned:host.querySelectorAll('[data-nc-root]').length,portals:document.querySelectorAll('[data-nc-tooltip]').length};cycles.push(row);
         if(listeners||observations||frames.size||row.owned||row.portals)throw Error(JSON.stringify(row));
       }
       return {cycles,retained:w.retainedControllers.length,weakRefs:w.resourceRefs.length};

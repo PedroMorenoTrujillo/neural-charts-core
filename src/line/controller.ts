@@ -205,7 +205,7 @@ function mount<T>(host: HTMLElement | null, initial: Accepted<T> | null, options
     if (job.sample) hover = target;
     if (model && tokenCurrent(job)) {
       if (job.stage === 'intent') { tooltip!.write(model, candidate.bounds, computed.palette, computed.font, committed!.data.spec.direction ?? 'ltr'); interactionJob('measure'); }
-      else if (candidate.placement) tooltip!.show(candidate.placement, model);
+      else if (candidate.placement && target) tooltip!.show(candidate.placement, model, { anchor: { x: target.point.x - 6, y: target.point.y - 6, width: 12, height: 12 }, plot: computed.axes!.plot, body: { x: 0, y: 0, width: computed.shell.body.width, height: computed.shell.body.height } });
     } else tooltip?.close();
     return ok(undefined);
   }

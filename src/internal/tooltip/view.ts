@@ -5,6 +5,7 @@ import { rowText } from './model.js';
 import type { Rect, PlacementResult } from './place.js';
 import { intersect } from './place.js';
 import { cleanup, removeOwnedNode } from '../chart/cleanup.js';
+import { dockRegion, type DockGeometry } from './dock.js';
 export function allowedRect(host: HTMLElement): Rect {
   const doc = host.ownerDocument, win = doc.defaultView!, r = host.getBoundingClientRect(), style = win.getComputedStyle(host), sx = host.offsetWidth ? r.width / host.offsetWidth : 1, sy = host.offsetHeight ? r.height / host.offsetHeight : 1;
   const px = (name: string): number => parseFloat(style.getPropertyValue(name)) || 0;
@@ -26,7 +27,7 @@ export function unsupportedPortalMapping(document: Document): boolean {
   }
   return false;
 }
-export interface TooltipView { write(model: TooltipModel, bounds: Rect, palette: Palette, font: ResolvedFont, direction: 'ltr' | 'rtl'): void; measure(): Readonly<{ width: number; height: number }> | null; show(placement: PlacementResult, model: TooltipModel): void; close(returnFocus?: boolean): void; destroy(): void; }
+export interface TooltipView { write(model: TooltipModel, bounds: Rect, palette: Palette, font: ResolvedFont, direction: 'ltr' | 'rtl'): void; measure(): Readonly<{ width: number; height: number }> | null; show(placement: PlacementResult, model: TooltipModel, geometry: DockGeometry): void; close(returnFocus?: boolean): void; destroy(): void; }
 export function createTooltipView(shell: Shell): TooltipView {
   let owned: Shell | null = shell, portal: HTMLDivElement | null = null;
   const content = (element: HTMLElement, model: TooltipModel): void => {
@@ -56,11 +57,25 @@ export function createTooltipView(shell: Shell): TooltipView {
       content(portal, model);
     },
     measure() { if (!portal) return null; const r = portal.getBoundingClientRect(); return { width: r.width, height: r.height }; },
-    show(placement, model) {
+    show(placement, model, geometry) {
       if (!owned) return;
       if (placement.kind === 'closed') { close(true); return; }
       // A focused dock remains the active detail until focus leaves or it closes.
-      if (placement.kind === 'docked' || owned.detail.contains(owned.root.ownerDocument.activeElement)) { removeOwnedNode(portal); portal = null; content(owned.detail, model); owned.detail.hidden = false; return; }
+      if (placement.kind === 'docked' || owned.detail.contains(owned.root.ownerDocument.activeElement)) {
+        const direction = owned.root.dir === 'rtl' ? 'rtl' : 'ltr';
+        const changed = owned.detail.dataset.ncPointId !== model.pointId || owned.detail.dataset.ncSeriesId !== model.seriesId;
+        removeOwnedNode(portal); portal = null; content(owned.detail, model);
+        const width = Math.min(280, geometry.body.width);
+        Object.assign(owned.detail.style, { insetInlineEnd: 'auto', insetBlockEnd: 'auto', left: '0', top: '0', width: `${width}px`, maxHeight: `${geometry.body.height}px` });
+        owned.detail.hidden = false;
+        // One additional local measurement after the dock width changes. No
+        // feedback job; the chosen region always excludes the selected halo.
+        const height = owned.detail.offsetHeight;
+        const region = dockRegion(geometry, { width, height }, direction);
+        Object.assign(owned.detail.style, { left: `${region.x}px`, top: `${region.y}px`, width: `${region.width}px`, maxHeight: `${region.height}px` });
+        if (changed) owned.detail.scrollTop = 0;
+        return;
+      }
       if (portal) { owned.detail.hidden = true; portal.style.left = `${placement.x}px`; portal.style.top = `${placement.y}px`; portal.style.visibility = 'visible'; }
     },
     close,

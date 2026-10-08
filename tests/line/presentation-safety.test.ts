@@ -18,7 +18,7 @@ it('tooltip disposal drops shell access and all subsequent operations remain ine
   let replaced=0;const detail={hidden:false,replaceChildren(){replaced++;}};
   const shell={root:{ownerDocument:{activeElement:null}},detail} as unknown as Shell;
   const view=createTooltipView(shell);expect(view.measure()).toBeNull();view.destroy();expect(detail.hidden).toBe(true);
-  const model={} as TooltipModel;view.write(model,{x:0,y:0,width:100,height:100},defaultPalette('light',false),{family:'sans-serif',size:12,weight:400},'ltr');view.show({kind:'closed'},model);view.close(true);view.destroy();expect(view.measure()).toBeNull();expect(replaced).toBe(1);
+  const model={} as TooltipModel;view.write(model,{x:0,y:0,width:100,height:100},defaultPalette('light',false),{family:'sans-serif',size:12,weight:400},'ltr');view.show({kind:'closed'},model,{anchor:{x:0,y:0,width:12,height:12},plot:{x:0,y:0,width:100,height:100},body:{x:0,y:0,width:100,height:100}});view.close(true);view.destroy();expect(view.measure()).toBeNull();expect(replaced).toBe(1);
 });
 it('portal bounds use the viewport fallback and contain zero-size/transformed content boxes',()=>{
   const style={getPropertyValue:(name:string)=>name.includes('left')?'2':name.includes('right')?'3':'0',overflowX:'visible',overflowY:'visible'};
