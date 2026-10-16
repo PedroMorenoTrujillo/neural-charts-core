@@ -1,4 +1,5 @@
-import type { ColumnChartSpec, ColumnController, ColumnMountOptions, ColumnSnapshot } from '../public/column-types.js';
+import type { ColumnChartSpec, ColumnMountOptions, ColumnSnapshot } from '../public/column-types.js';
+import type { ColumnPolicy, ColumnEngineController } from './renderer.js';
 import type { ChartResult, ChartState, ChartDiagnostic } from '../public/chart-types.js';
 import type { Domain } from '../internal/math/domain.js';
 import { invalid, ok } from '../internal/diagnostics.js';
@@ -35,20 +36,20 @@ type DetailJob<T> = Readonly<{ revision: number; generation: number; sequence: n
 type DetailCandidate<T> = Readonly<{ job: DetailJob<T>; target: ColumnRect<T> | null; scene: PreparedScene; model: TooltipModel | null; bounds: Rect; placement: PlacementResult | null }>;
 function invoke<T>(fn: ((value:T)=>void)|null, value:T):void { try { fn?.(value); } catch { /* Consumer exceptions do not own engine lifecycle. */ } }
 
-export function createColumnChart<T=unknown>(host: HTMLElement, spec: ColumnChartSpec<T>, options: ColumnMountOptions<T>): ChartResult<ColumnController<T>> {
-  const validated=validateColumn<T>(spec);if(validated.status==='invalid')return validated;
+export function createColumnChart<T=unknown,S=ColumnChartSpec<T>>(host: HTMLElement, spec: S, options: ColumnMountOptions<T>, policy?:ColumnPolicy<T>): ChartResult<ColumnEngineController<T,S>> {
+  const validated=policy?policy.parse(spec):validateColumn<T>(spec);if(validated.status==='invalid')return validated;
   const data=normalizeColumn(validated.value), ids=new Set(data.series.map(s=>s.spec.id)), opts=validateColumnOptions<T>(options,ids);if(opts.status==='invalid')return opts;
   const mode=data.spec.state?.mode??'internal';
   if(mode==='controlled'&&opts.value.initialState)return invalid('INVALID_CONFIG','BAD_STATE','options.initialState');
   if(mode==='controlled'&&data.series.length&&data.spec.legend?.position!=='none'&&!opts.value.onStateChange)return invalid('INVALID_CONFIG','MISSING_STATE_HANDLER','options.onStateChange');
   const state=validateColumnState(data.spec.state?.mode==='controlled'?data.spec.state.value:opts.value.initialState??{hiddenSeriesIds:[]},ids,'state');if(state.status==='invalid')return state;
-  const ordered=orderedState(state.value,[...ids]),domain=columnDomain(data,ordered);if(domain.status==='invalid')return domain;
+  const ordered=orderedState(state.value,[...ids]),domain=policy?policy.domain(data,ordered):columnDomain(data,ordered);if(domain.status==='invalid')return domain;
   try {
     if(!host||host.nodeType!==1||host.namespaceURI!=='http://www.w3.org/1999/xhtml'||!host.isConnected||!host.ownerDocument.defaultView||host.getRootNode()!==host.ownerDocument)return invalid('LIFECYCLE_ERROR','PLATFORM_UNAVAILABLE','host');
-    return mount(host,{data,state:ordered,domain:domain.value},opts.value);
+    return mount<T,S>(host,{data,state:ordered,domain:domain.value},opts.value,policy??null);
   } catch { return invalid('LIFECYCLE_ERROR','PLATFORM_UNAVAILABLE','host'); }
 }
-function mount<T>(host:HTMLElement|null, initial:Input<T>|null, options:ColumnMountOptions<T>|null):ChartResult<ColumnController<T>> {
+function mount<T,S>(host:HTMLElement|null, initial:Input<T>|null, options:ColumnMountOptions<T>|null, policy:ColumnPolicy<T>|null):ChartResult<ColumnEngineController<T,S>> {
   let ownedHost=host,accepted=initial,committed:Input<T>|null=null,computed:Computed<T>|null=null,shell:Shell|null=null;
   let onActivate=options!.onPointActivate??null,onState=options!.onStateChange??null,onDiagnostic=options!.onDiagnostic??null;
   const instanceId=options!.instanceId,mode=initial!.data.spec.state?.mode??'internal',reservations:IdReservation[]=[];
@@ -65,7 +66,7 @@ function mount<T>(host:HTMLElement|null, initial:Input<T>|null, options:ColumnMo
     cleanup(()=>media?.removeEventListener('change',mediaChanged));media=null;
     cleanup(()=>events?.destroy());events=null;cleanup(()=>legend?.destroy());legend=null;cleanup(()=>semantic?.destroy());semantic=null;cleanup(()=>table?.destroy());table=null;cleanup(()=>tooltip?.destroy());tooltip=null;
     cleanup(()=>base?.dispose());base=null;cleanup(()=>overlay?.dispose());overlay=null;cleanup(()=>measurer?.destroy());measurer=null;
-    accepted=null;committed=null;computed=null;current=null;hover=null;onActivate=null;onState=null;initial=null;options=null;host=null;
+    accepted=null;committed=null;computed=null;current=null;hover=null;onActivate=null;onState=null;initial=null;options=null;host=null;policy=null;
   }
   function dispose():void { resources();onDiagnostic=null;removeOwnedNode(shell?.root??null);shell=null;for(const r of reservations.splice(0).reverse())cleanup(()=>r.release());ownedHost=null;disposeRequested=false; }
   function destroy():void { if(destroyed)return;destroyed=true;phase='destroyed';sequence++;cleanup(()=>main?.destroy());cleanup(()=>interaction?.destroy());if(inCommit)disposeRequested=true;else dispose(); }
@@ -96,21 +97,22 @@ function mount<T>(host:HTMLElement|null, initial:Input<T>|null, options:ColumnMo
     if(view==='ready'){
       const planned=planColumnAxes(spec,input.domain,layout.body.width,layout.body.height-referenceCaptionHeight,font,data.labels,measurer,layout.compact);if(planned.status==='invalid')return planned;axes=planned.value;
       const domain=spec.orientation==='horizontal'?axes.x.domain:axes.y.domain;
-      if(!axes.tooSmall&&domain){const projected=projectColumn(data,input.state,axes.plot,domain);if(projected.status==='invalid')return projected;projection=projected.value;
-        axesScene(axes,spec.orientation==='horizontal'?{...spec.axes.y,grid:spec.axes.y.grid??true}:spec.axes.x,spec.orientation==='horizontal'?{...spec.axes.x,grid:spec.axes.x.grid??false}:spec.axes.y,palette,layers,layout.compact);columnScene(projection,palette,layers);
+      if(!axes.tooSmall&&domain){const projected=policy?policy.project(data,input.state,axes.plot,domain):projectColumn(data,input.state,axes.plot,domain);if(projected.status==='invalid')return projected;projection=projected.value;
+        axesScene(axes,spec.orientation==='horizontal'?{...spec.axes.y,grid:spec.axes.y.grid??true}:spec.axes.x,spec.orientation==='horizontal'?{...spec.axes.x,grid:spec.axes.x.grid??false}:spec.axes.y,palette,layers,layout.compact);if(policy)policy.render(projection,palette,layers);else columnScene(projection,palette,layers);
       }
     }
     const horizontal=spec.orientation==='horizontal',refs=spec.references??[],referenceInfo=axes?referenceScene(refs.map(r=>horizontal?{...r,axis:'x' as const}:r),axes,palette,layers,()=>({text:null,width:0,height:0})):[];
     const shownDomain=axes?(horizontal?axes.x.domain:axes.y.domain):input.domain;
-    const context=[spec.axes.x.title?`Category: ${spec.axes.x.title}.`:'',spec.axes.y.title?`Value: ${spec.axes.y.title}.`:'',shownDomain?`Displayed value domain ${shownDomain[0]} to ${shownDomain[1]}. Baseline zero; rectangles are clipped to this domain.`:'','Categories follow the supplied category order.'].filter(Boolean).join(' ');
+    const context=[spec.axes.x.title?`Category: ${spec.axes.x.title}.`:'',spec.axes.y.title?`Value: ${spec.axes.y.title}.`:'',shownDomain?`Displayed value domain ${shownDomain[0]} to ${shownDomain[1]}. Baseline zero; rectangles are clipped to this domain.`:'','Categories follow the supplied category order.',policy?.context(data)??''].filter(Boolean).join(' ');
     const references=refs.map(r=>`${r.label??r.id}. Y ${r.value}.${(referenceInfo.find(i=>i.id===r.id)?.outside??(!!shownDomain&&(r.value<shownDomain[0]||r.value>shownDomain[1])))?' Outside displayed domain.':''}`);
     const referenceCaption=referenceCaptionHeight?ellipsis((refs.length===1?'Reference: ':'References: ')+refs.map(r=>(r.label??r.id+' · '+r.value)+(referenceInfo.find(i=>i.id===r.id)?.outside?' (outside domain)':'')).join(' | '),layout.body.width-24,text=>measurer!.measure(text,font,direction)):null;
     columnReferenceCaption(layers,referenceCaption,palette,font,direction,layout.body.width,layout.body.height);
     const tableLabels=new Map([...data.labels].map(([id,label])=>[id,data.duplicateLabels.has(label)?`${label} · ${id}`:label]));
-    const status=view==='ready'?axes?.tooSmall?'Chart is too small to display bars. Enlarge the chart or view the data table.':projection&&!projection.rects.length?'No bars intersect the displayed domain. View the data table for all observations.':'':spec.status&&'message'in spec.status?spec.status.message??(view==='loading'?'Loading chart data.':'No observations.'):view==='no-visible-series'?'No visible series. Use the legend to show a series.':view==='loading'?'Loading chart data.':view==='error'?'Chart data unavailable.':'No visible observations.';
+    const status=view==='ready'?axes?.tooSmall?'Chart is too small to display bars. Enlarge the chart or view the data table.':projection&&!projection.rects.length?policy?.emptyStatus(projection)??'No bars intersect the displayed domain. View the data table for all observations.':'':spec.status&&'message'in spec.status?spec.status.message??(view==='loading'?'Loading chart data.':'No observations.'):view==='no-visible-series'?'No visible series. Use the legend to show a series.':view==='loading'?'Loading chart data.':view==='error'?'Chart data unavailable.':'No visible observations.';
     return ok({shell:layout,palette,font,axes,projection,layers,view,status,legend:data.series.map((s,i)=>({id:s.spec.id,name:s.spec.name,color:s.spec.color??palette.series[s.colorIndex]!,dash:dashes.get(s.spec.id)!,width:layout.legendPosition==='end'?160:layout.buttonWidths[i]!})),tooltipSeries:visible.map(s=>({id:s.spec.id,name:s.spec.name,color:s.spec.color??palette.series[s.colorIndex]!,dash:dashes.get(s.spec.id)!,byX:s.byX})),table:{title:spec.title,kind:'category',labels:tableLabels,series:spec.series,hidden,context,references}});
   }
-  function tooltipFor(target:ColumnRect<T>):TooltipModel { return tooltipModel(committedRevision,target.series.spec.id,target.point.id,target.point.x,'category',committed!.data.spec.tooltip?.mode==='shared'?'shared':'point',computed!.tooltipSeries,committed!.data.labels,committed!.data.duplicateLabels); }
+  function tooltipFor(target:ColumnRect<T>):TooltipModel { const model=tooltipModel(committedRevision,target.series.spec.id,target.point.id,target.point.x,'category',committed!.data.spec.tooltip?.mode==='shared'?'shared':'point',computed!.tooltipSeries,committed!.data.labels,committed!.data.duplicateLabels);return policy&&computed!.projection?policy.tooltip(target,model,computed!.projection):model; }
+  function pick(projection:ColumnProjection<T>,x:number,y:number):ColumnRect<T>|null { return policy?policy.pick(projection,x,y):pickColumn(projection,x,y); }
   function semanticUpdate(navigation=false):void {
     if(!semantic||!computed||!committed)return;const model=current?tooltipFor(current):null,context=[computed.table.context,...computed.table.references].join(' ');
     semantic.update({rowCount:computed.projection?.rows.length??0,columnCount:committed.data.spec.axes.x.values.length,current:current&&model?semanticPoint(current.series.spec.name,current.seriesIndex+1,current.categoryIndex+1,model.header,current.point.y!,context,model):null,summary:computed.status||'Chart data. No bars in the displayed domain. Use the data table.'},computed.axes?.plot??{x:0,y:0,width:computed.shell.body.width,height:computed.shell.body.height},navigation);
@@ -127,7 +129,7 @@ function mount<T>(host:HTMLElement|null, initial:Input<T>|null, options:ColumnMo
   function prepareDetail(job:DetailJob<T>,token:RevisionToken):ChartResult<DetailCandidate<T>|null> {
     if(!fresh(job)||!computed?.projection||!ownedHost)return ok(null);
     let target=job.target;const m=matrix();
-    if(job.sample){if(gridFocused||pinned||detailFocused())return ok(null);const local=m?mapped(m.inverse(),job.sample.x,job.sample.y):null;target=local?pickColumn(computed.projection,local.x,local.y):null;}
+    if(job.sample){if(gridFocused||pinned||detailFocused())return ok(null);const local=m?mapped(m.inverse(),job.sample.x,job.sample.y):null;target=local?pick(computed.projection,local.x,local.y):null;}
     const layers=emptyLayers();if(target)columnFocusScene(target,computed.palette,layers);
     const scene=overlay!.prepare(frame(token.revision,computed.shell.body.width,computed.shell.body.height,layers,computed.axes??undefined),new Map());if(scene.status==='invalid')return scene;
     const model=target&&job.detail&&committed!.data.spec.tooltip?.mode!=='off'?tooltipFor(target):null,bounds=allowedRect(ownedHost);let placement:PlacementResult|null=null;
@@ -135,7 +137,7 @@ function mount<T>(host:HTMLElement|null, initial:Input<T>|null, options:ColumnMo
       const measured=tooltip?.measure(),r=target!;
       const corners=m?[[r.x,r.y],[r.x+r.width,r.y],[r.x,r.y+r.height],[r.x+r.width,r.y+r.height]].map(([x,y])=>mapped(m,x!,y!)):null;
       const anchor=corners?{x:Math.min(...corners.map(p=>p.x)),y:Math.min(...corners.map(p=>p.y)),width:Math.max(...corners.map(p=>p.x))-Math.min(...corners.map(p=>p.x)),height:Math.max(...corners.map(p=>p.y))-Math.min(...corners.map(p=>p.y))}:null;
-      placement=!m||!anchor||unsupportedPortalMapping(ownedHost.ownerDocument)?{kind:'docked'}:measured?placeTooltip(anchor,measured,bounds,committed!.data.spec.tooltip?.placement??'top',committed!.data.spec.direction??'ltr'):{kind:'closed'};
+      placement=!m||!anchor||unsupportedPortalMapping(ownedHost.ownerDocument)?{kind:'docked'}:measured?placeTooltip(anchor,measured,bounds,committed!.data.spec.tooltip?.placement??'top',committed!.data.spec.direction??'ltr',!!policy):{kind:'closed'};
     }
     return ok({job,target,scene:scene.value,model,bounds,placement});
   }
@@ -158,7 +160,7 @@ function mount<T>(host:HTMLElement|null, initial:Input<T>|null, options:ColumnMo
       if(candidate.scene){const applied=base!.apply(candidate.scene);if(applied.status==='invalid')return applied;}else base!.clear();if(destroyed)return ok(undefined);
       invalidate();applyShell(shell,c.shell,c.palette,c.font,spec.direction??'ltr',spec.title,spec.description);
       for(const element of [shell.base,shell.overlay]){const svg=element.querySelector('svg');if(svg){svg.setAttribute('aria-hidden','true');svg.setAttribute('focusable','false');svg.setAttribute('direction',spec.direction??'ltr');svg.style.letterSpacing='0px';svg.style.pointerEvents='none';}}
-      shell.root.setAttribute('aria-busy',String(c.view==='loading'));shell.status.hidden=!c.status;shell.status.textContent=c.status;const disabled=(spec.status?.kind??'ready')!=='ready';legend!.update(c.legend,candidate.input.state,disabled);table!.update(c.table,!disabled);if(destroyed)return ok(undefined);
+      shell.root.setAttribute('aria-busy',String(c.view==='loading'));shell.status.hidden=!c.status;shell.status.textContent=c.status;shell.status.style.backgroundColor=policy&&c.status?c.palette.surface:'';const disabled=(spec.status?.kind??'ready')!=='ready';legend!.update(c.legend,candidate.input.state,disabled);table!.update(c.table,!disabled);if(destroyed)return ok(undefined);
       committed=candidate.input;computed=c;committedRevision=token.revision;generation++;current=c.projection?reconcileColumn(c.projection,old):null;semanticUpdate(!!old&&!!current&&old.key!==current.key);
       if(hadFocus&&focused){
         const valid=focused.isConnected&&!focused.closest('[hidden]')&&!('disabled'in focused&&(focused as HTMLButtonElement).disabled);
@@ -173,7 +175,7 @@ function mount<T>(host:HTMLElement|null, initial:Input<T>|null, options:ColumnMo
     }catch{return invalid('INTERNAL_INVARIANT','DOM_WRITE_FAILED','controller');}finally{inCommit=false;if(disposeRequested)dispose();}
   }
   function accept(data:NormalizedColumn<T>,state:ChartState):ChartResult<number> {
-    const domain=columnDomain(data,state);if(domain.status==='invalid')return domain;const next={data,state,domain:domain.value};
+    const domain=policy?policy.domain(data,state):columnDomain(data,state);if(domain.status==='invalid')return domain;const next={data,state,domain:domain.value};
     if(size.width>0&&size.height>0){try{const checked=compute(next);if(checked.status==='invalid')return checked;}catch{return invalid('LIFECYCLE_ERROR','PLATFORM_UNAVAILABLE','layout');}}
     const previous=accepted;accepted=next;const result=submit('data');if(result.status==='invalid')accepted=previous;return result;
   }
@@ -182,9 +184,9 @@ function mount<T>(host:HTMLElement|null, initial:Input<T>|null, options:ColumnMo
     if(mode==='controlled'){invoke(onState,Object.freeze({state:next,effect:'proposal',source:'legend',revision:committedRevision}));return;}
     const result=accept(accepted.data,next);if(result.status==='invalid')invoke(onDiagnostic,result.diagnostic);else invoke(onState,Object.freeze({state:next,effect:'accepted',source:'legend',revision:result.value}));
   }
-  function update(spec:ColumnChartSpec<T>):ChartResult<number> {
+  function update(spec:S):ChartResult<number> {
     if(destroyed)return invalid('LIFECYCLE_ERROR','DESTROYED','controller');if(phase==='faulted'||!accepted)return invalid('LIFECYCLE_ERROR','FAULTED','controller');
-    const validation=validateColumn<T>(spec);if(validation.status==='invalid')return validation;const data=normalizeColumn(validation.value);if((data.spec.state?.mode??'internal')!==mode)return invalid('INVALID_CONFIG','STATE_MODE_CHANGE','state.mode');
+    const validation=policy?policy.parse(spec):validateColumn<T>(spec);if(validation.status==='invalid')return validation;const data=normalizeColumn(validation.value);if((data.spec.state?.mode??'internal')!==mode)return invalid('INVALID_CONFIG','STATE_MODE_CHANGE','state.mode');
     if(mode==='controlled'&&data.series.length&&data.spec.legend?.position!=='none'&&!onState)return invalid('INVALID_CONFIG','MISSING_STATE_HANDLER','options.onStateChange');
     const state=orderedState(data.spec.state?.mode==='controlled'?data.spec.state.value:accepted.state,data.series.map(s=>s.spec.id)),previous=accepted.state,result=accept(data,state);if(result.status==='invalid')return result;
     try{ensureMedia();}catch{fault(invalid('LIFECYCLE_ERROR','PLATFORM_UNAVAILABLE','theme').diagnostic);return invalid('LIFECYCLE_ERROR','FAULTED','controller');}
@@ -200,7 +202,7 @@ function mount<T>(host:HTMLElement|null, initial:Input<T>|null, options:ColumnMo
     main=createRevisionScheduler({clock:ports.value.clock,prepare:prepareMain,commit:commitMain,onDiagnostic:report});interaction=createRevisionScheduler({clock:ports.value.clock,prepare:prepareDetail,commit:commitDetail,onDiagnostic:report});
     events=attachCartesianInteraction(shell.body,shell.grid,shell.detail,{
       revision:()=>committedRevision,enabled:()=>!!computed?.projection&&phase==='active'&&!table?.isOpen(),
-      pointer(x,y,intent){if(intent==='hover'){if(gridFocused||pinned||detailFocused())return;sequence++;wanted=true;detailJob('intent',{x,y});return;}const m=matrix();if(!m||!computed?.projection||!shell)return;const local=mapped(m.inverse(),x,y),target=pickColumn(computed.projection,local.x,local.y);sequence++;hover=null;pinned=intent==='touch'&&!!target;events?.pin(pinned,committedRevision);wanted=!!target;if(target){current=target;suppressFocus=true;shell.grid.focus({preventScroll:true});suppressFocus=false;gridFocused=true;semanticUpdate(true);}detailJob();if(target)activate(target,intent);},
+      pointer(x,y,intent){if(intent==='hover'){if(gridFocused||pinned||detailFocused())return;sequence++;wanted=true;detailJob('intent',{x,y});return;}const m=matrix();if(!m||!computed?.projection||!shell)return;const local=mapped(m.inverse(),x,y),target=pick(computed.projection,local.x,local.y);sequence++;hover=null;pinned=intent==='touch'&&!!target;events?.pin(pinned,committedRevision);wanted=!!target;if(target){current=target;suppressFocus=true;shell.grid.focus({preventScroll:true});suppressFocus=false;gridFocused=true;semanticUpdate(true);}detailJob();if(target)activate(target,intent);},
       leave(){if(!gridFocused&&!pinned&&!detailFocused()){sequence++;hover=null;wanted=false;tooltip?.close();detailJob();}},
       focus(){gridFocused=true;if(suppressFocus||!computed?.projection)return;current??=computed.projection.rects[0]??null;hover=null;sequence++;wanted=true;semanticUpdate();detailJob();},
       blur(next){gridFocused=false;if(next&&shell?.detail.contains(next as Node))return;if(!pinned){sequence++;wanted=false;tooltip?.close();detailJob();}},

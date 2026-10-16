@@ -41,6 +41,10 @@ export function createTooltipView(shell: Shell): TooltipView {
       name.textContent = row.name + ': '; name.style.color = 'var(--nc-detail-muted)'; value.textContent = rowText(row).slice(row.name.length + 2); value.dataset.ncTooltipValue = ''; Object.assign(value.style, { fontWeight: row.availability === 'value' ? '600' : '400', textAlign: 'end', fontVariantNumeric: 'tabular-nums' });
       line.append(swatch, name, value); rows.push(line);
     }
+    if (model.context) {
+      const context = document.createElement('div'); context.dataset.ncTooltipContext = ''; context.textContent = model.context;
+      Object.assign(context.style, { marginTop: '8px', lineHeight: '1.4', color: 'var(--nc-detail-muted)' }); rows.push(context);
+    }
     element.replaceChildren(...rows);
   };
   const close = (returnFocus = false): void => {
