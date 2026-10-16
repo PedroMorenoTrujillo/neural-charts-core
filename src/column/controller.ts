@@ -1,11 +1,16 @@
 import type { ColumnChartSpec, ColumnMountOptions, ColumnSnapshot } from '../public/column-types.js';
 import type { ColumnPolicy, ColumnEngineController } from './renderer.js';
+import type { ChartCategoryWindow, ChartViewportValue, ChartViewportChange } from '../public/viewport-types.js';
+import { fullViewportBounds } from '../internal/interaction/viewport-bounds.js';
+import { prepareViewport, requestViewport as proposeViewport, sameViewport, viewportCategoryWindow, type Viewport } from '../internal/interaction/viewport.js';
+import { cartesianViewportContext, withViewportAxes, withViewportDomains } from '../internal/interaction/viewport-axes.js';
 import type { ChartResult, ChartState, ChartDiagnostic } from '../public/chart-types.js';
 import type { Domain } from '../internal/math/domain.js';
 import { invalid, ok } from '../internal/diagnostics.js';
 import { createBrowserPorts } from '../internal/platform/browser.js';
 import { reserveInstance, type IdReservation } from '../internal/platform/id.js';
 import { createBrowserMotion, paintLayerMotion, type LayerMotion } from '../internal/lifecycle/motion.js';
+import { viewportShell, createViewportView, type ViewportView, type ViewportViewState } from '../internal/interaction/viewport-view.js';
 import { createRevisionScheduler, type RevisionScheduler, type RevisionToken, type DirtyReason } from '../internal/lifecycle/scheduler.js';
 import { createSvgWriter, type SceneWriter, type PreparedScene } from '../internal/scene/svg-writer.js';
 import { createTextMeasurer, ellipsis, type TextMeasurer } from '../internal/layout/text.js';
@@ -37,12 +42,19 @@ import { seriesIdentities } from '../internal/interaction/identities.js';
 import { selectionScene, crosshairScene } from '../internal/interaction/decoration.js';
 import { columnKey } from './normalize.js';
 
-type Input<T> = Readonly<{ data: NormalizedColumn<T>; state: ChartState; domain: Domain | null; selection: Selection<SeriesPointId> | null; known: ReadonlyMap<string, SeriesPointId> | null }>;
+type Input<T> = Readonly<{ data: NormalizedColumn<T>; state: ChartState; domain: Domain | null; viewport: Viewport | null; selection: Selection<SeriesPointId> | null; known: ReadonlyMap<string, SeriesPointId> | null }>;
 type Computed<T> = Readonly<{ shell: ShellFrame; palette: Palette; font: ResolvedFont; axes: AxesPlan | null; projection: ColumnProjection<T> | null; layers: Layers; view: NonNullable<ColumnSnapshot['view']>; status: string; legend: readonly LegendItem[]; tooltipSeries: readonly TooltipSeries[]; table: TableSource }>;
 type MainCandidate<T> = Readonly<{ input: Input<T>; value: Computed<T>; scene: PreparedScene | null; animate: boolean | 'continue' }>;
 type DetailJob<T> = Readonly<{ revision: number; generation: number; sequence: number; stage: 'intent' | 'measure'; target: ColumnRect<T> | null; detail: boolean; sample?: Readonly<{ x: number; y: number }> }>;
 type DetailCandidate<T> = Readonly<{ job: DetailJob<T>; target: ColumnRect<T> | null; scene: PreparedScene; model: TooltipModel | null; bounds: Rect; placement: PlacementResult | null }>;
 function invoke<T>(fn: ((value:T)=>void)|null, value:T):void { try { fn?.(value); } catch { /* Consumer exceptions do not own engine lifecycle. */ } }
+function viewportFor<T>(data: NormalizedColumn<T>, automatic: Domain | null, policy: ColumnPolicy<T> | null | undefined, previous: Viewport | null = null): ChartResult<Viewport | null> {
+  if (!data.spec.viewport) return ok(null);
+  const domain = policy ? policy.domain : columnDomain;
+  const bounds = fullViewportBounds(data, data.series.map(series => series.spec.id), hiddenSeriesIds => { const value = domain(data, { hiddenSeriesIds }); return value.status === 'invalid' ? value : ok({ x: null, y: value.value }); }); if (bounds.status === 'invalid') return bounds;
+  const context = cartesianViewportContext(data.spec.axes, bounds.value, { x: null, y: automatic }); if (context.status === 'invalid') return context;
+  return prepareViewport(data.spec.viewport, context.value, previous);
+}
 
 export function createColumnChart<T=unknown,S=ColumnChartSpec<T>>(host: HTMLElement, spec: S, options: ColumnMountOptions<T>, policy?:ColumnPolicy<T>): ChartResult<ColumnEngineController<T,S>> {
   const validated=policy?policy.parse(spec):validateColumn<T>(spec);if(validated.status==='invalid')return validated;
@@ -54,16 +66,24 @@ export function createColumnChart<T=unknown,S=ColumnChartSpec<T>>(host: HTMLElem
   const ordered=orderedState(state.value,[...ids]),domain=policy?policy.domain(data,ordered):columnDomain(data,ordered);if(domain.status==='invalid')return domain;
   const known=data.spec.selection?seriesIdentities(data.spec):null,selected=known?prepareSelection(data.spec.selection,known):ok(null);if(selected.status==='invalid')return selected;
   if(selected.value?.mode==='controlled'&&!opts.value.onSelectionChange)return invalid('INVALID_CONFIG','MISSING_SELECTION_HANDLER','options.onSelectionChange');
+  const viewport=viewportFor(data,domain.value,policy);if(viewport.status==='invalid')return viewport;
+  if(viewport.value?.settings.mode==='controlled'&&!opts.value.onViewportChange)return invalid('INVALID_CONFIG','MISSING_VIEWPORT_HANDLER','options.onViewportChange');
   try {
     if(!host||host.nodeType!==1||host.namespaceURI!=='http://www.w3.org/1999/xhtml'||!host.isConnected||!host.ownerDocument.defaultView||host.getRootNode()!==host.ownerDocument)return invalid('LIFECYCLE_ERROR','PLATFORM_UNAVAILABLE','host');
-    return mount<T,S>(host,{data,state:ordered,domain:domain.value,selection:selected.value,known},opts.value,policy??null);
+    return mount<T,S>(host,{data,state:ordered,domain:domain.value,viewport:viewport.value,selection:selected.value,known},opts.value,policy??null);
   } catch { return invalid('LIFECYCLE_ERROR','PLATFORM_UNAVAILABLE','host'); }
 }
 function mount<T,S>(host:HTMLElement|null, initial:Input<T>|null, options:ColumnMountOptions<T>|null, policy:ColumnPolicy<T>|null):ChartResult<ColumnEngineController<T,S>> {
   let ownedHost=host,accepted=initial,committed:Input<T>|null=null,computed:Computed<T>|null=null,shell:Shell|null=null;
   let onActivate=options!.onPointActivate??null,onState=options!.onStateChange??null,onDiagnostic=options!.onDiagnostic??null;
   let onSelectionChange=options!.onSelectionChange??null;
+  let onViewportChange=options!.onViewportChange??null;
   let motion:LayerMotion|null=null;
+  let viewportView:ViewportView|null=null;
+  function viewportViewState():ViewportViewState|null {
+    const model=committed?.viewport,axes=computed?.axes,spec=committed?.data.spec;
+    return phase==='active'&&model&&axes&&spec&&!main?.getSnapshot().pending?{model,plot:axes.plot,domains:{x:axes.x.domain,y:axes.y.domain},horizontal:spec.orientation==='horizontal',xReversed:false,yReversed:!!spec.axes.y.reversed,enabled:(spec.status?.kind??'ready')==='ready'&&!axes.tooSmall}:null;
+  }
   const instanceId=options!.instanceId,mode=initial!.data.spec.state?.mode??'internal',reservations:IdReservation[]=[];
   let measurer:TextMeasurer|null=null,base:SceneWriter|null=null,overlay:SceneWriter|null=null,legend:LegendView|null=null,semantic:SemanticView|null=null,table:TableView|null=null,tooltip:TooltipView|null=null;
   let main:RevisionScheduler<Input<T>>|null=null,interaction:RevisionScheduler<DetailJob<T>>|null=null,events:ReturnType<typeof attachCartesianInteraction>|null=null,observer:Readonly<{disconnect():void}>|null=null;
@@ -73,6 +93,7 @@ function mount<T,S>(host:HTMLElement|null, initial:Input<T>|null, options:Column
   let current:ColumnRect<T>|null=null,hover:ColumnRect<T>|null=null,gridFocused=false,pinned=false,wanted=false,destroyed=false,suppressFocus=false,inCommit=false,disposeRequested=false;
   function snapshot():ColumnSnapshot { return Object.freeze({phase,revision,committedRevision,view:phase==='active'?computed?.view??null:null,size:Object.freeze({...size})}); }
   function resources():void {
+    cleanup(()=>viewportView?.destroy());viewportView=null;
     cleanup(()=>releaseExport?.());releaseExport=null;
     cleanup(()=>main?.destroy());cleanup(()=>interaction?.destroy());main=null;interaction=null;cleanup(()=>motion?.destroy());motion=null;
     cleanup(()=>observer?.disconnect());observer=null;fontHolder.callback=null;
@@ -80,7 +101,7 @@ function mount<T,S>(host:HTMLElement|null, initial:Input<T>|null, options:Column
     cleanup(()=>media?.removeEventListener('change',mediaChanged));media=null;
     cleanup(()=>events?.destroy());events=null;cleanup(()=>legend?.destroy());legend=null;cleanup(()=>semantic?.destroy());semantic=null;cleanup(()=>table?.destroy());table=null;cleanup(()=>tooltip?.destroy());tooltip=null;
     cleanup(()=>base?.dispose());base=null;cleanup(()=>overlay?.dispose());overlay=null;cleanup(()=>measurer?.destroy());measurer=null;
-    accepted=null;committed=null;computed=null;current=null;hover=null;onActivate=null;onState=null;onSelectionChange=null;initial=null;options=null;host=null;policy=null;
+    accepted=null;committed=null;computed=null;current=null;hover=null;onActivate=null;onState=null;onSelectionChange=null;onViewportChange=null;initial=null;options=null;host=null;policy=null;
   }
   function dispose():void { resources();onDiagnostic=null;removeOwnedNode(shell?.root??null);shell=null;for(const r of reservations.splice(0).reverse())cleanup(()=>r.release());ownedHost=null;disposeRequested=false; }
   function destroy():void { if(destroyed)return;destroyed=true;phase='destroyed';sequence++;cleanup(()=>main?.destroy());cleanup(()=>interaction?.destroy());if(inCommit)disposeRequested=true;else dispose(); }
@@ -92,6 +113,7 @@ function mount<T,S>(host:HTMLElement|null, initial:Input<T>|null, options:Column
   function report(diagnostic:ChartDiagnostic):void { if(destroyed)return;if(diagnostic.code==='LIFECYCLE_ERROR'||diagnostic.code==='INTERNAL_INVARIANT')fault(diagnostic);else invoke(onDiagnostic,diagnostic); }
   function submit(reason:'data'|'size'|'paint'):ChartResult<number> {
     if(destroyed)return invalid('LIFECYCLE_ERROR','DESTROYED','controller');if(phase==='faulted'||!accepted||!main)return invalid('LIFECYCLE_ERROR','FAULTED','controller');
+    if(size.width>0&&size.height>0)viewportView?.invalidate();else viewportView?.suspend();
     const result=main.submit(accepted,reason,size.width>0&&size.height>0);if(result.status==='ok'){revision=result.value;legend?.disable(true);}return result;
   }
   function fontsChanged():void { if(destroyed||phase==='faulted')return;measurer?.invalidate();submit('paint'); }
@@ -104,14 +126,18 @@ function mount<T,S>(host:HTMLElement|null, initial:Input<T>|null, options:Column
   function compute(input:Input<T>):ChartResult<Computed<T>> {
     if(!ownedHost||!measurer)return invalid('LIFECYCLE_ERROR','PLATFORM_UNAVAILABLE','host');
     const data=input.data,spec=data.spec,direction=spec.direction??'ltr',font:ResolvedFont={family:spec.font?.family??'sans-serif',size:spec.font?.size??12,weight:spec.font?.weight??400};
-    const palette=resolvePalette(ownedHost,spec.theme??'light',media?.matches??false),layout=shellFrame(size,!!spec.description,data.series.map(s=>s.spec.name),spec.legend?.position??'bottom',font,direction,measurer),hidden=new Set(input.state.hiddenSeriesIds),visible=data.series.filter(s=>!hidden.has(s.spec.id));
+    const palette=resolvePalette(ownedHost,spec.theme??'light',media?.matches??false),layout=viewportShell(shellFrame(size,!!spec.description,data.series.map(s=>s.spec.name),spec.legend?.position??'bottom',font,direction,measurer),input.viewport),hidden=new Set(input.state.hiddenSeriesIds),visible=data.series.filter(s=>!hidden.has(s.spec.id));
     const view=derivedView(spec.status?.kind??'ready',data.nonnullCount,visible.reduce((n,s)=>n+s.valid.length,0),data.series.length,hidden.size),layers=emptyLayers(),dashes=resolveDashes(data.series,hidden,palette);
     const referenceCaptionHeight=view==='ready'&&(spec.references?.length??0)>0&&layout.body.width>=48&&layout.body.height>=font.size*1.5+40?Math.ceil(font.size*1.5)+8:0;
     let axes:AxesPlan|null=null,projection:ColumnProjection<T>|null=null;
     if(view==='ready'){
-      const planned=planColumnAxes(spec,input.domain,layout.body.width,layout.body.height-referenceCaptionHeight,font,data.labels,measurer,layout.compact);if(planned.status==='invalid')return planned;axes=planned.value;
+      const scoped=withViewportAxes(spec.axes,input.viewport);if(scoped.status==='invalid')return scoped;
+      if(scoped.value.x.kind!=='category'||!scoped.value.x.values||scoped.value.y.kind!=='linear')return invalid('INVALID_CONFIG','BAD_VIEWPORT_AXIS','viewport');
+      const windowSpec:ColumnChartSpec<T>={...spec,axes:{x:{...scoped.value.x,kind:'category',values:scoped.value.x.values},y:{...scoped.value.y,kind:'linear'}}};
+      const shown=withViewportDomains({x:null,y:input.domain},input.viewport),window=input.viewport?.value.x?viewportCategoryWindow(input.viewport.value.x)??undefined:undefined;
+      const planned=planColumnAxes(windowSpec,shown.y,layout.body.width,layout.body.height-referenceCaptionHeight,font,data.labels,measurer,layout.compact);if(planned.status==='invalid')return planned;axes=planned.value;
       const domain=spec.orientation==='horizontal'?axes.x.domain:axes.y.domain;
-      if(!axes.tooSmall&&domain){const projected=policy?policy.project(data,input.state,axes.plot,domain):projectColumn(data,input.state,axes.plot,domain);if(projected.status==='invalid')return projected;projection=projected.value;
+      if(!axes.tooSmall&&domain){const projected=policy?policy.project(data,input.state,axes.plot,domain,window):projectColumn(data,input.state,axes.plot,domain,window);if(projected.status==='invalid')return projected;projection=projected.value;
         axesScene(axes,spec.orientation==='horizontal'?{...spec.axes.y,grid:spec.axes.y.grid??true}:spec.axes.x,spec.orientation==='horizontal'?{...spec.axes.x,grid:spec.axes.x.grid??false}:spec.axes.y,palette,layers,layout.compact);if(policy)policy.render(projection,palette,layers);else columnScene(projection,palette,layers);
       }
     }
@@ -161,7 +187,7 @@ function mount<T,S>(host:HTMLElement|null, initial:Input<T>|null, options:Column
     if(job.sample){if(gridFocused||pinned||detailFocused())return ok(null);const local=m?mapped(m.inverse(),job.sample.x,job.sample.y):null;target=local?pick(computed.projection,local.x,local.y):null;}
     const layers=emptyLayers();paintSelection(layers,computed,committed!);if(target){crosshairScene(layers,committed!.data.spec.crosshair,computed.projection.plot,target.anchor,computed.palette,computed.projection.horizontal);columnFocusScene(target,computed.palette,layers);}
     const scene=overlay!.prepare(frame(token.revision,computed.shell.body.width,computed.shell.body.height,layers,computed.axes??undefined),new Map());if(scene.status==='invalid')return scene;
-    const model=target&&job.detail&&committed!.data.spec.tooltip?.mode!=='off'?tooltipFor(target):null,bounds=allowedRect(ownedHost);let placement:PlacementResult|null=null;
+    const model=target&&job.detail&&committed!.data.spec.tooltip?.mode!=='off'?tooltipFor(target):null,bounds=allowedRect(committed!.viewport ? shell!.body : ownedHost);let placement:PlacementResult|null=null;
     if(job.stage==='measure'&&model){
       const measured=tooltip?.measure(),r=target!,zeroTarget=r.width===0||r.height===0,px=r.width===0?4:0,py=r.height===0?4:0;
       // An observed zero still has a visible focus cue. A degenerate rectangle
@@ -193,6 +219,7 @@ function mount<T,S>(host:HTMLElement|null, initial:Input<T>|null, options:Column
       for(const element of [shell.base,shell.overlay]){const svg=element.querySelector('svg');if(svg){svg.setAttribute('aria-hidden','true');svg.setAttribute('focusable','false');svg.setAttribute('direction',spec.direction??'ltr');svg.style.letterSpacing='0px';svg.style.pointerEvents='none';}}
       shell.root.setAttribute('aria-busy',String(c.view==='loading'));shell.status.hidden=!c.status;shell.status.textContent=c.status;shell.status.style.backgroundColor=policy&&c.status?c.palette.surface:'';const disabled=(spec.status?.kind??'ready')!=='ready';legend!.update(c.legend,candidate.input.state,disabled);table!.update(c.table,!disabled);if(destroyed)return ok(undefined);
       committed=candidate.input;computed=c;committedRevision=token.revision;generation++;current=c.projection?reconcileColumn(c.projection,old):null;semanticUpdate(!!old&&!!current&&old.key!==current.key);
+      viewportView?.update(committed.viewport&&c.axes?{model:committed.viewport,plot:c.axes.plot,domains:{x:c.axes.x.domain,y:c.axes.y.domain},horizontal:spec.orientation==='horizontal',xReversed:false,yReversed:!!spec.axes.y.reversed,enabled:!disabled&&!c.axes.tooSmall}:null);
       if(hadFocus&&focused){
         const valid=focused.isConnected&&!focused.closest('[hidden]')&&!('disabled'in focused&&(focused as HTMLButtonElement).disabled);
         if(valid&&shell.root.ownerDocument.activeElement!==focused)focused.focus({preventScroll:true});
@@ -205,13 +232,29 @@ function mount<T,S>(host:HTMLElement|null, initial:Input<T>|null, options:Column
       if(destroyed)return ok(undefined);paintLayerMotion(motion,spec.motion,shell.base,c.view==='ready'&&candidate.animate);gridFocused=shell.root.ownerDocument.activeElement===shell.grid;if(gridFocused&&current){wanted=true;detailJob();}else if(committed.selection?.value.length)detailJob();return ok(undefined);
     }catch{return invalid('INTERNAL_INVARIANT','DOM_WRITE_FAILED','controller');}finally{inCommit=false;if(disposeRequested)dispose();}
   }
-  function accept(data:NormalizedColumn<T>,state:ChartState):ChartResult<number> {
+  function accept(data:NormalizedColumn<T>,state:ChartState,override?:Viewport,reason:'data'|'paint'='data'):ChartResult<number> {
     const domain=policy?policy.domain(data,state):columnDomain(data,state);if(domain.status==='invalid')return domain;
     const known=data.spec.selection?(accepted?.data===data?accepted.known:seriesIdentities(data.spec)):null,selected=known?prepareSelection(data.spec.selection,known,accepted?.selection??null):ok(null);if(selected.status==='invalid')return selected;
     if(selected.value?.mode==='controlled'&&!onSelectionChange)return invalid('INVALID_CONFIG','MISSING_SELECTION_HANDLER','options.onSelectionChange');
-    const next={data,state,domain:domain.value,selection:selected.value,known};
+    const viewport=override?ok(override):viewportFor(data,domain.value,policy,accepted?.viewport??null);if(viewport.status==='invalid')return viewport;
+    if(viewport.value?.settings.mode==='controlled'&&!onViewportChange)return invalid('INVALID_CONFIG','MISSING_VIEWPORT_HANDLER','options.onViewportChange');
+    const next={data,state,domain:domain.value,viewport:viewport.value,selection:selected.value,known};
     if(size.width>0&&size.height>0){try{const checked=compute(next);if(checked.status==='invalid')return checked;}catch{return invalid('LIFECYCLE_ERROR','PLATFORM_UNAVAILABLE','layout');}}
-    const previous=accepted;accepted=next;const result=submit('data');if(result.status==='invalid')accepted=previous;return result;
+    const previous=accepted;accepted=next;const result=submit(reason);if(result.status==='invalid'){accepted=previous;return result;}
+    if(!override&&previous?.viewport?.settings.mode==='internal'&&viewport.value?.settings.mode!=='controlled'&&!sameViewport(previous.viewport.value,viewport.value?.value??{}))invoke(onViewportChange,Object.freeze({viewport:(viewport.value?.value??Object.freeze({})) as ChartViewportValue<ChartCategoryWindow>,effect:'accepted',source:'update',revision:result.value}));return result;
+  }
+  function viewportRequest(value:ChartViewportValue<ChartCategoryWindow>,source:ChartViewportChange['source']='api'):ChartResult<number> {
+    if(destroyed)return invalid('LIFECYCLE_ERROR','DESTROYED','controller');
+    if(phase!=='active'||!accepted||!committed?.viewport)return invalid('LIFECYCLE_ERROR','VIEWPORT_UNAVAILABLE','viewport');
+    if(main?.getSnapshot().pending)return invalid('LIFECYCLE_ERROR','UPDATE_PENDING','viewport');
+    const proposed=proposeViewport(committed.viewport,value);if(proposed.status==='invalid')return proposed;
+    if(sameViewport(committed.viewport.value,proposed.value.value))return ok(committedRevision);
+    if(proposed.value.settings.mode==='controlled'){
+      try{const checked=compute({...accepted,viewport:proposed.value});if(checked.status==='invalid')return checked;}catch{return invalid('LIFECYCLE_ERROR','PLATFORM_UNAVAILABLE','layout');}
+      invoke(onViewportChange,Object.freeze({viewport:proposed.value.value as ChartViewportValue<ChartCategoryWindow>,effect:'proposal',source,revision:committedRevision}));return ok(committedRevision);
+    }
+    const applied=accept(accepted.data,accepted.state,proposed.value,'paint');if(applied.status==='invalid')return applied;
+    invoke(onViewportChange,Object.freeze({viewport:proposed.value.value as ChartViewportValue<ChartCategoryWindow>,effect:'accepted',source,revision:applied.value}));return applied;
   }
   function legendToggle(id:string):void {
     if(!committed||!accepted||!computed||main?.getSnapshot().pending)return;const next=toggleState(committed.state,id,committed.data.series.map(s=>s.spec.id));
@@ -232,6 +275,7 @@ function mount<T,S>(host:HTMLElement|null, initial:Input<T>|null, options:Column
     const ports=createBrowserPorts(ownedHost!);if(ports.status==='invalid')return ports;motion=createBrowserMotion(ports.value.clock,ownedHost!.ownerDocument.defaultView!,report);for(const id of Object.values(shellIds(instanceId)))if(ownedHost!.ownerDocument.getElementById(id))return invalid('INVALID_CONFIG','ID_COLLISION','options.instanceId');
     const text=createTextMeasurer(ownedHost!.ownerDocument);if(text.status==='invalid')return text;measurer=text.value;
     const parent=reserveInstance(ownedHost!,instanceId);if(parent.status==='invalid'){dispose();return parent;}reservations.push(parent.value);shell=createShell(ownedHost!,instanceId);shell.title.textContent=accepted!.data.spec.title;shell.description.textContent=accepted!.data.spec.description??'';
+    viewportView=createViewportView({shell,clock:ports.value.clock,current:viewportViewState,request:(value,source)=>viewportRequest(value as ChartViewportValue<ChartCategoryWindow>,source),begin(){ events?.cancelGesture();motion?.cancel();invalidate();}});
     for(const [element,prefix]of [[shell.base,instanceId+'-v'],[shell.overlay,instanceId+'-i']] as const){const reservation=reserveInstance(element,prefix);if(reservation.status==='invalid'){dispose();return reservation;}reservations.push(reservation.value);const writer=createSvgWriter(element,prefix);if(writer.status==='invalid'){dispose();return writer;}if(element===shell.base)base=writer.value;else overlay=writer.value;}
     legend=createLegendView(shell.legend,legendToggle);semantic=createSemanticView(shell);tooltip=createTooltipView(shell);table=createTableView(shell,closeDetail);
     main=createRevisionScheduler({clock:ports.value.clock,prepare:prepareMain,commit:commitMain,onDiagnostic:report});interaction=createRevisionScheduler({clock:ports.value.clock,prepare:prepareDetail,commit:commitDetail,onDiagnostic:report});
@@ -249,7 +293,7 @@ function mount<T,S>(host:HTMLElement|null, initial:Input<T>|null, options:Column
     observer=ports.value.sizeObserver.observe(ownedHost!,next=>{if(destroyed||phase==='faulted')return;if(![next.width,next.height].every(Number.isFinite)||next.width<0||next.height<0){report(invalid('INVALID_NUMBER','NONFINITE','host.size').diagnostic);return;}if(size.width===next.width&&size.height===next.height)return;size={...next};if(size.width<=0||size.height<=0){phase='suspended';motion?.cancel();invalidate();base?.clear();current=null;computed=null;if(shell){const focused=shell.root.contains(shell.root.ownerDocument.activeElement);table?.close(false);legend?.disable(true);semantic?.update({rowCount:0,columnCount:0,current:null,summary:'Chart has no visible size.'},{x:0,y:0,width:0,height:0},false);shell.root.style.width=`${size.width}px`;shell.root.style.height=`${size.height}px`;shell.status.textContent='Chart has no visible size.';shell.status.hidden=false;if(focused){suppressFocus=true;shell.root.focus({preventScroll:true});suppressFocus=false;}}}else phase='active';submit('size');});
     if(destroyed||snapshot().phase==='faulted'){dispose();return invalid('LIFECYCLE_ERROR','PLATFORM_UNAVAILABLE','host');}
     host=null;initial=null;options=null;
-    const controller=Object.freeze({update,refresh(){if(destroyed)return invalid('LIFECYCLE_ERROR','DESTROYED','controller');if(phase==='faulted')return invalid('LIFECYCLE_ERROR','FAULTED','controller');measurer?.invalidate();return submit('paint');},getState:()=>accepted?orderedState(accepted.state,accepted.data.series.map(s=>s.spec.id)):Object.freeze({hiddenSeriesIds:Object.freeze([])}),getSelection:()=>accepted?.selection?.value??Object.freeze([]),requestSelection:(value:readonly SeriesPointId[])=>select(value,'api'),getSnapshot:snapshot,destroy});
+    const controller=Object.freeze({update,refresh(){if(destroyed)return invalid('LIFECYCLE_ERROR','DESTROYED','controller');if(phase==='faulted')return invalid('LIFECYCLE_ERROR','FAULTED','controller');measurer?.invalidate();return submit('paint');},getState:()=>accepted?orderedState(accepted.state,accepted.data.series.map(s=>s.spec.id)):Object.freeze({hiddenSeriesIds:Object.freeze([])}),getSelection:()=>accepted?.selection?.value??Object.freeze([]),requestSelection:(value:readonly SeriesPointId[])=>select(value,'api'),getViewport:()=>(accepted?.viewport?.value??null) as ChartViewportValue<ChartCategoryWindow>|null,requestViewport:(value:ChartViewportValue<ChartCategoryWindow>)=>viewportRequest(value),getSnapshot:snapshot,destroy});
     releaseExport=provideExport(controller,()=>{
       if(phase!=='active'||!computed||!committed||!shell)return invalid('LIFECYCLE_ERROR','EXPORT_UNAVAILABLE','controller');
       const c=computed,input=committed,spec=input.data.spec;

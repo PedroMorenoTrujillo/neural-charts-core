@@ -1,4 +1,5 @@
-import type { ChartSelectionBinding, ChartSelectionChange, SeriesPointId, SlicePointId, ChartMotion } from '../../src/index.js';
+import type { ChartSelectionBinding, ChartSelectionChange, SeriesPointId, SlicePointId, ChartMotion, ChartViewportBinding, ChartViewportValue, ChartNumericWindow, ChartCategoryWindow } from '../../src/index.js';
+import type { ColumnController, ColumnChartSpec } from '../../src/column.js';
 import type { LineController, LineChartSpec } from '../../src/line.js';
 import type { PieController, PieChartSpec } from '../../src/pie.js';
 import type { ScatterController, ScatterChartSpec } from '../../src/scatter.js';
@@ -35,3 +36,23 @@ const unboundedMotion: ChartMotion = { duration: 10000 };
 // @ts-expect-error unsupported animation modes cannot silently pretend support
 const unsupportedMotion: Pick<ScatterChartSpec, 'motion'> = { motion: 'morph' };
 void lineMotion; void pieMotion; void unboundedMotion; void unsupportedMotion;
+declare const column: ColumnController;
+const numericViewport: ChartViewportBinding<ChartNumericWindow> = { mode: 'controlled', axes: 'xy', value: { x: [0, 1], y: [-1, 1] } };
+const categoryViewport: ChartViewportBinding<ChartCategoryWindow> = { mode: 'internal', axes: 'x', initial: { x: { firstId: 'a', lastId: 'b' } } };
+scatter.requestViewport({ x: [0, 1], y: [0, 1] }); column.requestViewport({ x: { firstId: 'a', lastId: 'b' } }); line.requestViewport({});
+// @ts-expect-error XY uses actual numeric coordinates, never category labels
+const categoryXY: Pick<ScatterChartSpec, 'viewport'> = { viewport: categoryViewport };
+// @ts-expect-error rectangles have logical categories on X in either orientation
+const numericColumn: Pick<ColumnChartSpec, 'viewport'> = { viewport: numericViewport };
+// @ts-expect-error radial controllers have no fake Cartesian viewport API
+pie.requestViewport({ x: [0, 1] });
+// @ts-expect-error controlled viewport requires its applied value
+const missingViewport: ChartViewportBinding = { mode: 'controlled', axes: 'x' };
+// @ts-expect-error numeric windows have exactly two endpoints
+const readonlyViewport: ChartViewportValue<ChartNumericWindow> = { x: [0, 1, 2] };
+declare const appliedViewport: ChartViewportValue<ChartNumericWindow>;
+if (appliedViewport.x) {
+  // @ts-expect-error applied values cannot mutate their readonly tuple
+  appliedViewport.x.push(2);
+}
+void categoryXY; void numericColumn; void missingViewport; void readonlyViewport;

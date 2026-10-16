@@ -1,5 +1,6 @@
 import type { ChartTheme, ChartStateBinding, ChartStatus, ChartState, ChartStateChange, ChartDiagnostic, ChartResult } from './chart-types.js';
 import type { SeriesPointId, ChartSelectionBinding, ChartSelectionChange, ChartCrosshair, ChartMotion } from './interaction-types.js';
+import type { ChartViewportBinding, ChartViewportValue, ChartViewportChange, ChartCategoryWindow } from './viewport-types.js';
 
 export type ColumnPoint<T = unknown> = Readonly<{ id: string; x: string; y: number | null; datum?: T }>;
 export type ColumnSeries<T = unknown> = Readonly<{ id: string; name: string; data: readonly ColumnPoint<T>[]; color?: string }>;
@@ -10,6 +11,7 @@ export type ColumnReference = Readonly<{ id: string; axis: 'y'; value: number; l
 export type ColumnChartSpec<T = unknown> = Readonly<{
   family: 'column'; title: string; description?: string;
   selection?: ChartSelectionBinding<SeriesPointId>; crosshair?: ChartCrosshair; motion?: ChartMotion;
+  viewport?: ChartViewportBinding<ChartCategoryWindow>;
   orientation?: 'vertical' | 'horizontal'; groupGap?: number; barGap?: number; maxBarWidth?: number;
   theme?: ChartTheme; direction?: 'ltr' | 'rtl';
   font?: Readonly<{ family?: 'sans-serif' | 'serif' | 'monospace'; size?: number; weight?: 400 | 500 | 600 | 700 }>;
@@ -20,7 +22,7 @@ export type ColumnChartSpec<T = unknown> = Readonly<{
   state?: ChartStateBinding; status?: ChartStatus;
 }>;
 export type ColumnPointActivation<T = unknown> = Readonly<{ seriesId: string; point: ColumnPoint<T>; xKind: 'category'; source: 'pointer' | 'touch' | 'keyboard'; revision: number }>;
-export type ColumnMountOptions<T = unknown> = Readonly<{ instanceId: string; initialState?: ChartState; onPointActivate?: (event: ColumnPointActivation<T>) => void; onStateChange?: (event: ChartStateChange) => void; onSelectionChange?: (event: ChartSelectionChange<SeriesPointId>) => void; onDiagnostic?: (diagnostic: ChartDiagnostic) => void }>;
+export type ColumnMountOptions<T = unknown> = Readonly<{ instanceId: string; initialState?: ChartState; onPointActivate?: (event: ColumnPointActivation<T>) => void; onStateChange?: (event: ChartStateChange) => void; onSelectionChange?: (event: ChartSelectionChange<SeriesPointId>) => void; onViewportChange?: (event: ChartViewportChange<ChartCategoryWindow>) => void; onDiagnostic?: (diagnostic: ChartDiagnostic) => void }>;
 export type ColumnSnapshot = Readonly<{ phase: 'suspended' | 'active' | 'faulted' | 'destroyed'; revision: number; committedRevision: number; view: 'ready' | 'loading' | 'empty' | 'error' | 'no-visible-series' | null; size: Readonly<{ width: number; height: number }> }>;
 export interface ColumnController<T = unknown> {
   update(nextSpec: ColumnChartSpec<T>): ChartResult<number>;
@@ -28,6 +30,8 @@ export interface ColumnController<T = unknown> {
   getState(): ChartState;
   getSelection(): readonly SeriesPointId[];
   requestSelection(value: readonly SeriesPointId[]): ChartResult<number>;
+  getViewport(): ChartViewportValue<ChartCategoryWindow> | null;
+  requestViewport(value: ChartViewportValue<ChartCategoryWindow>): ChartResult<number>;
   getSnapshot(): ColumnSnapshot;
   destroy(): void;
 }

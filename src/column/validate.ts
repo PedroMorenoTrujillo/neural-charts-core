@@ -2,6 +2,7 @@ import type { ColumnChartSpec, ColumnMountOptions } from '../public/column-types
 import type { ChartDiagnostic, ChartResult, ChartState } from '../public/chart-types.js';
 import { invalid, ok } from '../internal/diagnostics.js';
 import { selectionBinding } from '../internal/interaction/selection.js';
+import { viewportBinding } from '../internal/interaction/viewport.js';
 import { ValidationFailure } from '../internal/data/validation.js';
 
 type RecordValue = Record<string, unknown>;
@@ -46,7 +47,7 @@ function checked<V>(work: () => V): ChartResult<V> { try { return ok(work()); } 
 export function validateColumnState(value: unknown, ids: ReadonlySet<string>, path: string): ChartResult<ChartState> { return checked(() => state(value, ids, path)); }
 export function validateColumn<T>(value: unknown): ChartResult<ColumnChartSpec<T>> {
   return checked(() => {
-    const s = record(value, ['family','title','description','orientation','groupGap','barGap','maxBarWidth','theme','direction','font','axes','series','references','legend','tooltip','state','status','selection','crosshair','motion'], ['family','title','axes','series'], 'spec');
+    const s = record(value, ['family','title','description','orientation','groupGap','barGap','maxBarWidth','theme','direction','font','axes','series','references','legend','tooltip','state','status','selection','crosshair','motion','viewport'], ['family','title','axes','series'], 'spec');
     choice(s.family, ['column'], 'family'); text(s.title, 'title'); optional(s, 'description', (v,p) => text(v,p,2048), 'spec');
     optional(s,'orientation',(v,p)=>choice(v,['vertical','horizontal'],p),'spec'); optional(s,'theme',(v,p)=>choice(v,['light','dark','auto'],p),'spec'); optional(s,'direction',(v,p)=>choice(v,['ltr','rtl'],p),'spec');
     for (const [key,max] of [['groupGap',.95],['barGap',1],['maxBarWidth',1024]] as const) optional(s,key,(v,p)=>number(v,p,key==='maxBarWidth'?.25:0,max),'spec');
@@ -68,9 +69,10 @@ export function validateColumn<T>(value: unknown): ChartResult<ColumnChartSpec<T
     if(Object.hasOwn(s,'selection'))s.selection=selectionBinding(s.selection);
     if(Object.hasOwn(s,'crosshair'))choice(s.crosshair,[false,'x','y','xy'],'crosshair');
     if(Object.hasOwn(s,'motion'))choice(s.motion,['none','subtle'],'motion');
+    if(Object.hasOwn(s,'viewport'))s.viewport=viewportBinding(s.viewport);
     return Object.freeze(s) as unknown as ColumnChartSpec<T>;
   });
 }
 export function validateColumnOptions<T>(value: unknown, ids: ReadonlySet<string>): ChartResult<ColumnMountOptions<T>> {
-  return checked(()=>{const o=record(value,['instanceId','initialState','onPointActivate','onStateChange','onSelectionChange','onDiagnostic'],['instanceId'],'options');const id=text(o.instanceId,'options.instanceId',64);if(!/^[a-zA-Z][a-zA-Z0-9_-]*$/.test(id))fail('options.instanceId','BAD_INSTANCE_ID');for(const key of ['onPointActivate','onStateChange','onSelectionChange','onDiagnostic'])if(Object.hasOwn(o,key)&&typeof o[key]!=='function')fail('options.'+key);if(Object.hasOwn(o,'initialState'))o.initialState=state(o.initialState,ids,'options.initialState');return Object.freeze(o) as unknown as ColumnMountOptions<T>;});
+  return checked(()=>{const o=record(value,['instanceId','initialState','onPointActivate','onStateChange','onSelectionChange','onViewportChange','onDiagnostic'],['instanceId'],'options');const id=text(o.instanceId,'options.instanceId',64);if(!/^[a-zA-Z][a-zA-Z0-9_-]*$/.test(id))fail('options.instanceId','BAD_INSTANCE_ID');for(const key of ['onPointActivate','onStateChange','onSelectionChange','onViewportChange','onDiagnostic'])if(Object.hasOwn(o,key)&&typeof o[key]!=='function')fail('options.'+key);if(Object.hasOwn(o,'initialState'))o.initialState=state(o.initialState,ids,'options.initialState');return Object.freeze(o) as unknown as ColumnMountOptions<T>;});
 }

@@ -2,6 +2,7 @@ import type { ChartResult, ChartState, ChartStatus } from '../public/chart-types
 import type { ScatterChartSpec, ScatterMountOptions, ScatterPoint, ScatterSeries, NumericAxis } from '../public/scatter-types.js';
 import { invalid, ok } from '../internal/diagnostics.js';
 import { selectionBinding } from '../internal/interaction/selection.js';
+import { viewportBinding } from '../internal/interaction/viewport.js';
 import { record, array, text, number, choice, color, optional, fail, ValidationFailure } from '../internal/data/validation.js';
 export function scatterState(value: unknown, ids: ReadonlySet<string>, path = 'state'): ChartState {
   const state = record(value, ['hiddenSeriesIds'], ['hiddenSeriesIds'], path), seen = new Set<string>();
@@ -23,7 +24,7 @@ function axis(value: unknown, path: string): NumericAxis {
 }
 export function validateScatter<T>(value: unknown): ChartResult<ScatterChartSpec<T>> {
   try {
-    const spec = record(value, ['family', 'title', 'description', 'axes', 'series', 'theme', 'direction', 'font', 'legend', 'tooltip', 'labels', 'references', 'state', 'status', 'selection', 'crosshair', 'motion'], ['family', 'title', 'axes', 'series'], 'spec');
+    const spec = record(value, ['family', 'title', 'description', 'axes', 'series', 'theme', 'direction', 'font', 'legend', 'tooltip', 'labels', 'references', 'state', 'status', 'selection', 'crosshair', 'motion', 'viewport'], ['family', 'title', 'axes', 'series'], 'spec');
     choice(spec.family, ['scatter'], 'family'); spec.title = text(spec.title, 'title');
     optional(spec, 'description', (value, path) => text(value, path, 4096, true), 'spec');
     optional(spec, 'theme', (value, path) => choice(value, ['light', 'dark', 'auto'], path), 'spec'); optional(spec, 'direction', (value, path) => choice(value, ['ltr', 'rtl'], path), 'spec');
@@ -50,14 +51,15 @@ export function validateScatter<T>(value: unknown): ChartResult<ScatterChartSpec
     optional(spec, 'status', (value, path): ChartStatus => { const status = record(value, ['kind', 'message'], ['kind'], path), kind = choice(status.kind, ['ready', 'loading', 'empty', 'error'], path + '.kind'); if (kind === 'ready') { if (Object.hasOwn(status, 'message')) fail(path); return Object.freeze({ kind }); } const message = Object.hasOwn(status, 'message') ? text(status.message, path + '.message', 2048) : undefined; if (kind === 'error' && message === undefined) fail(path + '.message'); return Object.freeze({ kind, ...(message === undefined ? {} : { message }) }) as ChartStatus; }, 'spec');
     optional(spec, 'references', (value, path) => { const seen = new Set<string>(); return Object.freeze(array(value, 32, path).map((value, i) => { const at = path + '[' + i + ']', reference = record(value, ['id', 'axis', 'value', 'label', 'color', 'dash'], ['id', 'axis', 'value'], at); reference.id = text(reference.id, at + '.id', 128); if (seen.has(reference.id as string)) fail(at + '.id', 'DUPLICATE_REFERENCE_ID'); seen.add(reference.id as string); reference.axis = choice(reference.axis, ['x', 'y'], at + '.axis'); reference.value = number(reference.value, at + '.value'); optional(reference, 'label', (value, path) => text(value, path, 1024), at); optional(reference, 'color', color, at); optional(reference, 'dash', (value, path) => choice(value, ['solid', 'dashed', 'dotted'], path), at); return Object.freeze(reference); })); }, 'spec');
     optional(spec, 'motion', (value, path) => choice(value, ['none', 'subtle'], path), 'spec');
+    optional(spec, 'viewport', viewportBinding, 'spec');
     optional(spec, 'selection', selectionBinding, 'spec'); optional(spec, 'crosshair', (value, path) => value === false ? false : choice(value, ['x', 'y', 'xy'], path), 'spec');
     return ok(Object.freeze(spec) as unknown as ScatterChartSpec<T>);
   } catch (error) { return error instanceof ValidationFailure ? { status: 'invalid', diagnostic: error.diagnostic } : invalid('INVALID_CONFIG', 'BAD_SPEC', 'spec'); }
 }
 export function validateScatterOptions<T>(value: unknown, ids: ReadonlySet<string>): ChartResult<ScatterMountOptions<T>> {
   try {
-    const options = record(value, ['instanceId', 'initialState', 'onPointActivate', 'onStateChange', 'onSelectionChange', 'onDiagnostic'], ['instanceId'], 'options'); options.instanceId = text(options.instanceId, 'options.instanceId', 64); if (!/^[A-Za-z][A-Za-z0-9_-]*$/.test(options.instanceId as string)) fail('options.instanceId', 'BAD_INSTANCE_ID');
-    optional(options, 'initialState', (value, path) => scatterState(value, ids, path), 'options'); for (const key of ['onPointActivate', 'onStateChange', 'onSelectionChange', 'onDiagnostic']) if (Object.hasOwn(options, key) && typeof options[key] !== 'function') fail('options.' + key);
+    const options = record(value, ['instanceId', 'initialState', 'onPointActivate', 'onStateChange', 'onSelectionChange', 'onViewportChange', 'onDiagnostic'], ['instanceId'], 'options'); options.instanceId = text(options.instanceId, 'options.instanceId', 64); if (!/^[A-Za-z][A-Za-z0-9_-]*$/.test(options.instanceId as string)) fail('options.instanceId', 'BAD_INSTANCE_ID');
+    optional(options, 'initialState', (value, path) => scatterState(value, ids, path), 'options'); for (const key of ['onPointActivate', 'onStateChange', 'onSelectionChange', 'onViewportChange', 'onDiagnostic']) if (Object.hasOwn(options, key) && typeof options[key] !== 'function') fail('options.' + key);
     return ok(Object.freeze(options) as unknown as ScatterMountOptions<T>);
   } catch (error) { return error instanceof ValidationFailure ? { status: 'invalid', diagnostic: error.diagnostic } : invalid('INVALID_CONFIG', 'BAD_OPTIONS', 'options'); }
 }

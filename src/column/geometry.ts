@@ -1,5 +1,6 @@
 import type { ChartResult, ChartState } from '../public/chart-types.js';
 import type { ColumnPoint } from '../public/column-types.js';
+import type { ChartCategoryWindow } from '../public/viewport-types.js';
 import type { Domain } from '../internal/math/domain.js';
 import type { Plot } from '../internal/layout/frame.js';
 import type { BandScale } from '../internal/math/category.js';
@@ -8,14 +9,16 @@ import { columnKey } from './normalize.js';
 import { createCategoryFrame, createBandScale } from '../internal/math/category.js';
 import { createLinearScale } from '../internal/math/linear.js';
 import { invalid, ok } from '../internal/diagnostics.js';
+import { viewportBand } from '../internal/interaction/viewport-band.js';
 
 export type ColumnRect<T> = Readonly<{ key: string; point: ColumnPoint<T>; series: NormalizedColumnSeries<T>; seriesIndex: number; categoryIndex: number; eligibleIndex: number; x: number; y: number; width: number; height: number; anchor: Readonly<{ x: number; y: number }> }>;
-export type ColumnProjection<T> = Readonly<{ plot: Plot; horizontal: boolean; bands: BandScale; ranks: ReadonlyMap<string,number>; rects: readonly ColumnRect<T>[]; rows: readonly (readonly ColumnRect<T>[])[]; byId: ReadonlyMap<string, ColumnRect<T>>; byCategory: readonly ReadonlyMap<number, ColumnRect<T>>[]; slotWidth: number; slotGap: number; groupWidth: number; mapValue(value: number): number | null }>;
-export function projectColumn<T>(data: NormalizedColumn<T>, state: ChartState, plot: Plot, domain: Domain): ChartResult<ColumnProjection<T>> {
+export type ColumnProjection<T> = Readonly<{ plot: Plot; horizontal: boolean; bands: BandScale; categoryOffset: number; ranks: ReadonlyMap<string,number>; rects: readonly ColumnRect<T>[]; rows: readonly (readonly ColumnRect<T>[])[]; byId: ReadonlyMap<string, ColumnRect<T>>; byCategory: readonly ReadonlyMap<number, ColumnRect<T>>[]; slotWidth: number; slotGap: number; groupWidth: number; mapValue(value: number): number | null }>;
+export function projectColumn<T>(data: NormalizedColumn<T>, state: ChartState, plot: Plot, domain: Domain, window?: ChartCategoryWindow): ChartResult<ColumnProjection<T>> {
   if (![plot.x,plot.y,plot.width,plot.height].every(Number.isFinite) || plot.width <= 0 || plot.height <= 0) return invalid('INVALID_CONFIG','BAD_PLOT','plot');
   const horizontal = data.spec.orientation === 'horizontal', hidden = new Set(state.hiddenSeriesIds), visible = data.series.filter(s => !hidden.has(s.spec.id));
   const categoryStart = horizontal ? plot.y : plot.x, categorySize = horizontal ? plot.height : plot.width;
-  const frame = createCategoryFrame(data.spec.axes.x.values.map(c => c.id), [categoryStart, categoryStart + categorySize], .5); if (frame.status === 'invalid') return frame;
+  const scoped = viewportBand(data.spec.axes.x.values.map(c => c.id), data.ranks, window); if (scoped.status === 'invalid') return scoped;
+  const frame = createCategoryFrame(scoped.value.ids, [categoryStart, categoryStart + categorySize], .5); if (frame.status === 'invalid') return frame;
   const bands = createBandScale(frame.value, data.spec.groupGap ?? .2); if (bands.status === 'invalid') return bands;
   let range: readonly [number,number] = horizontal ? [plot.x,plot.x+plot.width] : [plot.y+plot.height,plot.y];
   if (data.spec.axes.y.reversed) range = [range[1],range[0]];
@@ -26,7 +29,9 @@ export function projectColumn<T>(data: NormalizedColumn<T>, state: ChartState, p
   for (let si=0;si<visible.length;si++) {
     const series=visible[si]!;
     for (const point of series.valid) {
-      const v=point.y!, categoryIndex=data.ranks.get(point.x)!, band=bands.value.band(point.x)!;
+      const v=point.y!, categoryIndex=data.ranks.get(point.x)!;
+      if(categoryIndex<scoped.value.offset||categoryIndex>=scoped.value.offset+scoped.value.ids.length)continue;
+      const band=bands.value.band(point.x);if(!band)return invalid('INTERNAL_INVARIANT','MISSING_CATEGORY_BAND','viewport.x');
       if (Math.max(0,v)<domain[0] || Math.min(0,v)>domain[1]) continue;
       const end=scale.value.map(v); if(end===null) return invalid('INVALID_DOMAIN','UNREPRESENTABLE_GEOMETRY','series.'+series.spec.id+'.'+point.id);
       const category=band.start+(band.width-groupWidth)/2+si*(slotWidth+slotGap), length=Math.abs(end-baseline), start=Math.min(end,baseline), key=columnKey(series.spec.id,point.id);
@@ -35,7 +40,7 @@ export function projectColumn<T>(data: NormalizedColumn<T>, state: ChartState, p
       rects.push(rect);rows[si]!.push(rect);byId.set(key,rect);byCategory[categoryIndex]!.set(si,rect);
     }
   }
-  return ok(Object.freeze({plot,horizontal,bands:bands.value,ranks:data.ranks,rects:Object.freeze(rects),rows:Object.freeze(rows.map(r=>Object.freeze(r))),byId,byCategory:Object.freeze(byCategory),slotWidth,slotGap,groupWidth,mapValue:scale.value.map}));
+  return ok(Object.freeze({plot,horizontal,bands:bands.value,categoryOffset:scoped.value.offset,ranks:data.ranks,rects:Object.freeze(rects),rows:Object.freeze(rows.map(r=>Object.freeze(r))),byId,byCategory:Object.freeze(byCategory),slotWidth,slotGap,groupWidth,mapValue:scale.value.map}));
 }
 export function pickColumn<T>(projection: ColumnProjection<T>, x: number, y: number): ColumnRect<T> | null {
   const {plot,horizontal,bands,slotWidth,slotGap,groupWidth}=projection;
@@ -43,7 +48,7 @@ export function pickColumn<T>(projection: ColumnProjection<T>, x: number, y: num
   const coordinate=horizontal?y:x, band=bands.bandAt(coordinate);if(!band)return null;
   const start=band.start+(band.width-groupWidth)/2, i=coordinate===start+groupWidth?projection.rows.length-1:Math.floor((coordinate-start)/(slotWidth+slotGap));
   if(i<0||coordinate>start+i*(slotWidth+slotGap)+slotWidth)return null;
-  const r=projection.byCategory[band.index]?.get(i);if(!r)return null;
+  const r=projection.byCategory[band.index+projection.categoryOffset]?.get(i);if(!r)return null;
   const v=horizontal?x:y, low=horizontal?r.x:r.y, length=horizontal?r.width:r.height;
   return v>=low-(length===0?2:0)&&v<=low+length+(length===0?2:0)?r:null;
 }

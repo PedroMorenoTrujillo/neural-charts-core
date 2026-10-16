@@ -1,6 +1,6 @@
 import { subscriptions } from '../chart/cleanup.js';
 export type InteractionHandlers = Readonly<{ revision(): number; enabled(): boolean; pointer(x: number, y: number, intent: 'hover' | 'pointer' | 'touch'): void; leave(): void; focus(): void; blur(next: EventTarget | null): void; key(key: string, ctrl: boolean): boolean; closeDetail(): void; reposition(): void }>;
-export function attachCartesianInteraction(body: HTMLElement, grid: HTMLElement, detail: HTMLElement, handlers: InteractionHandlers): Readonly<{ pin(value: boolean, revision: number): void; destroy(): void }> {
+export function attachCartesianInteraction(body: HTMLElement, grid: HTMLElement, detail: HTMLElement, handlers: InteractionHandlers): Readonly<{ pin(value: boolean, revision: number): void; cancelGesture(): void; destroy(): void }> {
   let callback: InteractionHandlers | null = handlers;
   type Gesture = { id: number; x: number; y: number; revision: number; touch: boolean };
   let gesture: Gesture | null = null;
@@ -22,6 +22,7 @@ export function attachCartesianInteraction(body: HTMLElement, grid: HTMLElement,
   if (window.visualViewport) { add(window.visualViewport, 'scroll', reposition, { passive: true }); add(window.visualViewport, 'resize', reposition, { passive: true }); }
   } catch (error) { callback = null; gesture = null; root = null; listeners.clear(); throw error; }
   return {
+    cancelGesture() { gesture = null; },
     pin(value, revision) {
       outside.clear();
       if (value && root && callback) outside.add(root.ownerDocument, 'pointerdown', event => {

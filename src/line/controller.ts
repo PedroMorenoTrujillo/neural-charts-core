@@ -1,6 +1,11 @@
 import type { ChartDiagnostic, ChartResult, ChartState, ChartStateChange } from '../public/chart-types.js';
 import type { LineChartSpec, LineMountOptions, LinePointActivation, LineSnapshot } from '../public/line-types.js';
 import type { LinePolicy, LineEngineController } from './renderer.js';
+import type { ChartViewportValue, ChartViewportChange } from '../public/viewport-types.js';
+import { fullViewportBounds } from '../internal/interaction/viewport-bounds.js';
+import { viewportShell, createViewportView, type ViewportView, type ViewportViewState } from '../internal/interaction/viewport-view.js';
+import { prepareViewport, requestViewport as proposeViewport, sameViewport, type Viewport } from '../internal/interaction/viewport.js';
+import { cartesianViewportContext, withViewportAxes, withViewportDomains, extendLineViewportMap } from '../internal/interaction/viewport-axes.js';
 import { invalid, ok, notify } from '../internal/diagnostics.js';
 import { createBrowserPorts } from '../internal/platform/browser.js';
 import { reserveInstance } from '../internal/platform/id.js';
@@ -55,11 +60,17 @@ import { selectionScene, crosshairScene } from '../internal/interaction/decorati
 import { pointKey } from './normalize.js';
 
 type Computed<T> = Readonly<{ shell: ShellFrame; palette: Palette; font: ResolvedFont; axes: AxesPlan | null; index: HitIndex<T> | null; layers: Layers; view: NonNullable<LineSnapshot['view']>; statusText: string; legend: readonly LegendItem[]; tooltipSeries: readonly TooltipSeries[]; table: TableSource }>;
-type Accepted<T> = Readonly<{ data: NormalizedLine<T>; state: ChartState; domains: Domains; selection: Selection<SeriesPointId> | null; known: ReadonlyMap<string, SeriesPointId> | null; cached?: Readonly<{ epoch: number; width: number; height: number; value: Computed<T> }> }>;
+type Accepted<T> = Readonly<{ data: NormalizedLine<T>; state: ChartState; domains: Domains; viewport: Viewport | null; selection: Selection<SeriesPointId> | null; known: ReadonlyMap<string, SeriesPointId> | null; cached?: Readonly<{ epoch: number; width: number; height: number; value: Computed<T> }> }>;
 type MainPrepared<T> = Readonly<{ input: Accepted<T>; computed: Computed<T>; scene: PreparedScene | null; animate: boolean | 'continue' }>;
 type InteractionJob<T> = Readonly<{ main: number; layout: number; sequence: number; stage: 'intent' | 'measure'; target: HitTarget<T> | null; keyboard: boolean; detail: boolean; sample?: Readonly<{ x: number; y: number; intent: 'hover' }> }>;
 type InteractionPrepared<T> = Readonly<{ job: InteractionJob<T>; target: HitTarget<T> | null; scene: PreparedScene | null; model: TooltipModel | null; bounds: Rect; placement: PlacementResult | null; noop: boolean }>;
 function invoke<T>(callback: ((value: T) => void) | null, value: T): void { try { callback?.(value); } catch { /* Application callbacks cannot break chart lifecycle. */ } }
+function viewportFor<T>(data: NormalizedLine<T>, automatic: Domains, previous: Viewport | null = null): ChartResult<Viewport | null> {
+  if (!data.spec.viewport) return ok(null);
+  const bounds = fullViewportBounds(data, data.series.map(series => series.spec.id), hiddenSeriesIds => lineDomains(data, { hiddenSeriesIds })); if (bounds.status === 'invalid') return bounds;
+  const context = cartesianViewportContext(data.spec.axes, bounds.value, automatic); if (context.status === 'invalid') return context;
+  return prepareViewport(data.spec.viewport, context.value, previous);
+}
 
 export function createLineChart<T = unknown, S = LineChartSpec<T>>(host: HTMLElement, spec: S, options: LineMountOptions<T>, policy?: LinePolicy<T>): ChartResult<LineEngineController<T, S>> {
   const validated = policy ? policy.parse(spec) : validateLine<T>(spec); if (validated.status === 'invalid') return validated;
@@ -72,15 +83,18 @@ export function createLineChart<T = unknown, S = LineChartSpec<T>>(host: HTMLEle
   const state = orderedState(stateResult.value, data.series.map(s => s.spec.id)), domains = lineDomains(data, state); if (domains.status === 'invalid') return domains;
   const known = data.spec.selection ? seriesIdentities(data.spec) : null, selected = known ? prepareSelection(data.spec.selection, known) : ok(null); if (selected.status === 'invalid') return selected;
   if (selected.value?.mode === 'controlled' && !opts.onSelectionChange) return invalid('INVALID_CONFIG', 'MISSING_SELECTION_HANDLER', 'options.onSelectionChange');
+  const viewport = viewportFor(data, domains.value); if (viewport.status === 'invalid') return viewport;
+  if (viewport.value?.settings.mode === 'controlled' && !opts.onViewportChange) return invalid('INVALID_CONFIG', 'MISSING_VIEWPORT_HANDLER', 'options.onViewportChange');
   try {
     if (!host || host.nodeType !== 1 || host.namespaceURI !== 'http://www.w3.org/1999/xhtml' || !host.isConnected || !host.ownerDocument.defaultView || host.getRootNode() !== host.ownerDocument) return invalid('LIFECYCLE_ERROR', 'PLATFORM_UNAVAILABLE', 'host');
-    return mount<T, S>(host, { data, state, domains: domains.value, selection: selected.value, known }, opts, policy ?? null);
+    return mount<T, S>(host, { data, state, domains: domains.value, viewport: viewport.value, selection: selected.value, known }, opts, policy ?? null);
   } catch { return invalid('LIFECYCLE_ERROR', 'PLATFORM_UNAVAILABLE', 'host'); }
 }
 function mount<T, S>(host: HTMLElement | null, initial: Accepted<T> | null, options: LineMountOptions<T> | null, policy: LinePolicy<T> | null): ChartResult<LineEngineController<T, S>> {
   let ownedHost = host, shell: Shell | null = null, failureRoot: HTMLElement | null = null, accepted = initial, committed: Accepted<T> | null = null, computed: Computed<T> | null = null;
   let onDiagnostic = options!.onDiagnostic ?? null, onStateChange = options!.onStateChange ?? null, onPointActivate = options!.onPointActivate ?? null;
   let onSelectionChange = options!.onSelectionChange ?? null;
+  let onViewportChange = options!.onViewportChange ?? null;
   const instanceId = options!.instanceId, mode = initial!.data.spec.state?.mode ?? 'internal', reservations: IdReservation[] = [];
   let measurer: TextMeasurer | null = null, main: RevisionScheduler<Accepted<T>> | null = null, interaction: RevisionScheduler<InteractionJob<T>> | null = null;
   let baseWriter: SceneWriter | null = null, overlayWriter: SceneWriter | null = null, observer: Readonly<{ disconnect(): void }> | null = null, media: MediaQueryList | null = null;
@@ -91,9 +105,15 @@ function mount<T, S>(host: HTMLElement | null, initial: Accepted<T> | null, opti
   let lastView: LineSnapshot['view'] = null;
   let releaseExport: (() => void) | null = null;
   let motion: LayerMotion | null = null;
+  let viewportView: ViewportView | null = null;
+  function viewportViewState(): ViewportViewState | null {
+    const model = committed?.viewport, axes = computed?.axes, spec = committed?.data.spec;
+    return phase === 'active' && model && axes && spec && !main?.getSnapshot().pending ? { model, plot: axes.plot, domains: { x: axes.x.domain, y: axes.y.domain }, categorySpacing: spec.axes.x.kind === 'category' ? spec.axes.x.edgeSpacing ?? .5 : .5, horizontal: false, xReversed: false, yReversed: !!spec.axes.y.reversed, enabled: (spec.status?.kind ?? 'ready') === 'ready' && axes.plot.width > 0 && axes.plot.height > 0 } : null;
+  }
   const ids = shellIds(instanceId);
   function scalarSnapshot(): LineSnapshot { return Object.freeze({ phase, revision, committedRevision, view: destroyed || phase === 'faulted' || phase === 'suspended' ? null : lastView, size: Object.freeze({ ...size }) }); }
   function resources(): void {
+    cleanup(() => viewportView?.destroy()); viewportView = null;
     cleanup(() => releaseExport?.()); releaseExport = null;
     cleanup(() => main?.destroy()); cleanup(() => interaction?.destroy()); main = null; interaction = null;
     cleanup(() => motion?.destroy()); motion = null;
@@ -103,7 +123,7 @@ function mount<T, S>(host: HTMLElement | null, initial: Accepted<T> | null, opti
     cleanup(() => events?.destroy()); events = null; cleanup(() => legend?.destroy()); legend = null; cleanup(() => semantic?.destroy()); semantic = null; cleanup(() => table?.destroy()); table = null; cleanup(() => tooltip?.destroy()); tooltip = null;
     cleanup(() => baseWriter?.dispose()); cleanup(() => overlayWriter?.dispose()); baseWriter = null; overlayWriter = null;
     cleanup(() => measurer?.destroy()); measurer = null; accepted = null; committed = null; computed = null; current = null; hover = null; onPointActivate = null; onStateChange = null;
-    initial = null; options = null; host = null; policy = null; onSelectionChange = null;
+    initial = null; options = null; host = null; policy = null; onSelectionChange = null; onViewportChange = null;
   }
   function dispose(): void {
     resources(); onDiagnostic = null;
@@ -136,12 +156,14 @@ function mount<T, S>(host: HTMLElement | null, initial: Accepted<T> | null, opti
     if (!ownedHost || !measurer) return invalid('LIFECYCLE_ERROR', 'PLATFORM_UNAVAILABLE', 'host');
     const data = input.data, spec = data.spec, font: ResolvedFont = { family: spec.font?.family ?? 'sans-serif', size: spec.font?.size ?? 12, weight: spec.font?.weight ?? 400 }, direction = spec.direction ?? 'ltr';
     let prefersDark = media?.matches ?? false; if (spec.theme === 'auto' && !media) { try { prefersDark = ownedHost.ownerDocument.defaultView?.matchMedia('(prefers-color-scheme: dark)').matches ?? false; } catch { /* Auto falls back to light. */ } }
-    const palette = resolvePalette(ownedHost, spec.theme ?? 'light', prefersDark), layout = shellFrame(size, !!spec.description, data.series.map(s => s.spec.name), spec.legend?.position ?? 'bottom', font, direction, measurer), hidden = new Set(input.state.hiddenSeriesIds);
+    const palette = resolvePalette(ownedHost, spec.theme ?? 'light', prefersDark), layout = viewportShell(shellFrame(size, !!spec.description, data.series.map(s => s.spec.name), spec.legend?.position ?? 'bottom', font, direction, measurer), input.viewport), hidden = new Set(input.state.hiddenSeriesIds);
     const visible = data.series.filter(s => !hidden.has(s.spec.id)), view = derivedView(spec.status?.kind ?? 'ready', data.nonnullCount, visible.reduce((n, s) => n + s.valid.length, 0), data.series.length, hidden.size), layers = emptyLayers();
     const dashes = resolveDashes(data.series, hidden, palette);
     let axes: AxesPlan | null = null, index: HitIndex<T> | null = null;
     if (view === 'ready') {
-      const plan = planAxes({ x: spec.axes.x, y: spec.axes.y, domains: input.domains, width: layout.body.width, height: layout.body.height, font, direction, labels: data.labels, measurer, compact: layout.compact }); if (plan.status === 'invalid') return plan; axes = plan.value;
+      const scoped = withViewportAxes(spec.axes, input.viewport); if (scoped.status === 'invalid') return scoped;
+      const plan = planAxes({ x: scoped.value.x, y: scoped.value.y, domains: withViewportDomains(input.domains, input.viewport), width: layout.body.width, height: layout.body.height, font, direction, labels: data.labels, measurer, compact: layout.compact }); if (plan.status === 'invalid') return plan;
+      const extended = extendLineViewportMap(plan.value, input.viewport); if (extended.status === 'invalid') return extended; axes = extended.value;
       if (!axes.tooSmall && axes.y.domain) {
         const projection = projectLine(data, input.state, axes.plot, axes.x.domain, axes.y.domain, axes); if (projection.status === 'invalid') return projection;
         index = buildHitIndex(projection.value, x => typeof x === 'string' ? data.ranks.get(x)! : x); axesScene(axes, spec.axes.x, spec.axes.y, palette, layers, layout.compact);
@@ -169,6 +191,7 @@ function mount<T, S>(host: HTMLElement | null, initial: Accepted<T> | null, opti
   }
   function submit(reason: DirtyReason): ChartResult<number> {
     if (destroyed) return invalid('LIFECYCLE_ERROR', 'DESTROYED', 'controller'); if (phase === 'faulted' || !accepted || !main) return invalid('LIFECYCLE_ERROR', 'FAULTED', 'controller');
+    if (size.width > 0 && size.height > 0) viewportView?.invalidate(); else viewportView?.suspend();
     const result = main.submit(accepted, reason, size.width > 0 && size.height > 0); if (result.status === 'ok') { revision = result.value; legend?.disable(true); } return result;
   }
   function semanticUpdate(navigation: boolean): void {
@@ -194,6 +217,19 @@ function mount<T, S>(host: HTMLElement | null, initial: Accepted<T> | null, opti
       try { sequence++; semanticUpdate(false); interactionJob(); } catch { const diagnostic = invalid('INTERNAL_INVARIANT', 'DOM_WRITE_FAILED', 'selection').diagnostic; fault(diagnostic); return { status: 'invalid', diagnostic }; }
     }
     invoke(onSelectionChange, event); return ok(event.revision);
+  }
+  function viewportRequest(value: ChartViewportValue, source: ChartViewportChange['source'] = 'api'): ChartResult<number> {
+    if (destroyed) return invalid('LIFECYCLE_ERROR', 'DESTROYED', 'controller');
+    if (phase !== 'active' || !accepted || !committed?.viewport) return invalid('LIFECYCLE_ERROR', 'VIEWPORT_UNAVAILABLE', 'viewport');
+    if (main?.getSnapshot().pending) return invalid('LIFECYCLE_ERROR', 'UPDATE_PENDING', 'viewport');
+    const next = proposeViewport(committed.viewport, value); if (next.status === 'invalid') return next;
+    if (sameViewport(committed.viewport.value, next.value.value)) return ok(committedRevision);
+    const checked = preflight({ ...accepted, viewport: next.value }); if (checked.status === 'invalid') return checked;
+    if (next.value.settings.mode === 'controlled') {
+      invoke(onViewportChange, Object.freeze({ viewport: next.value.value as ChartViewportValue, effect: 'proposal', source, revision: committedRevision })); return ok(committedRevision);
+    }
+    const previous = accepted; accepted = checked.value; const submitted = submit('paint'); if (submitted.status === 'invalid') { accepted = previous; return submitted; }
+    invoke(onViewportChange, Object.freeze({ viewport: next.value.value as ChartViewportValue, effect: 'accepted', source, revision: submitted.value })); return submitted;
   }
   function tooltipFor(target: HitTarget<T>): TooltipModel {
     return tooltipModel(committedRevision, target.series.series.spec.id, target.point.point.id, target.point.point.x, committed!.data.spec.axes.x.kind, committed!.data.spec.tooltip?.mode === 'shared' ? 'shared' : 'point', computed!.tooltipSeries, committed!.data.labels, committed!.data.duplicateLabels);
@@ -231,7 +267,7 @@ function mount<T, S>(host: HTMLElement | null, initial: Accepted<T> | null, opti
     if (target) crosshairScene(layers, committed!.data.spec.crosshair, plan.plot, target.point, computed.palette);
     if (target) layers.interaction.push({ kind: 'circle', key: 'halo', cx: target.point.x, cy: target.point.y, r: 6, clipKey: 'plot', presentation: { fill: { kind: 'solid', value: computed.palette.surface } } }, { kind: 'circle', key: 'ring', cx: target.point.x, cy: target.point.y, r: 4, clipKey: 'plot', presentation: { fill: { kind: 'none' }, stroke: { kind: 'solid', value: job.keyboard ? computed.palette.focus : target.series.series.spec.color ?? computed.palette.series[target.series.series.colorIndex]! }, strokeWidth: 2 } });
     const scene = overlayWriter!.prepare(frame(token.revision, computed.shell.body.width, computed.shell.body.height, layers, plan), new Map()); if (scene.status === 'invalid') return scene;
-    const model = target && job.detail && committed!.data.spec.tooltip?.mode !== 'off' ? tooltipFor(target) : null, bounds = allowedRect(ownedHost);
+    const model = target && job.detail && committed!.data.spec.tooltip?.mode !== 'off' ? tooltipFor(target) : null, bounds = allowedRect(committed!.viewport ? shell!.body : ownedHost);
     let placement: PlacementResult | null = null;
     if (job.stage === 'measure' && model) {
       const measured = tooltip?.measure(), anchor = m ? toClient(m, target!.point.x, target!.point.y) : null;
@@ -256,9 +292,11 @@ function mount<T, S>(host: HTMLElement | null, initial: Accepted<T> | null, opti
     const next = toggleState(committed.state, id, committed.data.series.map(s => s.spec.id));
     if (mode === 'controlled') { invoke(onStateChange, Object.freeze({ state: next, effect: 'proposal', source: 'legend', revision: committedRevision })); return; }
     const domains = lineDomains(accepted.data, next); if (domains.status === 'invalid') { invoke(onDiagnostic, domains.diagnostic); return; }
-    const checked = preflight({ ...accepted, state: next, domains: domains.value }); if (checked.status === 'invalid') { invoke(onDiagnostic, checked.diagnostic); return; }
+    const viewport = viewportFor(accepted.data, domains.value, accepted.viewport); if (viewport.status === 'invalid') { invoke(onDiagnostic, viewport.diagnostic); return; }
+    const checked = preflight({ ...accepted, state: next, domains: domains.value, viewport: viewport.value }); if (checked.status === 'invalid') { invoke(onDiagnostic, checked.diagnostic); return; }
     const previous = accepted; accepted = checked.value; const submitted = submit('data'); if (submitted.status === 'invalid') { accepted = previous; invoke(onDiagnostic, submitted.diagnostic); return; }
     const event: ChartStateChange = { state: next, effect: 'accepted', source: 'legend', revision: submitted.value }; invoke(onStateChange, Object.freeze(event));
+    if (previous.viewport?.settings.mode === 'internal' && viewport.value && !sameViewport(previous.viewport.value, viewport.value.value)) invoke(onViewportChange, Object.freeze({ viewport: viewport.value.value as ChartViewportValue, effect: 'accepted', source: 'update', revision: submitted.value }));
   }
   function mainPrepare(input: Accepted<T>, token: RevisionToken, reasons: ReadonlySet<DirtyReason>): ChartResult<MainPrepared<T>> {
     fontDirty = false;
@@ -286,6 +324,7 @@ function mount<T, S>(host: HTMLElement | null, initial: Accepted<T> | null, opti
       table!.update(c.table, !disabled);
       if (destroyed) return ok(undefined);
       committed = candidate.input; computed = c; committedRevision = token.revision; lastView = c.view; layoutGeneration++;
+      viewportView?.update(committed.viewport && c.axes ? { model: committed.viewport, plot: c.axes.plot, domains: { x: c.axes.x.domain, y: c.axes.y.domain }, categorySpacing: spec.axes.x.kind === 'category' ? spec.axes.x.edgeSpacing ?? .5 : .5, horizontal: false, xReversed: false, yReversed: !!spec.axes.y.reversed, enabled: !disabled && !c.axes.tooSmall } : null);
       const priorProjection = previous ? c.axes?.mapX(previous.point.point.x) ?? null : null, clamped = priorProjection === null || !c.axes ? null : Math.max(c.axes.plot.x, Math.min(priorProjection, c.axes.plot.x + c.axes.plot.width));
       current = c.index ? reconcileTarget(c.index, previous, previousKind === spec.axes.x.kind, clamped) : null; hover = null;
       if (keepDetail && !current) closeDetail();
@@ -312,11 +351,14 @@ function mount<T, S>(host: HTMLElement | null, initial: Accepted<T> | null, opti
     const state = orderedState(data.spec.state?.mode === 'controlled' ? data.spec.state.value : accepted.state, data.series.map(s => s.spec.id)), domains = lineDomains(data, state); if (domains.status === 'invalid') return domains;
     const known = data.spec.selection ? seriesIdentities(data.spec) : null, selected = known ? prepareSelection(data.spec.selection, known, accepted.selection) : ok(null); if (selected.status === 'invalid') return selected;
     if (selected.value?.mode === 'controlled' && !onSelectionChange) return invalid('INVALID_CONFIG', 'MISSING_SELECTION_HANDLER', 'options.onSelectionChange');
-    const checked = preflight({ data, state, domains: domains.value, selection: selected.value, known }); if (checked.status === 'invalid') return checked;
+    const viewport = viewportFor(data, domains.value, accepted.viewport); if (viewport.status === 'invalid') return viewport;
+    if (viewport.value?.settings.mode === 'controlled' && !onViewportChange) return invalid('INVALID_CONFIG', 'MISSING_VIEWPORT_HANDLER', 'options.onViewportChange');
+    const checked = preflight({ data, state, domains: domains.value, viewport: viewport.value, selection: selected.value, known }); if (checked.status === 'invalid') return checked;
     const previous = accepted; accepted = checked.value; const result = submit('data'); if (result.status === 'invalid') { accepted = previous; return result; }
     try { ensureMedia(); } catch { fault(invalid('LIFECYCLE_ERROR', 'PLATFORM_UNAVAILABLE', 'theme').diagnostic); return invalid('LIFECYCLE_ERROR', 'FAULTED', 'controller'); }
     if (mode === 'internal' && membershipChanged(previous.state, state)) invoke(onStateChange, Object.freeze({ state, effect: 'accepted', source: 'update', revision: result.value }));
     if (previous.selection?.mode === 'internal' && selected.value?.mode !== 'controlled' && selectionChanged(previous.selection, selected.value)) invoke(onSelectionChange, Object.freeze({ selection: selected.value?.value ?? Object.freeze([]), effect: 'accepted', source: 'update', revision: result.value }));
+    if (previous.viewport?.settings.mode === 'internal' && viewport.value?.settings.mode !== 'controlled' && !sameViewport(previous.viewport.value, viewport.value?.value ?? {})) invoke(onViewportChange, Object.freeze({ viewport: (viewport.value?.value ?? Object.freeze({})) as ChartViewportValue, effect: 'accepted', source: 'update', revision: result.value }));
     return result;
   }
   try {
@@ -326,6 +368,7 @@ function mount<T, S>(host: HTMLElement | null, initial: Accepted<T> | null, opti
     const text = createTextMeasurer(ownedHost!.ownerDocument); if (text.status === 'invalid') return text; measurer = text.value;
     const parent = reserveInstance(ownedHost!, instanceId); if (parent.status === 'invalid') { dispose(); return parent; } reservations.push(parent.value);
     shell = createShell(ownedHost!, instanceId); shell.title.textContent = accepted!.data.spec.title; shell.description.textContent = accepted!.data.spec.description ?? '';
+    viewportView = createViewportView({ shell, clock: ports.value.clock, current: viewportViewState, request: (value, source) => viewportRequest(value as ChartViewportValue, source), begin() { events?.cancelGesture(); motion?.cancel(); closeDetail(); } });
     for (const [element, prefix] of [[shell.base, instanceId + '-v'], [shell.overlay, instanceId + '-i']] as const) {
       const reservation = reserveInstance(element, prefix); if (reservation.status === 'invalid') { dispose(); return reservation; } reservations.push(reservation.value);
       const writer = createSvgWriter(element, prefix); if (writer.status === 'invalid') { dispose(); return writer; } if (element === shell.base) baseWriter = writer.value; else overlayWriter = writer.value;
@@ -378,7 +421,7 @@ function mount<T, S>(host: HTMLElement | null, initial: Accepted<T> | null, opti
     });
     if (scalarSnapshot().phase === 'faulted' || destroyed) { dispose(); return invalid('LIFECYCLE_ERROR', 'PLATFORM_UNAVAILABLE', 'host'); }
     host = null; initial = null; options = null;
-    const controller = Object.freeze({ update, refresh() { if (destroyed) return invalid('LIFECYCLE_ERROR', 'DESTROYED', 'controller'); if (phase === 'faulted') return invalid('LIFECYCLE_ERROR', 'FAULTED', 'controller'); epoch++; measurer?.invalidate(); return submit('paint'); }, getState: () => accepted ? orderedState(accepted.state, accepted.data.series.map(s => s.spec.id)) : Object.freeze({ hiddenSeriesIds: Object.freeze([]) }), getSelection: () => accepted?.selection?.value ?? Object.freeze([]), requestSelection: (value: readonly SeriesPointId[]) => select(value, 'api'), getSnapshot: scalarSnapshot, destroy });
+    const controller = Object.freeze({ update, refresh() { if (destroyed) return invalid('LIFECYCLE_ERROR', 'DESTROYED', 'controller'); if (phase === 'faulted') return invalid('LIFECYCLE_ERROR', 'FAULTED', 'controller'); epoch++; measurer?.invalidate(); return submit('paint'); }, getState: () => accepted ? orderedState(accepted.state, accepted.data.series.map(s => s.spec.id)) : Object.freeze({ hiddenSeriesIds: Object.freeze([]) }), getSelection: () => accepted?.selection?.value ?? Object.freeze([]), requestSelection: (value: readonly SeriesPointId[]) => select(value, 'api'), getViewport: () => (accepted?.viewport?.value ?? null) as ChartViewportValue | null, requestViewport: (value: ChartViewportValue) => viewportRequest(value), getSnapshot: scalarSnapshot, destroy });
     releaseExport = provideExport(controller, () => {
       if (phase !== 'active' || !computed || !committed || !shell) return invalid('LIFECYCLE_ERROR', 'EXPORT_UNAVAILABLE', 'controller');
       const c = computed, input = committed, spec = input.data.spec;

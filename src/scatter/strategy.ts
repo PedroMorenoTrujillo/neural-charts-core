@@ -1,5 +1,6 @@
 import type { ChartState, ChartResult } from '../public/chart-types.js';
 import type { ScatterChartSpec, ScatterDescription, ScatterPointActivation } from '../public/scatter-types.js';
+import type { ChartViewportValue, ChartNumericWindow } from '../public/viewport-types.js';
 import type { FamilyPolicy, FamilyTableSource } from '../internal/chart/family.js';
 import { createDataTableFrame } from '../internal/accessibility/table-frame.js';
 import { assignment } from '../internal/chart/presentation.js';
@@ -10,6 +11,10 @@ import { detailText } from '../internal/tooltip/model.js';
 import { ok } from '../internal/diagnostics.js';
 import { seriesIdentities } from '../internal/interaction/identities.js';
 import { datumKey } from '../internal/interaction/selection.js';
+import { requestViewport, sameViewport } from '../internal/interaction/viewport.js';
+import { viewportShell, createViewportView } from '../internal/interaction/viewport-view.js';
+import { withViewportAxes, withViewportDomains } from '../internal/interaction/viewport-axes.js';
+import { scatterViewport, scatterViewportDescription } from './viewport.js';
 import { normalizeScatter, scatterDomains, targetKey, type NormalizedScatter } from './data.js';
 import { describeScatterData } from './describe.js';
 import { projectScatter, pickScatter, navigateScatter, type ScatterProjection, type ScatterTarget } from './geometry.js';
@@ -17,7 +22,8 @@ import { scatterScene, scatterFocusScene, scatterMarkerShape } from './scene.js'
 import { validateScatter, validateScatterOptions } from './validate.js';
 
 type Data<T> = NormalizedScatter<T, ScatterChartSpec<T>>;
-type Policy<T> = FamilyPolicy<ScatterChartSpec<T>, ChartState, ScatterProjection<T>, ScatterTarget<T>, ScatterDescription, ScatterPointActivation<T>>;
+type NumericViewport = ChartViewportValue<ChartNumericWindow>;
+type Policy<T> = FamilyPolicy<ScatterChartSpec<T>, ChartState, ScatterProjection<T>, ScatterTarget<T>, ScatterDescription, ScatterPointActivation<T>, NumericViewport>;
 export function scatterPolicy<T>(): Policy<T> {
   // Ephemeron caches cannot keep replaced specs/states alive through a retained
   // destroyed controller. Layout changes reuse normalization and raw table text.
@@ -32,17 +38,26 @@ export function scatterPolicy<T>(): Policy<T> {
   };
   return {
     parse: validateScatter<T>, options: validateScatterOptions<T>,
+    viewport: {
+      prepare(spec, state, previous) { if (!spec.viewport) return ok(null); const data = dataOf(spec); return data.status === 'invalid' ? data : scatterViewport(data.value, state, previous); },
+      value: viewport => viewport.value as NumericViewport,
+      request: requestViewport, same: sameViewport,
+      shell: viewportShell, createView: createViewportView,
+      viewState: (spec, model, axes) => ({ model, plot: axes.plot, domains: { x: axes.x.domain, y: axes.y.domain }, horizontal: false, xReversed: !!spec.axes.x.reversed, yReversed: !!spec.axes.y.reversed, enabled: (spec.status?.kind ?? 'ready') === 'ready' && !axes.tooSmall }),
+    },
     validateData(spec, state) { const data = dataOf(spec); return data.status === 'invalid' ? data : scatterDomains(data.value, state); },
     ids: spec => spec.series.map(series => series.id), hidden: state => state.hiddenSeriesIds,
     state: hidden => Object.freeze({ hiddenSeriesIds: Object.freeze([...hidden]) }), names: spec => spec.series.map(series => series.name),
     selectable: seriesIdentities, datumId: target => ({ seriesId: target.series.spec.id, pointId: target.point.id }),
     selectedTarget: (projection, id) => projection.byKey.get(targetKey(id.seriesId, id.pointId)) ?? null,
     exportRecords(spec, state, _value, selection) { const hidden = new Set(state.hiddenSeriesIds), selected = selection ? new Set(selection.map(datumKey)) : null; return { columns: ['Series ID', 'Series', 'Point ID', 'X', 'Y', 'Visible', ...(selected ? ['Selected'] : [])], rows: spec.series.flatMap(series => series.data.map(point => [series.id, series.name, point.id, point.x, point.y, hidden.has(series.id) ? 'false' : 'true', ...(selected ? [String(selected.has(datumKey({ seriesId: series.id, pointId: point.id })))] : [])])) }; },
-    compute(spec, state, shell, palette, font, measurer) {
+    compute(spec, state, shell, palette, font, measurer, viewport = null) {
       const result = dataOf(spec); if (result.status === 'invalid') return result; const data = result.value, domains = scatterDomains(data, state); if (domains.status === 'invalid') return domains;
-      const planned = planAxes({ x: spec.axes.x, y: spec.axes.y, domains: domains.value, width: shell.body.width, height: shell.body.height, font, direction: spec.direction ?? 'ltr', labels: new Map(), measurer, compact: shell.body.width < 480 }); if (planned.status === 'invalid') return planned;
+      const scoped = withViewportAxes(spec.axes, viewport); if (scoped.status === 'invalid') return scoped;
+      const planned = planAxes({ x: scoped.value.x, y: scoped.value.y, domains: withViewportDomains(domains.value, viewport), width: shell.body.width, height: shell.body.height, font, direction: spec.direction ?? 'ltr', labels: new Map(), measurer, compact: shell.body.width < 480 }); if (planned.status === 'invalid') return planned;
       const axes = planned.value, projected = projectScatter(data, state, axes); if (projected.status === 'invalid') return projected;
       const projection = projected.value, descriptions = cache.get(spec)!.descriptions; let description = descriptions.get(state); if (!description) { description = describeScatterData(data, state); descriptions.set(state, description); }
+      description = scatterViewportDescription(description, viewport);
       const layers = emptyLayers();
       if (description.view === 'ready') {
         axesScene(axes, spec.axes.x, spec.axes.y, palette, layers, shell.body.width < 480);

@@ -8,7 +8,7 @@ import { stackContext, stackEmptyStatus, stackedTooltip } from './semantics.js';
 export function mountStackedChart<T>(host: HTMLElement, spec: StackedChartSpec<T>, options: StackedMountOptions<T>): ChartResult<StackedController<T>> {
   return createColumnChart<T, StackedChartSpec<T>>(host, spec, options, {
     parse: validateStacked<T>, domain: (data, state) => stackedDomain(data, state, stackMode(data.spec)),
-    project: (data, state, plot, domain) => projectStacked(data, state, plot, domain, stackMode(data.spec)),
+    project: (data, state, plot, domain, window) => projectStacked(data, state, plot, domain, stackMode(data.spec), window),
     render: stackedScene, pick: pickStacked, context: stackContext, emptyStatus: stackEmptyStatus, tooltip: stackedTooltip,
   });
 }

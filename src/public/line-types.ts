@@ -1,5 +1,6 @@
 import type { ChartTheme, ChartStateBinding, ChartStatus, ChartState, ChartStateChange, ChartDiagnostic, ChartResult } from './chart-types.js';
 import type { SeriesPointId, ChartSelectionBinding, ChartSelectionChange, ChartCrosshair, ChartMotion } from './interaction-types.js';
+import type { ChartViewportBinding, ChartViewportValue, ChartViewportChange, ChartCategoryWindow, ChartNumericWindow } from './viewport-types.js';
 
 // @neural-charts/core/line: REQUIRED NOW; references the root types via type imports
 export type LinePoint<T = unknown, TX extends string | number = string | number> =
@@ -48,15 +49,15 @@ type LineCommon = Readonly<{
   state?: ChartStateBinding; status?: ChartStatus;
 }>;
 export type LineChartSpec<T = unknown> = LineCommon & (
-  | Readonly<{ axes: Readonly<{ x: LineCategoryAxis; y: LineYAxis }>;
+  | Readonly<{ axes: Readonly<{ x: LineCategoryAxis; y: LineYAxis }>; viewport?: ChartViewportBinding<ChartCategoryWindow>;
       series: readonly LineSeries<T, string>[];
       references?: readonly LineReference<string>[] }>
   | Readonly<{ axes: Readonly<{ x: LineContinuousXAxis & { readonly kind: 'linear' };
-      y: LineYAxis }>;
+      y: LineYAxis }>; viewport?: ChartViewportBinding<ChartNumericWindow>;
       series: readonly LineSeries<T, number>[];
       references?: readonly LineReference<number>[] }>
   | Readonly<{ axes: Readonly<{ x: LineContinuousXAxis & { readonly kind: 'time' };
-      y: LineYAxis }>;
+      y: LineYAxis }>; viewport?: ChartViewportBinding<ChartNumericWindow>;
       series: readonly LineSeries<T, number>[];
       references?: readonly LineReference<number>[] }>
 );
@@ -71,6 +72,7 @@ export type LineMountOptions<T = unknown> = Readonly<{
   onPointActivate?: (event: LinePointActivation<T>) => void;
   onStateChange?: (event: ChartStateChange) => void;
   onSelectionChange?: (event: ChartSelectionChange<SeriesPointId>) => void;
+  onViewportChange?: (event: ChartViewportChange) => void;
   onDiagnostic?: (diagnostic: ChartDiagnostic) => void;
 }>;
 export type LineSnapshot = Readonly<{
@@ -85,6 +87,8 @@ export interface LineController<T = unknown> {
   getState(): ChartState;
   getSelection(): readonly SeriesPointId[];
   requestSelection(value: readonly SeriesPointId[]): ChartResult<number>;
+  getViewport(): ChartViewportValue | null;
+  requestViewport(value: ChartViewportValue): ChartResult<number>;
   getSnapshot(): LineSnapshot;
   destroy(): void;
 }

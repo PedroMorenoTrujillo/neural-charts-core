@@ -6,6 +6,7 @@ import { validateScatter, scatterState } from './validate.js';
 import { normalizeScatter, scatterDomains, targetKey, type NormalizedScatter } from './data.js';
 import { seriesIdentities } from '../internal/interaction/identities.js';
 import { selectionDescription } from '../internal/interaction/selection-description.js';
+import { scatterViewport, scatterViewportDescription } from './viewport.js';
 export function describeScatterData<T>(data: NormalizedScatter<T, ScatterChartSpec<T>>, state: ChartState): ScatterDescription {
   const spec = data.spec, hidden = new Set(state.hiddenSeriesIds); let visible = 0;
   for (const series of data.series) if (!hidden.has(series.spec.id)) visible += series.paired.length;
@@ -23,8 +24,10 @@ export function describeScatter<T>(input: unknown, options?: unknown): ChartResu
     const state = scatterState(spec.state?.mode === 'controlled' ? spec.state.value : config.initialState ?? { hiddenSeriesIds: [] }, new Set(spec.series.map(series => series.id)));
     const data = normalizeScatter<T, ScatterChartSpec<T>>(spec); if (data.status === 'invalid') return data;
     const domains = scatterDomains(data.value, state); if (domains.status === 'invalid') return domains;
-    if (!spec.selection) return ok(describeScatterData(data.value, state));
+    const viewport = scatterViewport(data.value, state); if (viewport.status === 'invalid') return viewport;
+    const description = scatterViewportDescription(describeScatterData(data.value, state), viewport.value);
+    if (!spec.selection) return ok(description);
     const rows = spec.series.flatMap(series => series.data.map(point => ({ seriesId: series.id, pointId: point.id })));
-    return selectionDescription(describeScatterData(data.value, state), spec.selection, seriesIdentities(spec), index => rows[index]!);
+    return selectionDescription(description, spec.selection, seriesIdentities(spec), index => rows[index]!);
   } catch (error) { return error instanceof ValidationFailure ? { status: 'invalid', diagnostic: error.diagnostic } : invalid('INVALID_CONFIG', 'BAD_SPEC', 'spec'); }
 }

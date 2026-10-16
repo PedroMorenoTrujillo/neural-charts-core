@@ -1,5 +1,6 @@
 // @neural-charts/core: REQUIRED NOW, SHARED FUTURE CONTRACTS
 export type { SeriesPointId, SlicePointId, ChartDatumId, ChartSelectionBinding, ChartSelectionChange, ChartCrosshair, ChartMotion } from './interaction-types.js';
+export type { ChartNumericWindow, ChartCategoryWindow, ChartAxisWindow, ChartViewportValue, ChartViewportBinding, ChartViewportChange } from './viewport-types.js';
 export type ChartDiagnosticCode =
   | 'INVALID_CONFIG' | 'INVALID_NUMBER' | 'INVALID_DOMAIN'
   | 'UNKNOWN_CATEGORY' | 'LIFECYCLE_ERROR' | 'INTERNAL_INVARIANT';

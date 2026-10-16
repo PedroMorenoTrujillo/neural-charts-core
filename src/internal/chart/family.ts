@@ -11,6 +11,9 @@ import type { Shell } from './shell.js';
 import type { DataTableView } from '../accessibility/table-frame.js';
 import type { ExportRecords } from '../../public/export-types.js';
 import type { ChartDatumId, SeriesPointId, SlicePointId, ChartSelectionBinding, ChartSelectionChange, ChartCrosshair, ChartMotion } from '../../public/interaction-types.js';
+import type { ChartViewportChange } from '../../public/viewport-types.js';
+import type { ViewportViewOptions, ViewportView, ViewportViewState } from '../interaction/viewport-view.js';
+import type { Viewport, ViewportValue } from '../interaction/viewport.js';
 export type FamilyIdentity<Activation> = Activation extends Readonly<{ seriesId: string }> ? SeriesPointId : SlicePointId;
 
 /** Private strategy contract: shared resource/DOM lifecycle, family-owned math. */
@@ -25,14 +28,25 @@ export type FamilySpec<State> = Readonly<{
 export type FamilyView = 'ready' | 'loading' | 'empty' | 'error' | 'no-visible-slices' | 'no-visible-series';
 export type FamilyDescription = Readonly<{ title: string; description: string; direction: 'ltr' | 'rtl'; view: FamilyView; status: string; context: string; table: ChartDataTable }>;
 export type FamilyStateChange<State> = Readonly<{ state: State; effect: 'proposal' | 'accepted'; source: 'legend' | 'update'; revision: number }>;
-export type FamilyOptions<State, Activation> = Readonly<{ instanceId: string; initialState?: State; onPointActivate?: (event: Activation) => void; onStateChange?: (event: FamilyStateChange<State>) => void; onSelectionChange?: (event: ChartSelectionChange<FamilyIdentity<Activation>>) => void; onDiagnostic?: (diagnostic: ChartDiagnostic) => void }>;
+export type FamilyViewportChange<V extends ViewportValue> = Omit<ChartViewportChange, 'viewport'> & Readonly<{ viewport: V }>;
+export type FamilyOptions<State, Activation, V extends ViewportValue = never> = Readonly<{ instanceId: string; initialState?: State; onPointActivate?: (event: Activation) => void; onStateChange?: (event: FamilyStateChange<State>) => void; onSelectionChange?: (event: ChartSelectionChange<FamilyIdentity<Activation>>) => void; onViewportChange?: (event: FamilyViewportChange<V>) => void; onDiagnostic?: (diagnostic: ChartDiagnostic) => void }>;
 export type FamilySnapshot = Readonly<{ phase: 'suspended' | 'active' | 'faulted' | 'destroyed'; revision: number; committedRevision: number; view: FamilyView | null; size: Readonly<{ width: number; height: number }> }>;
-export interface FamilyController<S, State, View extends FamilyView = FamilyView, Id extends ChartDatumId = ChartDatumId> { update(spec: S): ChartResult<number>; refresh(): ChartResult<number>; getState(): State; getSelection(): readonly Id[]; requestSelection(value: readonly Id[]): ChartResult<number>; getSnapshot(): FamilySnapshot & Readonly<{ view: View | null }>; destroy(): void; }
+interface FamilyControllerBase<S, State, View extends FamilyView = FamilyView, Id extends ChartDatumId = ChartDatumId> { update(spec: S): ChartResult<number>; refresh(): ChartResult<number>; getState(): State; getSelection(): readonly Id[]; requestSelection(value: readonly Id[]): ChartResult<number>; getSnapshot(): FamilySnapshot & Readonly<{ view: View | null }>; destroy(): void; }
+export type FamilyController<S, State, View extends FamilyView = FamilyView, Id extends ChartDatumId = ChartDatumId, V extends ViewportValue = never> = FamilyControllerBase<S, State, View, Id> & ([V] extends [never] ? Readonly<{}> : Readonly<{ getViewport(): V | null; requestViewport(value: V): ChartResult<number> }>);
+export type FamilyViewportPolicy<S, State, V extends ViewportValue> = Readonly<{
+  prepare(spec: S, state: State, previous: Viewport | null): ChartResult<Viewport | null>;
+  value(viewport: Viewport): V;
+  request(viewport: Viewport, value: unknown): ChartResult<Viewport>;
+  same(a: V, b: V): boolean;
+  shell(frame: ShellFrame, viewport: Viewport | null): ShellFrame;
+  createView(options: ViewportViewOptions): ViewportView;
+  viewState(spec: S, viewport: Viewport, axes: AxesPlan): ViewportViewState;
+}>;
 export type FamilyComputed<P, D extends FamilyDescription> = Readonly<{ shell: ShellFrame; palette: Palette; font: ResolvedFont; projection: P; description: D; layers: Layers; legend: readonly LegendItem[]; status: string; axes?: AxesPlan }>;
 export type FamilyTableSource<D> = D & Readonly<{ references: readonly string[] }>;
-export type FamilyPolicy<S extends FamilySpec<State>, State, P, Target, D extends FamilyDescription, Activation> = Readonly<{
+export type FamilyPolicy<S extends FamilySpec<State>, State, P, Target, D extends FamilyDescription, Activation, V extends ViewportValue = never> = Readonly<{
   parse(input: unknown): ChartResult<S>;
-  options(input: unknown, ids: ReadonlySet<string>): ChartResult<FamilyOptions<State, Activation>>;
+  options(input: unknown, ids: ReadonlySet<string>): ChartResult<FamilyOptions<State, Activation, V>>;
   validateData(spec: S, state: State): ChartResult<unknown>;
   ids(spec: S): readonly string[];
   hidden(state: State): readonly string[];
@@ -42,7 +56,7 @@ export type FamilyPolicy<S extends FamilySpec<State>, State, P, Target, D extend
   selectedTarget(projection: P, id: FamilyIdentity<Activation>): Target | null;
   exportRecords(spec: S, state: State, value: FamilyComputed<P, D>, selection?: readonly FamilyIdentity<Activation>[]): ExportRecords;
   names(spec: S): readonly string[];
-  compute(spec: S, state: State, shell: ShellFrame, palette: Palette, font: ResolvedFont, measurer: TextMeasurer): ChartResult<FamilyComputed<P, D>>;
+  compute(spec: S, state: State, shell: ShellFrame, palette: Palette, font: ResolvedFont, measurer: TextMeasurer, viewport?: Viewport | null): ChartResult<FamilyComputed<P, D>>;
   enabled(value: FamilyComputed<P, D>): boolean;
   identity(target: Target): string;
   order(target: Target): number;
@@ -58,4 +72,4 @@ export type FamilyPolicy<S extends FamilySpec<State>, State, P, Target, D extend
   activate(target: Target, source: 'pointer' | 'touch' | 'keyboard', revision: number): Activation;
   table(shell: Shell, onOpen: () => void): DataTableView<FamilyTableSource<D>>;
   help: string;
-}>;
+}> & ([V] extends [never] ? Readonly<{ viewport?: never }> : Readonly<{ viewport: FamilyViewportPolicy<S, State, V> }>);
