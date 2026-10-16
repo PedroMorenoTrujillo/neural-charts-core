@@ -1,7 +1,7 @@
 import type { ChartState } from '../../public/chart-types.js';
 import type { Dash } from '../chart/presentation.js';
 import { subscriptions } from '../chart/cleanup.js';
-export type LegendItem = Readonly<{ id: string; name: string; color: string; dash: Dash; width: number; swatch?: 'line' | 'square' }>;
+export type LegendItem = Readonly<{ id: string; name: string; color: string; dash: Dash; width: number; swatch?: 'line' | 'square' | 'circle' | 'diamond' }>;
 export interface LegendView { update(items: readonly LegendItem[], state: ChartState, disabled: boolean): void; disable(value: boolean): void; destroy(): void; }
 export function createLegendView(element: HTMLElement, onToggle: (id: string) => void): LegendView {
   let owned: HTMLElement | null = element, callback: ((id: string) => void) | null = onToggle;
@@ -20,7 +20,10 @@ export function createLegendView(element: HTMLElement, onToggle: (id: string) =>
         button.style.width = `${item.width}px`; button.title = item.name; button.setAttribute('aria-pressed', String(!hidden.has(item.id))); button.setAttribute('aria-label', item.name); button.disabled = disabled;
         const swatch = button.firstElementChild as HTMLElement, name = button.lastElementChild as HTMLElement; swatch.style.borderTopColor = item.color; swatch.style.borderTopStyle = item.dash === 'solid' ? 'solid' : item.dash === 'dashed' ? 'dashed' : 'dotted'; name.textContent = item.name;
         if (item.swatch === 'square') { swatch.dataset.ncSwatch = 'square'; Object.assign(swatch.style, { width: '10px', height: '10px', flexBasis: '10px', borderTopWidth: '0', backgroundColor: item.color }); }
-        else if (swatch.dataset.ncSwatch === 'square') { delete swatch.dataset.ncSwatch; Object.assign(swatch.style, { width: '16px', height: '', flexBasis: '16px', borderTopWidth: '2px', backgroundColor: '' }); }
+        else if (item.swatch === 'circle' || item.swatch === 'diamond') { swatch.dataset.ncSwatch = item.swatch; Object.assign(swatch.style, { width: '10px', height: '10px', flexBasis: '10px', borderTopWidth: '0', backgroundColor: item.color }); }
+        else if (swatch.dataset.ncSwatch) { delete swatch.dataset.ncSwatch; Object.assign(swatch.style, { width: '16px', height: '', flexBasis: '16px', borderTopWidth: '2px', backgroundColor: '' }); }
+        if (item.swatch === 'circle') swatch.style.borderRadius = '50%'; else if (swatch.style.borderRadius) swatch.style.borderRadius = '';
+        if (item.swatch === 'diamond') swatch.style.transform = 'rotate(45deg) scale(.8)'; else if (swatch.style.transform) swatch.style.transform = '';
         const expected = owned.children.item(index); if (expected !== button) owned.insertBefore(button, expected);
       }
       if (removedFocus) {

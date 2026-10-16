@@ -45,7 +45,7 @@ function scales(x: AxisInput, y: AxisInput, sx: TickSelection, sy: TickSelection
     if (frame.status === 'invalid') return frame;
     const scale = createPointScale(frame.value); return ok({ mapX: v => typeof v === 'string' ? scale.center(v) : null, mapY });
   }
-  const xs = sx.domain ? (x.kind === 'time' ? createTimeScale : createLinearScale)(sx.domain, [plot.x, plot.x + plot.width], false) : null;
+  const xs = sx.domain ? (x.kind === 'time' ? createTimeScale : createLinearScale)(sx.domain, x.reversed ? [plot.x + plot.width, plot.x] : [plot.x, plot.x + plot.width], false) : null;
   if (xs?.status === 'invalid') return xs;
   return ok({ mapX: v => typeof v === 'number' && xs?.status === 'ok' ? xs.value.map(v) : null, mapY });
 }
