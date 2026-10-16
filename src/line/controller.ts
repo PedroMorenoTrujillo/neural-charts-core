@@ -45,6 +45,8 @@ import { projectLine } from './geometry.js';
 import { lineScene } from './scene.js';
 import { buildHitIndex, firstTarget, navigate, reconcileTarget, pickPoint } from './hit-index.js';
 import type { HitIndex, HitTarget } from './hit-index.js';
+import { provideExport } from '../internal/export/capture.js';
+import { cartesianRecords } from '../internal/export/records.js';
 
 type Computed<T> = Readonly<{ shell: ShellFrame; palette: Palette; font: ResolvedFont; axes: AxesPlan | null; index: HitIndex<T> | null; layers: Layers; view: NonNullable<LineSnapshot['view']>; statusText: string; legend: readonly LegendItem[]; tooltipSeries: readonly TooltipSeries[]; table: TableSource }>;
 type Accepted<T> = Readonly<{ data: NormalizedLine<T>; state: ChartState; domains: Domains; cached?: Readonly<{ epoch: number; width: number; height: number; value: Computed<T> }> }>;
@@ -78,9 +80,11 @@ function mount<T, S>(host: HTMLElement | null, initial: Accepted<T> | null, opti
   let phase: LineSnapshot['phase'] = 'suspended', size = { width: 0, height: 0 }, epoch = 0, layoutGeneration = 0, sequence = 0, fontDirty = false, inCommit = false, disposeRequested = false;
   let revision = 0, committedRevision = 0, current: HitTarget<T> | null = null, hover: HitTarget<T> | null = null, gridFocused = false, focusSuppressed = false, pinned = false, detailWanted = false, destroyed = false;
   let lastView: LineSnapshot['view'] = null;
+  let releaseExport: (() => void) | null = null;
   const ids = shellIds(instanceId);
   function scalarSnapshot(): LineSnapshot { return Object.freeze({ phase, revision, committedRevision, view: destroyed || phase === 'faulted' || phase === 'suspended' ? null : lastView, size: Object.freeze({ ...size }) }); }
   function resources(): void {
+    cleanup(() => releaseExport?.()); releaseExport = null;
     cleanup(() => main?.destroy()); cleanup(() => interaction?.destroy()); main = null; interaction = null;
     cleanup(() => observer?.disconnect()); observer = null;
     fontHolder.callback = null; cleanup(() => fontSet?.removeEventListener('loadingdone', fontsChanged)); cleanup(() => fontSet?.removeEventListener('loadingerror', fontsChanged)); fontSet = null;
@@ -335,6 +339,12 @@ function mount<T, S>(host: HTMLElement | null, initial: Accepted<T> | null, opti
     });
     if (scalarSnapshot().phase === 'faulted' || destroyed) { dispose(); return invalid('LIFECYCLE_ERROR', 'PLATFORM_UNAVAILABLE', 'host'); }
     host = null; initial = null; options = null;
-    return ok(Object.freeze({ update, refresh() { if (destroyed) return invalid('LIFECYCLE_ERROR', 'DESTROYED', 'controller'); if (phase === 'faulted') return invalid('LIFECYCLE_ERROR', 'FAULTED', 'controller'); epoch++; measurer?.invalidate(); return submit('paint'); }, getState: () => accepted ? orderedState(accepted.state, accepted.data.series.map(s => s.spec.id)) : Object.freeze({ hiddenSeriesIds: Object.freeze([]) }), getSnapshot: scalarSnapshot, destroy }));
+    const controller = Object.freeze({ update, refresh() { if (destroyed) return invalid('LIFECYCLE_ERROR', 'DESTROYED', 'controller'); if (phase === 'faulted') return invalid('LIFECYCLE_ERROR', 'FAULTED', 'controller'); epoch++; measurer?.invalidate(); return submit('paint'); }, getState: () => accepted ? orderedState(accepted.state, accepted.data.series.map(s => s.spec.id)) : Object.freeze({ hiddenSeriesIds: Object.freeze([]) }), getSnapshot: scalarSnapshot, destroy });
+    releaseExport = provideExport(controller, () => {
+      if (phase !== 'active' || !computed || !committed || !shell) return invalid('LIFECYCLE_ERROR', 'EXPORT_UNAVAILABLE', 'controller');
+      const c = computed, input = committed, spec = input.data.spec;
+      return ok({ document: shell.root.ownerDocument, instanceId, revision: committedRevision, frame: frame(committedRevision, c.shell.body.width, c.shell.body.height, c.layers, c.axes ?? undefined), layout: c.shell, palette: c.palette, font: c.font, direction: spec.direction ?? 'ltr', title: spec.title, description: spec.description ?? '', context: [c.table.context, ...c.table.references].join(' '), status: c.statusText, legend: c.legend, hiddenLegendIds: input.state.hiddenSeriesIds, records: () => cartesianRecords(spec, input.state.hiddenSeriesIds) });
+    });
+    return ok(controller);
   } catch { dispose(); return invalid('LIFECYCLE_ERROR', 'PLATFORM_UNAVAILABLE', 'host'); }
 }

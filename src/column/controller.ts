@@ -28,6 +28,8 @@ import { normalizeColumn, columnDomain, type NormalizedColumn } from './normaliz
 import { projectColumn, pickColumn, navigateColumn, reconcileColumn, columnDockBody, type ColumnProjection, type ColumnRect } from './geometry.js';
 import { planColumnAxes } from './axes.js';
 import { columnScene, columnFocusScene, columnReferenceCaption } from './scene.js';
+import { provideExport } from '../internal/export/capture.js';
+import { cartesianRecords } from '../internal/export/records.js';
 
 type Input<T> = Readonly<{ data: NormalizedColumn<T>; state: ChartState; domain: Domain | null }>;
 type Computed<T> = Readonly<{ shell: ShellFrame; palette: Palette; font: ResolvedFont; axes: AxesPlan | null; projection: ColumnProjection<T> | null; layers: Layers; view: NonNullable<ColumnSnapshot['view']>; status: string; legend: readonly LegendItem[]; tooltipSeries: readonly TooltipSeries[]; table: TableSource }>;
@@ -57,9 +59,11 @@ function mount<T,S>(host:HTMLElement|null, initial:Input<T>|null, options:Column
   let main:RevisionScheduler<Input<T>>|null=null,interaction:RevisionScheduler<DetailJob<T>>|null=null,events:ReturnType<typeof attachCartesianInteraction>|null=null,observer:Readonly<{disconnect():void}>|null=null;
   let media:MediaQueryList|null=null,fonts:FontFaceSet|null=null;const fontHolder:{callback:(()=>void)|null}={callback:null};
   let phase:ColumnSnapshot['phase']='suspended',size={width:0,height:0},revision=0,committedRevision=0,generation=0,sequence=0;
+  let releaseExport:(()=>void)|null=null;
   let current:ColumnRect<T>|null=null,hover:ColumnRect<T>|null=null,gridFocused=false,pinned=false,wanted=false,destroyed=false,suppressFocus=false,inCommit=false,disposeRequested=false;
   function snapshot():ColumnSnapshot { return Object.freeze({phase,revision,committedRevision,view:phase==='active'?computed?.view??null:null,size:Object.freeze({...size})}); }
   function resources():void {
+    cleanup(()=>releaseExport?.());releaseExport=null;
     cleanup(()=>main?.destroy());cleanup(()=>interaction?.destroy());main=null;interaction=null;
     cleanup(()=>observer?.disconnect());observer=null;fontHolder.callback=null;
     cleanup(()=>fonts?.removeEventListener('loadingdone',fontsChanged));cleanup(()=>fonts?.removeEventListener('loadingerror',fontsChanged));fonts=null;
@@ -214,6 +218,12 @@ function mount<T,S>(host:HTMLElement|null, initial:Input<T>|null, options:Column
     observer=ports.value.sizeObserver.observe(ownedHost!,next=>{if(destroyed||phase==='faulted')return;if(![next.width,next.height].every(Number.isFinite)||next.width<0||next.height<0){report(invalid('INVALID_NUMBER','NONFINITE','host.size').diagnostic);return;}if(size.width===next.width&&size.height===next.height)return;size={...next};if(size.width<=0||size.height<=0){phase='suspended';invalidate();base?.clear();current=null;computed=null;if(shell){const focused=shell.root.contains(shell.root.ownerDocument.activeElement);table?.close(false);legend?.disable(true);semantic?.update({rowCount:0,columnCount:0,current:null,summary:'Chart has no visible size.'},{x:0,y:0,width:0,height:0},false);shell.root.style.width=`${size.width}px`;shell.root.style.height=`${size.height}px`;shell.status.textContent='Chart has no visible size.';shell.status.hidden=false;if(focused){suppressFocus=true;shell.root.focus({preventScroll:true});suppressFocus=false;}}}else phase='active';submit('size');});
     if(destroyed||snapshot().phase==='faulted'){dispose();return invalid('LIFECYCLE_ERROR','PLATFORM_UNAVAILABLE','host');}
     host=null;initial=null;options=null;
-    return ok(Object.freeze({update,refresh(){if(destroyed)return invalid('LIFECYCLE_ERROR','DESTROYED','controller');if(phase==='faulted')return invalid('LIFECYCLE_ERROR','FAULTED','controller');measurer?.invalidate();return submit('paint');},getState:()=>accepted?orderedState(accepted.state,accepted.data.series.map(s=>s.spec.id)):Object.freeze({hiddenSeriesIds:Object.freeze([])}),getSnapshot:snapshot,destroy}));
+    const controller=Object.freeze({update,refresh(){if(destroyed)return invalid('LIFECYCLE_ERROR','DESTROYED','controller');if(phase==='faulted')return invalid('LIFECYCLE_ERROR','FAULTED','controller');measurer?.invalidate();return submit('paint');},getState:()=>accepted?orderedState(accepted.state,accepted.data.series.map(s=>s.spec.id)):Object.freeze({hiddenSeriesIds:Object.freeze([])}),getSnapshot:snapshot,destroy});
+    releaseExport=provideExport(controller,()=>{
+      if(phase!=='active'||!computed||!committed||!shell)return invalid('LIFECYCLE_ERROR','EXPORT_UNAVAILABLE','controller');
+      const c=computed,input=committed,spec=input.data.spec;
+      return ok({document:shell.root.ownerDocument,instanceId,revision:committedRevision,frame:frame(committedRevision,c.shell.body.width,c.shell.body.height,c.layers,c.axes??undefined),layout:c.shell,palette:c.palette,font:c.font,direction:spec.direction??'ltr',title:spec.title,description:spec.description??'',context:[c.table.context,...c.table.references].join(' '),status:c.status,legend:c.legend,hiddenLegendIds:input.state.hiddenSeriesIds,records:()=>cartesianRecords(spec,input.state.hiddenSeriesIds)});
+    });
+    return ok(controller);
   }catch{dispose();return invalid('LIFECYCLE_ERROR','PLATFORM_UNAVAILABLE','host');}
 }

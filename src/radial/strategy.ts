@@ -27,6 +27,10 @@ export function radialPolicy<T>(family: 'pie' | 'donut'): FamilyPolicy<RadialCha
     validateData: (spec, state) => normalizeRadial(spec.data, new Set(state.hiddenSliceIds)),
     ids: spec => spec.data.map(point => point.id), hidden: state => state.hiddenSliceIds,
     state: hidden => Object.freeze({ hiddenSliceIds: Object.freeze([...hidden]) }), names,
+    exportRecords(spec, state, value) {
+      const hidden = new Set(state.hiddenSliceIds), fractions = new Map(value.projection.data.slices.map(slice => [slice.point.id, slice.fraction]));
+      return { columns: ['Slice ID', 'Label', 'Value', 'Visible share (fraction)', 'Visible'], rows: spec.data.map(point => { const fraction = fractions.get(point.id); return [point.id, point.label, point.value, !hidden.has(point.id) && point.value !== null && value.projection.data.positive > 0 && !(point.value > 0 && fraction === 0) ? fraction ?? null : null, hidden.has(point.id) ? 'false' : 'true']; }) };
+    },
     compute(spec, state, shell, palette, font, measurer) {
       const projected = projectRadial(spec, state, { x: 0, y: 0, width: shell.body.width, height: shell.body.height }); if (projected.status === 'invalid') return projected;
       const projection = projected.value, description = describeRadialData(spec, state, projection.data), layers = emptyLayers(), labels = names(spec);

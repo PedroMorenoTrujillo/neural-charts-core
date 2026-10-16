@@ -9,6 +9,7 @@ import type { TooltipModel } from '../tooltip/model.js';
 import type { Rect } from '../tooltip/place.js';
 import type { Shell } from './shell.js';
 import type { DataTableView } from '../accessibility/table-frame.js';
+import type { ExportRecords } from '../../public/export-types.js';
 
 /** Private strategy contract: shared resource/DOM lifecycle, family-owned math. */
 export type FamilySpec<State> = Readonly<{
@@ -33,6 +34,7 @@ export type FamilyPolicy<S extends FamilySpec<State>, State, P, Target, D extend
   ids(spec: S): readonly string[];
   hidden(state: State): readonly string[];
   state(hidden: readonly string[]): State;
+  exportRecords(spec: S, state: State, value: FamilyComputed<P, D>): ExportRecords;
   names(spec: S): readonly string[];
   compute(spec: S, state: State, shell: ShellFrame, palette: Palette, font: ResolvedFont, measurer: TextMeasurer): ChartResult<FamilyComputed<P, D>>;
   enabled(value: FamilyComputed<P, D>): boolean;

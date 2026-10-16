@@ -16,6 +16,7 @@ import { type TooltipModel } from '../tooltip/model.js';
 import { createTooltipView, allowedRect, unsupportedPortalMapping, type TooltipView } from '../tooltip/view.js';
 import { placeTooltip, type Rect, type PlacementResult } from '../tooltip/place.js';
 import { attachCartesianInteraction } from '../interaction/cartesian.js';
+import { provideExport } from '../export/capture.js';
 
 import type { FamilySpec, FamilyDescription, FamilySnapshot, FamilyController, FamilyOptions, FamilyPolicy, FamilyComputed } from './family.js';
 type Input<S, State> = Readonly<{ spec: S; state: State }>;
@@ -47,9 +48,11 @@ function mount<S extends FamilySpec<State>, State, P, Target, D extends FamilyDe
   let main: RevisionScheduler<Input<S, State>> | null = null, interaction: RevisionScheduler<DetailJob<Target>> | null = null, events: ReturnType<typeof attachCartesianInteraction> | null = null, observer: Readonly<{ disconnect(): void }> | null = null;
   let media: MediaQueryList | null = null, fonts: FontFaceSet | null = null; const fontHolder: { callback: (() => void) | null } = { callback: null };
   let phase: FamilySnapshot['phase'] = 'suspended', size = { width: 0, height: 0 }, revision = 0, committedRevision = 0, generation = 0, sequence = 0;
+  let releaseExport: (() => void) | null = null;
   let current: Target | null = null, hover: Target | null = null, activeId: string | null = null, activeOrder = 0, gridFocused = false, pinned = false, wanted = false, destroyed = false, suppressFocus = false, inCommit = false, disposeRequested = false;
   function snapshot(): FamilySnapshot & Readonly<{ view: D['view'] | null }> { return Object.freeze({ phase, revision, committedRevision, view: phase === 'active' ? computed?.description.view ?? null : null, size: Object.freeze({ ...size }) }); }
   function resources(): void {
+    cleanup(() => releaseExport?.()); releaseExport = null;
     cleanup(() => main?.destroy()); cleanup(() => interaction?.destroy()); main = null; interaction = null;
     cleanup(() => observer?.disconnect()); observer = null; fontHolder.callback = null;
     cleanup(() => fonts?.removeEventListener('loadingdone', fontsChanged)); cleanup(() => fonts?.removeEventListener('loadingerror', fontsChanged)); fonts = null;
@@ -202,6 +205,12 @@ function mount<S extends FamilySpec<State>, State, P, Target, D extends FamilyDe
     });
     if (destroyed || snapshot().phase === 'faulted') { dispose(); return invalid('LIFECYCLE_ERROR', 'PLATFORM_UNAVAILABLE', 'host'); }
     host = null; initial = null; options = null;
-    return ok(Object.freeze({ update, refresh() { if (destroyed) return invalid('LIFECYCLE_ERROR', 'DESTROYED', 'controller'); if (phase === 'faulted') return invalid('LIFECYCLE_ERROR', 'FAULTED', 'controller'); measurer?.invalidate(); return submit('paint'); }, getState: () => accepted ? ordered(accepted.state, policy.ids(accepted.spec)) : policy.state([]), getSnapshot: snapshot, destroy }));
+    const controller = Object.freeze({ update, refresh() { if (destroyed) return invalid('LIFECYCLE_ERROR', 'DESTROYED', 'controller'); if (phase === 'faulted') return invalid('LIFECYCLE_ERROR', 'FAULTED', 'controller'); measurer?.invalidate(); return submit('paint'); }, getState: () => accepted ? ordered(accepted.state, policy.ids(accepted.spec)) : policy.state([]), getSnapshot: snapshot, destroy });
+    releaseExport = provideExport(controller, () => {
+      if (phase !== 'active' || !computed || !committed || !shell) return invalid('LIFECYCLE_ERROR', 'EXPORT_UNAVAILABLE', 'controller');
+      const c = computed, input = committed, spec = input.spec;
+      return ok({ document: shell.root.ownerDocument, instanceId, revision: committedRevision, frame: frame(committedRevision, c.shell.body.width, c.shell.body.height, c.layers, c.axes), layout: c.shell, palette: c.palette, font: c.font, direction: spec.direction ?? 'ltr', title: spec.title, description: spec.description ?? '', context: c.description.context, status: c.status, legend: c.legend, hiddenLegendIds: policy.hidden(input.state), records: () => policy.exportRecords(spec, input.state, c) });
+    });
+    return ok(controller);
   } catch { dispose(); return invalid('LIFECYCLE_ERROR', 'PLATFORM_UNAVAILABLE', 'host'); }
 }

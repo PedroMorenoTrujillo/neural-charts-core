@@ -33,6 +33,7 @@ export function scatterPolicy<T>(): Policy<T> {
     validateData(spec, state) { const data = dataOf(spec); return data.status === 'invalid' ? data : scatterDomains(data.value, state); },
     ids: spec => spec.series.map(series => series.id), hidden: state => state.hiddenSeriesIds,
     state: hidden => Object.freeze({ hiddenSeriesIds: Object.freeze([...hidden]) }), names: spec => spec.series.map(series => series.name),
+    exportRecords(spec, state) { const hidden = new Set(state.hiddenSeriesIds); return { columns: ['Series ID', 'Series', 'Point ID', 'X', 'Y', 'Visible'], rows: spec.series.flatMap(series => series.data.map(point => [series.id, series.name, point.id, point.x, point.y, hidden.has(series.id) ? 'false' : 'true'])) }; },
     compute(spec, state, shell, palette, font, measurer) {
       const result = dataOf(spec); if (result.status === 'invalid') return result; const data = result.value, domains = scatterDomains(data, state); if (domains.status === 'invalid') return domains;
       const planned = planAxes({ x: spec.axes.x, y: spec.axes.y, domains: domains.value, width: shell.body.width, height: shell.body.height, font, direction: spec.direction ?? 'ltr', labels: new Map(), measurer, compact: shell.body.width < 480 }); if (planned.status === 'invalid') return planned;
