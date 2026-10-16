@@ -1,7 +1,7 @@
 import type { Dash } from '../chart/presentation.js';
 export type TooltipSeries = Readonly<{ id: string; name: string; color: string; dash: Dash; byX: ReadonlyMap<string | number, Readonly<{ y: number | null }>> }>;
 export type TooltipRow = Readonly<{ seriesId: string; name: string; value: number | null; availability: 'value' | 'null' | 'absent'; color: string; dash: Dash }>;
-export type TooltipModel = Readonly<{ revision: number; seriesId: string; pointId: string; x: string | number; header: string; displayHeader: string; rows: readonly TooltipRow[]; context?: string }>;
+export type TooltipModel = Readonly<{ revision: number; seriesId: string; pointId: string; x: string | number; header: string; displayHeader: string; rows: readonly TooltipRow[]; context?: string; isolateText?: true }>;
 export function duplicateCategoryLabels(labels: ReadonlyMap<string, string>): ReadonlySet<string> {
   const seen = new Set<string>(), duplicates = new Set<string>();
   for (const label of labels.values()) { if (seen.has(label)) duplicates.add(label); else seen.add(label); }

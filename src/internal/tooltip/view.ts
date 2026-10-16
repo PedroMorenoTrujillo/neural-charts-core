@@ -34,15 +34,19 @@ export function createTooltipView(shell: Shell): TooltipView {
     element.dataset.ncPointId = model.pointId; element.dataset.ncSeriesId = model.seriesId; element.dataset.ncRevision = String(model.revision);
     element.dataset.ncCategory = String(model.x);
     const document = element.ownerDocument, header = document.createElement('div'); header.dataset.ncTooltipHeading = ''; header.textContent = model.displayHeader; Object.assign(header.style, { fontWeight: '600', marginBottom: '7px', lineHeight: '1.35' }); const rows: HTMLElement[] = [header];
+    const alignment = (element.dir || owned?.root.dir) === 'rtl' ? 'right' : 'left';
+    if (model.isolateText) { header.dir = typeof model.x === 'number' ? 'ltr' : 'auto'; header.style.textAlign = alignment; }
     for (const row of model.rows) {
       const line = document.createElement('div'), swatch = document.createElement('span'), name = document.createElement('span'), value = document.createElement('span');
       line.dataset.ncTooltipRow = ''; Object.assign(line.style, { display: 'grid', gridTemplateColumns: '16px minmax(0,1fr) auto', gap: '7px', alignItems: 'baseline', marginTop: '4px' });
       swatch.setAttribute('aria-hidden', 'true'); Object.assign(swatch.style, { display: 'inline-block', width: '16px', alignSelf: 'center', borderTop: `2px ${row.dash === 'solid' ? 'solid' : row.dash === 'dashed' ? 'dashed' : 'dotted'} ${row.color}` });
       name.textContent = row.name + ': '; name.style.color = 'var(--nc-detail-muted)'; value.textContent = rowText(row).slice(row.name.length + 2); value.dataset.ncTooltipValue = ''; Object.assign(value.style, { fontWeight: row.availability === 'value' ? '600' : '400', textAlign: 'end', fontVariantNumeric: 'tabular-nums' });
+      if (model.isolateText) { name.dir = 'auto'; name.style.textAlign = alignment; value.dir = row.availability === 'value' ? 'ltr' : 'auto'; }
       line.append(swatch, name, value); rows.push(line);
     }
     if (model.context) {
       const context = document.createElement('div'); context.dataset.ncTooltipContext = ''; context.textContent = model.context;
+      if (model.isolateText) { context.dir = 'auto'; context.style.textAlign = alignment; }
       Object.assign(context.style, { marginTop: '8px', lineHeight: '1.4', color: 'var(--nc-detail-muted)' }); rows.push(context);
     }
     element.replaceChildren(...rows);

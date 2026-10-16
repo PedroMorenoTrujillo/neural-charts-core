@@ -22,4 +22,10 @@ export type ChartStateChange = Readonly<{
   source: 'legend' | 'update'; revision: number;
 }>;
 export type ChartTheme = 'light' | 'dark' | 'auto';
+/** Framework-neutral, already formatted accessible records. Raw domain data
+ * remain in the chart spec; a derived column never replaces those values. */
+export type ChartDataTable = Readonly<{
+  columns: readonly string[];
+  rows: readonly Readonly<{ key: string; cells: readonly string[] }>[];
+}>;
 
