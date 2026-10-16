@@ -15,7 +15,7 @@ export function createTableView(shell: Shell, onOpen: () => void): TableView {
     controls.append(close, previous, next); announcement.setAttribute('role', 'status'); announcement.setAttribute('aria-live', 'polite'); announcement.textContent = `Page ${page + 1} of ${pages}. ${total ? page * 100 + 1 : 0}–${Math.min(total, (page + 1) * 100)} of ${total} provided observations.`;
     caption.textContent = `${source.context} Cropped observations are retained. ${announcement.textContent}`;
     for (const name of ['Series', 'X', 'Y', 'Visibility']) { const th = document.createElement('th'); th.scope = 'col'; th.textContent = name; th.style.textAlign = 'start'; headRow.append(th); }
-    thead.append(headRow); table.append(caption, thead, tbody); table.style.width = '100%'; table.style.borderCollapse = 'collapse';
+    thead.append(headRow); table.append(caption, thead, tbody); table.style.width = '100%'; table.style.borderCollapse = 'collapse'; table.style.font = 'inherit'; table.style.color = 'inherit';
     let skipped = page * 100, remaining = 100;
     for (const series of source.series) {
       if (skipped >= series.data.length) { skipped -= series.data.length; continue; }

@@ -1,5 +1,6 @@
 import type { ChartDiagnostic, ChartResult, ChartState, ChartStateChange } from '../public/chart-types.js';
-import type { LineChartSpec, LineController, LineMountOptions, LinePointActivation, LineSnapshot } from '../public/line-types.js';
+import type { LineChartSpec, LineMountOptions, LinePointActivation, LineSnapshot } from '../public/line-types.js';
+import type { LinePolicy, LineEngineController } from './renderer.js';
 import { invalid, ok, notify } from '../internal/diagnostics.js';
 import { createBrowserPorts } from '../internal/platform/browser.js';
 import { reserveInstance } from '../internal/platform/id.js';
@@ -52,8 +53,8 @@ type InteractionJob<T> = Readonly<{ main: number; layout: number; sequence: numb
 type InteractionPrepared<T> = Readonly<{ job: InteractionJob<T>; target: HitTarget<T> | null; scene: PreparedScene | null; model: TooltipModel | null; bounds: Rect; placement: PlacementResult | null; noop: boolean }>;
 function invoke<T>(callback: ((value: T) => void) | null, value: T): void { try { callback?.(value); } catch { /* Application callbacks cannot break chart lifecycle. */ } }
 
-export function createLineChart<T = unknown>(host: HTMLElement, spec: LineChartSpec<T>, options: LineMountOptions<T>): ChartResult<LineController<T>> {
-  const validated = validateLine<T>(spec); if (validated.status === 'invalid') return validated;
+export function createLineChart<T = unknown, S = LineChartSpec<T>>(host: HTMLElement, spec: S, options: LineMountOptions<T>, policy?: LinePolicy<T>): ChartResult<LineEngineController<T, S>> {
+  const validated = policy ? policy.parse(spec) : validateLine<T>(spec); if (validated.status === 'invalid') return validated;
   const mountOptions = validateOptions<T>(options); if (mountOptions.status === 'invalid') return mountOptions;
   const data = normalizeLine(validated.value), opts = mountOptions.value, mode = data.spec.state?.mode ?? 'internal';
   if (mode === 'controlled' && opts.initialState) return invalid('INVALID_CONFIG', 'BAD_STATE', 'options.initialState');
@@ -63,10 +64,10 @@ export function createLineChart<T = unknown>(host: HTMLElement, spec: LineChartS
   const state = orderedState(stateResult.value, data.series.map(s => s.spec.id)), domains = lineDomains(data, state); if (domains.status === 'invalid') return domains;
   try {
     if (!host || host.nodeType !== 1 || host.namespaceURI !== 'http://www.w3.org/1999/xhtml' || !host.isConnected || !host.ownerDocument.defaultView || host.getRootNode() !== host.ownerDocument) return invalid('LIFECYCLE_ERROR', 'PLATFORM_UNAVAILABLE', 'host');
-    return mount(host, { data, state, domains: domains.value }, opts);
+    return mount<T, S>(host, { data, state, domains: domains.value }, opts, policy ?? null);
   } catch { return invalid('LIFECYCLE_ERROR', 'PLATFORM_UNAVAILABLE', 'host'); }
 }
-function mount<T>(host: HTMLElement | null, initial: Accepted<T> | null, options: LineMountOptions<T> | null): ChartResult<LineController<T>> {
+function mount<T, S>(host: HTMLElement | null, initial: Accepted<T> | null, options: LineMountOptions<T> | null, policy: LinePolicy<T> | null): ChartResult<LineEngineController<T, S>> {
   let ownedHost = host, shell: Shell | null = null, failureRoot: HTMLElement | null = null, accepted = initial, committed: Accepted<T> | null = null, computed: Computed<T> | null = null;
   let onDiagnostic = options!.onDiagnostic ?? null, onStateChange = options!.onStateChange ?? null, onPointActivate = options!.onPointActivate ?? null;
   const instanceId = options!.instanceId, mode = initial!.data.spec.state?.mode ?? 'internal', reservations: IdReservation[] = [];
@@ -87,7 +88,7 @@ function mount<T>(host: HTMLElement | null, initial: Accepted<T> | null, options
     cleanup(() => events?.destroy()); events = null; cleanup(() => legend?.destroy()); legend = null; cleanup(() => semantic?.destroy()); semantic = null; cleanup(() => table?.destroy()); table = null; cleanup(() => tooltip?.destroy()); tooltip = null;
     cleanup(() => baseWriter?.dispose()); cleanup(() => overlayWriter?.dispose()); baseWriter = null; overlayWriter = null;
     cleanup(() => measurer?.destroy()); measurer = null; accepted = null; committed = null; computed = null; current = null; hover = null; onPointActivate = null; onStateChange = null;
-    initial = null; options = null; host = null;
+    initial = null; options = null; host = null; policy = null;
   }
   function dispose(): void {
     resources(); onDiagnostic = null;
@@ -128,7 +129,9 @@ function mount<T>(host: HTMLElement | null, initial: Accepted<T> | null, options
       const plan = planAxes({ x: spec.axes.x, y: spec.axes.y, domains: input.domains, width: layout.body.width, height: layout.body.height, font, direction, labels: data.labels, measurer, compact: layout.compact }); if (plan.status === 'invalid') return plan; axes = plan.value;
       if (!axes.tooSmall && axes.y.domain) {
         const projection = projectLine(data, input.state, axes.plot, axes.x.domain, axes.y.domain, axes); if (projection.status === 'invalid') return projection;
-        index = buildHitIndex(projection.value, x => typeof x === 'string' ? data.ranks.get(x)! : x); axesScene(axes, spec.axes.x, spec.axes.y, palette, layers, layout.compact); lineScene(projection.value, palette, layers, dashes);
+        index = buildHitIndex(projection.value, x => typeof x === 'string' ? data.ranks.get(x)! : x); axesScene(axes, spec.axes.x, spec.axes.y, palette, layers, layout.compact);
+        if (policy) { const rendered = policy.render(projection.value, palette, layers, dashes); if (rendered.status === 'invalid') return rendered; }
+        else lineScene(projection.value, palette, layers, dashes);
       }
     }
     const referenceInfo = axes ? referenceScene(spec.references ?? [], axes, palette, layers, text => { const rendered = ellipsis(text, Math.max(0, axes!.plot.width - 8), s => measurer!.measure(s, font, direction)), m = measurer!.measure(rendered ?? '', font, direction); return { text: rendered, width: m.width, height: m.height }; }, data.ranks) : [];
@@ -262,9 +265,9 @@ function mount<T>(host: HTMLElement | null, initial: Accepted<T> | null, options
     } catch { const diagnostic = invalid('INTERNAL_INVARIANT', 'DOM_WRITE_FAILED', 'controller').diagnostic; fault(diagnostic); return { status: 'invalid', diagnostic }; }
     finally { inCommit = false; if (disposeRequested) dispose(); }
   }
-  function update(nextSpec: LineChartSpec<T>): ChartResult<number> {
+  function update(nextSpec: S): ChartResult<number> {
     if (destroyed) return invalid('LIFECYCLE_ERROR', 'DESTROYED', 'controller'); if (phase === 'faulted' || !accepted) return invalid('LIFECYCLE_ERROR', 'FAULTED', 'controller');
-    const validation = validateLine<T>(nextSpec); if (validation.status === 'invalid') return validation;
+    const validation = policy ? policy.parse(nextSpec) : validateLine<T>(nextSpec); if (validation.status === 'invalid') return validation;
     const data = normalizeLine(validation.value), nextMode = data.spec.state?.mode ?? 'internal'; if (nextMode !== mode) return invalid('INVALID_CONFIG', 'STATE_MODE_CHANGE', 'state.mode');
     if (mode === 'controlled' && data.series.length && data.spec.legend?.position !== 'none' && !onStateChange) return invalid('INVALID_CONFIG', 'MISSING_STATE_HANDLER', 'options.onStateChange');
     const state = orderedState(data.spec.state?.mode === 'controlled' ? data.spec.state.value : accepted.state, data.series.map(s => s.spec.id)), domains = lineDomains(data, state); if (domains.status === 'invalid') return domains;

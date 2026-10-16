@@ -39,6 +39,19 @@ it('keyboard skips empty series, uses earlier nearest-X ties, never wraps and re
   expect(navigate(i, middle, 'End', false)?.point.point.id).toBe('a9'); expect(navigate(i, middle, 'Home', true)?.point.point.id).toBe('a0'); expect(navigate(i, middle, 'End', true)?.point.point.id).toBe('c');
   expect(reconcileTarget(i, middle, true, 30)).toBe(middle); expect(reconcileTarget(i, middle, false, 30)).toBe(first); expect([...i.columns.keys()]).toEqual([0, 2, 3, 3.001, 4, 9]); expect(i.columns.get(3)).toBe(3);
 });
+it('coincident projected X positions use indexed Y lookup and preserve deterministic datum identity', () => {
+  const spec = validateLine({ family: 'line', title: 'Extreme', axes: { x: { kind: 'linear' }, y: { kind: 'linear' } }, series: [{ id: 's', name: 'S', data: Array.from({ length: 10000 }, (_, i) => ({ id: 'p' + i, x: i === 9999 ? 1e300 : i, y: i % 11 })) }] });
+  if (spec.status !== 'ok') throw Error('fixture');
+  const projection = projectLine(normalizeLine(spec.value), { hiddenSeriesIds: [] }, { x: 20, y: 20, width: 700, height: 300 }, [0, 1e300], [0, 10]);
+  if (projection.status !== 'ok') throw Error('projection');
+  const hit = buildHitIndex(projection.value, x => x as number);
+  expect(hit.coincident.get(0)?.get(20)).toHaveLength(9999);
+  for (let y = 0; y <= 10; y++) {
+    const position = { x: 22, y: 320 - y * 30 };
+    expect(pickPoint(hit, position, position, (x, y) => ({ x, y }))?.point.point.id).toBe('p' + y);
+    if (y > 0) { const offset = { ...position, y: position.y + .25 }; expect(pickPoint(hit, offset, offset, (x, y) => ({ x, y }))?.point.point.id).toBe('p' + y); }
+  }
+});
 it('solver uses preferred/opposite, logical direction, minimum overflow and bounded clamp', () => {
   const allowed = { x: 0, y: 0, width: 200, height: 200 }, anchor = { x: 100, y: 100, width: 0, height: 0 }, size = { width: 40, height: 20 };
   expect(placeTooltip(anchor, size, allowed, 'top', 'ltr')).toEqual({ kind: 'floating', x: 80, y: 72, placement: 'top' });

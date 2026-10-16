@@ -2,7 +2,7 @@ import type { LineProjection, ProjectedPoint, ProjectedSeries } from './geometry
 import { pointKey } from './normalize.js';
 
 export type HitTarget<T> = Readonly<{ series: ProjectedSeries<T>; point: ProjectedPoint<T>; seriesIndex: number; eligibleIndex: number }>;
-export type HitIndex<T> = Readonly<{ projection: LineProjection<T>; targets: readonly (readonly HitTarget<T>[])[]; byId: ReadonlyMap<string, HitTarget<T>>; columns: ReadonlyMap<string | number, number>; columnCount: number }>;
+export type HitIndex<T> = Readonly<{ projection: LineProjection<T>; targets: readonly (readonly HitTarget<T>[])[]; coincident: ReadonlyMap<number, ReadonlyMap<number, readonly HitTarget<T>[]>>; byId: ReadonlyMap<string, HitTarget<T>>; columns: ReadonlyMap<string | number, number>; columnCount: number }>;
 export function buildHitIndex<T>(projection: LineProjection<T>, rank: (x: string | number) => number): HitIndex<T> {
   const byId = new Map<string, HitTarget<T>>(), columns = new Map<string | number, number>();
   const targets = projection.series.map((series, seriesIndex) => Object.freeze(series.eligible.map((point, eligibleIndex) => {
@@ -20,7 +20,17 @@ export function buildHitIndex<T>(projection: LineProjection<T>, rank: (x: string
     if (!columns.has(value)) columns.set(value, columns.size + 1);
     if (c.point + 1 < s.length) push({ series: c.series, point: c.point + 1, rank: rank(s[c.point + 1]!.point.point.x) });
   }
-  return Object.freeze({ projection, targets: Object.freeze(targets), byId, columns, columnCount: columns.size });
+  const coincident = new Map<number, ReadonlyMap<number, readonly HitTarget<T>[]>>();
+  targets.forEach((series, index) => {
+    const groups = new Map<number, readonly HitTarget<T>[]>();
+    for (let start = 0; start < series.length;) {
+      let end = start + 1; while (end < series.length && series[end]!.point.x === series[start]!.point.x) end++;
+      if (end - start > 1) groups.set(series[start]!.point.x, Object.freeze(series.slice(start, end).sort((a, b) => a.point.y - b.point.y || a.point.index - b.point.index)));
+      start = end;
+    }
+    if (groups.size) coincident.set(index, groups);
+  });
+  return Object.freeze({ projection, targets: Object.freeze(targets), coincident, byId, columns, columnCount: columns.size });
 }
 export function neighbors<T>(points: readonly HitTarget<T>[], x: number): readonly HitTarget<T>[] {
   let lo = 0, hi = points.length;
@@ -36,10 +46,25 @@ export function pickPoint<T>(index: HitIndex<T>, local: Readonly<{ x: number; y:
   const plot = index.projection.plot;
   if (local.x < plot.x || local.x > plot.x + plot.width || local.y < plot.y || local.y > plot.y + plot.height) return null;
   let best: HitTarget<T> | null = null, distance = Infinity, xDistance = Infinity;
-  for (const series of index.targets) for (const candidate of neighbors(series, local.x)) {
+  for (let seriesIndex = 0; seriesIndex < index.targets.length; seriesIndex++) {
+    const candidates = new Set<HitTarget<T>>();
+    for (const neighbor of neighbors(index.targets[seriesIndex]!, local.x)) {
+      const group = index.coincident.get(seriesIndex)?.get(neighbor.point.x);
+      if (!group) { candidates.add(neighbor); continue; }
+      let lo = 0, hi = group.length;
+      while (lo < hi) { const mid = Math.floor((lo + hi) / 2); if (group[mid]!.point.y < local.y) lo = mid + 1; else hi = mid; }
+      if (lo) {
+        const y = group[lo - 1]!.point.y; let first = 0, end = lo;
+        while (first < end) { const mid = Math.floor((first + end) / 2); if (group[mid]!.point.y < y) first = mid + 1; else end = mid; }
+        candidates.add(group[first]!);
+      }
+      if (lo < group.length) candidates.add(group[lo]!);
+    }
+    for (const candidate of candidates) {
     const p = toClient(candidate.point.x, candidate.point.y); if (!p) continue;
     const dx = Math.abs(p.x - client.x), dy = p.y - client.y, d = dx * dx + dy * dy;
     if (d <= 144 && (d < distance || d === distance && (dx < xDistance || dx === xDistance && (best === null || candidate.seriesIndex < best.seriesIndex || candidate.seriesIndex === best.seriesIndex && candidate.point.index < best.point.index)))) { best = candidate; distance = d; xDistance = dx; }
+    }
   }
   return best;
 }
