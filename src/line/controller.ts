@@ -5,6 +5,7 @@ import { invalid, ok, notify } from '../internal/diagnostics.js';
 import { createBrowserPorts } from '../internal/platform/browser.js';
 import { reserveInstance } from '../internal/platform/id.js';
 import type { IdReservation } from '../internal/platform/id.js';
+import { createBrowserMotion, paintLayerMotion, type LayerMotion } from '../internal/lifecycle/motion.js';
 import { createRevisionScheduler } from '../internal/lifecycle/scheduler.js';
 import type { RevisionScheduler, RevisionToken, DirtyReason } from '../internal/lifecycle/scheduler.js';
 import { createSvgWriter } from '../internal/scene/svg-writer.js';
@@ -55,7 +56,7 @@ import { pointKey } from './normalize.js';
 
 type Computed<T> = Readonly<{ shell: ShellFrame; palette: Palette; font: ResolvedFont; axes: AxesPlan | null; index: HitIndex<T> | null; layers: Layers; view: NonNullable<LineSnapshot['view']>; statusText: string; legend: readonly LegendItem[]; tooltipSeries: readonly TooltipSeries[]; table: TableSource }>;
 type Accepted<T> = Readonly<{ data: NormalizedLine<T>; state: ChartState; domains: Domains; selection: Selection<SeriesPointId> | null; known: ReadonlyMap<string, SeriesPointId> | null; cached?: Readonly<{ epoch: number; width: number; height: number; value: Computed<T> }> }>;
-type MainPrepared<T> = Readonly<{ input: Accepted<T>; computed: Computed<T>; scene: PreparedScene | null }>;
+type MainPrepared<T> = Readonly<{ input: Accepted<T>; computed: Computed<T>; scene: PreparedScene | null; animate: boolean | 'continue' }>;
 type InteractionJob<T> = Readonly<{ main: number; layout: number; sequence: number; stage: 'intent' | 'measure'; target: HitTarget<T> | null; keyboard: boolean; detail: boolean; sample?: Readonly<{ x: number; y: number; intent: 'hover' }> }>;
 type InteractionPrepared<T> = Readonly<{ job: InteractionJob<T>; target: HitTarget<T> | null; scene: PreparedScene | null; model: TooltipModel | null; bounds: Rect; placement: PlacementResult | null; noop: boolean }>;
 function invoke<T>(callback: ((value: T) => void) | null, value: T): void { try { callback?.(value); } catch { /* Application callbacks cannot break chart lifecycle. */ } }
@@ -89,11 +90,13 @@ function mount<T, S>(host: HTMLElement | null, initial: Accepted<T> | null, opti
   let revision = 0, committedRevision = 0, current: HitTarget<T> | null = null, hover: HitTarget<T> | null = null, gridFocused = false, focusSuppressed = false, pinned = false, detailWanted = false, destroyed = false;
   let lastView: LineSnapshot['view'] = null;
   let releaseExport: (() => void) | null = null;
+  let motion: LayerMotion | null = null;
   const ids = shellIds(instanceId);
   function scalarSnapshot(): LineSnapshot { return Object.freeze({ phase, revision, committedRevision, view: destroyed || phase === 'faulted' || phase === 'suspended' ? null : lastView, size: Object.freeze({ ...size }) }); }
   function resources(): void {
     cleanup(() => releaseExport?.()); releaseExport = null;
     cleanup(() => main?.destroy()); cleanup(() => interaction?.destroy()); main = null; interaction = null;
+    cleanup(() => motion?.destroy()); motion = null;
     cleanup(() => observer?.disconnect()); observer = null;
     fontHolder.callback = null; cleanup(() => fontSet?.removeEventListener('loadingdone', fontsChanged)); cleanup(() => fontSet?.removeEventListener('loadingerror', fontsChanged)); fontSet = null;
     cleanup(() => media?.removeEventListener('change', mediaChanged)); media = null;
@@ -257,7 +260,7 @@ function mount<T, S>(host: HTMLElement | null, initial: Accepted<T> | null, opti
     const previous = accepted; accepted = checked.value; const submitted = submit('data'); if (submitted.status === 'invalid') { accepted = previous; invoke(onDiagnostic, submitted.diagnostic); return; }
     const event: ChartStateChange = { state: next, effect: 'accepted', source: 'legend', revision: submitted.value }; invoke(onStateChange, Object.freeze(event));
   }
-  function mainPrepare(input: Accepted<T>, token: RevisionToken): ChartResult<MainPrepared<T>> {
+  function mainPrepare(input: Accepted<T>, token: RevisionToken, reasons: ReadonlySet<DirtyReason>): ChartResult<MainPrepared<T>> {
     fontDirty = false;
     const cached = input.cached, result = cached && cached.epoch === epoch && cached.width === size.width && cached.height === size.height ? ok(cached.value) : compute(input);
     if (result.status === 'invalid') return result;
@@ -266,7 +269,7 @@ function mount<T, S>(host: HTMLElement | null, initial: Accepted<T> | null, opti
       const sceneFrame = frame(token.revision, c.shell.body.width, c.shell.body.height, c.layers, c.axes ?? undefined), checked = validateSceneFrame(sceneFrame); if (checked.status === 'invalid') return checked;
       const plan = baseWriter!.prepare(checked.value, new Map()); if (plan.status === 'invalid') return plan; scene = plan.value;
     }
-    return ok({ input, computed: c, scene });
+    return ok({ input, computed: c, scene, animate: reasons.has('data') ? true : reasons.has('size') ? false : 'continue' });
   }
   function mainCommit(candidate: MainPrepared<T>, token: RevisionToken): ChartResult<void> {
     if (destroyed || !shell || !main?.isCurrent(token)) return ok(undefined);
@@ -295,6 +298,7 @@ function mount<T, S>(host: HTMLElement | null, initial: Accepted<T> | null, opti
           if (!now || now === shell.root || !shell.root.contains(now) || now.closest('[hidden]') || 'disabled' in now && (now as HTMLButtonElement).disabled) { focusSuppressed = true; (shell.grid.hidden ? shell.root : shell.grid).focus({ preventScroll: true }); focusSuppressed = false; }
         }
       }
+      paintLayerMotion(motion, spec.motion, shell.base, c.view === 'ready' && candidate.animate);
       gridFocused = shell.root.ownerDocument.activeElement === shell.grid; if ((gridFocused || detailOwnsFocus()) && current || committed.selection?.value.length) interactionJob();
       return ok(undefined);
     } catch { const diagnostic = invalid('INTERNAL_INVARIANT', 'DOM_WRITE_FAILED', 'controller').diagnostic; fault(diagnostic); return { status: 'invalid', diagnostic }; }
@@ -317,6 +321,7 @@ function mount<T, S>(host: HTMLElement | null, initial: Accepted<T> | null, opti
   }
   try {
     const ports = createBrowserPorts(ownedHost!); if (ports.status === 'invalid') return ports;
+    motion = createBrowserMotion(ports.value.clock, ownedHost!.ownerDocument.defaultView!, report);
     for (const id of Object.values(ids)) if (ownedHost!.ownerDocument.getElementById(id)) return invalid('INVALID_CONFIG', 'ID_COLLISION', 'options.instanceId');
     const text = createTextMeasurer(ownedHost!.ownerDocument); if (text.status === 'invalid') return text; measurer = text.value;
     const parent = reserveInstance(ownedHost!, instanceId); if (parent.status === 'invalid') { dispose(); return parent; } reservations.push(parent.value);
@@ -361,7 +366,7 @@ function mount<T, S>(host: HTMLElement | null, initial: Accepted<T> | null, opti
       if (![next.width, next.height].every(Number.isFinite) || next.width < 0 || next.height < 0) { report(invalid('INVALID_NUMBER', 'NONFINITE', 'host.size').diagnostic); return; }
       if (size.width === next.width && size.height === next.height) return; size = { ...next }; epoch++;
       if (size.width <= 0 || size.height <= 0) {
-        phase = 'suspended'; invalidateInteraction(); baseWriter?.clear(); lastView = null;
+        phase = 'suspended'; motion?.cancel(); invalidateInteraction(); baseWriter?.clear(); lastView = null;
         if (shell) {
           const hadFocus = shell.root.contains(shell.root.ownerDocument.activeElement); table?.close(false); legend?.disable(true);
           semantic?.update({ rowCount: 0, columnCount: 0, current: null, summary: 'Chart has no visible size.' }, { x: 0, y: 0, width: 0, height: 0 }, false);

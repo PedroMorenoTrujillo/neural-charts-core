@@ -1,5 +1,5 @@
 import type { ChartDiagnostic, ChartResult, ChartState, ChartStateBinding, ChartStateChange, ChartStatus, ChartTheme, ChartDataTable } from './chart-types.js';
-import type { SeriesPointId, ChartSelectionBinding, ChartSelectionChange, ChartCrosshair } from './interaction-types.js';
+import type { SeriesPointId, ChartSelectionBinding, ChartSelectionChange, ChartCrosshair, ChartMotion } from './interaction-types.js';
 export type ScatterPoint<T = unknown> = Readonly<{ id: string; x: number | null; y: number | null; datum?: T }>;
 export type ScatterMarkerShape = 'circle' | 'square' | 'diamond';
 export type ScatterSeries<T = unknown> = Readonly<{ id: string; name: string; data: readonly ScatterPoint<T>[]; color?: string; marker?: Readonly<{ shape?: ScatterMarkerShape; size?: number }> }>;
@@ -7,7 +7,7 @@ export type NumericAxis = Readonly<{ kind: 'linear'; domain?: readonly [number, 
 export type ScatterReferenceLine = Readonly<{ id: string; axis: 'x' | 'y'; value: number; label?: string; color?: string; dash?: 'solid' | 'dashed' | 'dotted' }>;
 export type ScatterChartSpec<T = unknown> = Readonly<{
   family: 'scatter'; title: string; description?: string; axes: Readonly<{ x: NumericAxis; y: NumericAxis }>; series: readonly ScatterSeries<T>[];
-  selection?: ChartSelectionBinding<SeriesPointId>; crosshair?: ChartCrosshair;
+  selection?: ChartSelectionBinding<SeriesPointId>; crosshair?: ChartCrosshair; motion?: ChartMotion;
   theme?: ChartTheme; direction?: 'ltr' | 'rtl'; font?: Readonly<{ family?: 'sans-serif' | 'serif' | 'monospace'; size?: number; weight?: 400 | 500 | 600 | 700 }>;
   legend?: Readonly<{ position?: 'bottom' | 'end' | 'none' }>; tooltip?: Readonly<{ mode?: 'point' | 'off'; placement?: 'top' | 'bottom' | 'start' | 'end' }>;
   labels?: 'auto' | 'off'; references?: readonly ScatterReferenceLine[]; state?: ChartStateBinding; status?: ChartStatus;

@@ -10,3 +10,5 @@ export type ChartSelectionChange<Id extends ChartDatumId = ChartDatumId> = Reado
   source: 'pointer' | 'touch' | 'keyboard' | 'api' | 'update'; revision: number;
 }>;
 export type ChartCrosshair = false | 'x' | 'y' | 'xy';
+/** Final geometry commits first. None is the default; subtle fades the marks. */
+export type ChartMotion = 'none' | 'subtle';

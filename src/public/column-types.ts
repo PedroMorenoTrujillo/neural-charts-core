@@ -1,5 +1,5 @@
 import type { ChartTheme, ChartStateBinding, ChartStatus, ChartState, ChartStateChange, ChartDiagnostic, ChartResult } from './chart-types.js';
-import type { SeriesPointId, ChartSelectionBinding, ChartSelectionChange, ChartCrosshair } from './interaction-types.js';
+import type { SeriesPointId, ChartSelectionBinding, ChartSelectionChange, ChartCrosshair, ChartMotion } from './interaction-types.js';
 
 export type ColumnPoint<T = unknown> = Readonly<{ id: string; x: string; y: number | null; datum?: T }>;
 export type ColumnSeries<T = unknown> = Readonly<{ id: string; name: string; data: readonly ColumnPoint<T>[]; color?: string }>;
@@ -9,7 +9,7 @@ export type ColumnValueAxis = Readonly<{ kind: 'linear'; domain?: readonly [numb
 export type ColumnReference = Readonly<{ id: string; axis: 'y'; value: number; label?: string; color?: string; dash?: 'solid' | 'dashed' | 'dotted' }>;
 export type ColumnChartSpec<T = unknown> = Readonly<{
   family: 'column'; title: string; description?: string;
-  selection?: ChartSelectionBinding<SeriesPointId>; crosshair?: ChartCrosshair;
+  selection?: ChartSelectionBinding<SeriesPointId>; crosshair?: ChartCrosshair; motion?: ChartMotion;
   orientation?: 'vertical' | 'horizontal'; groupGap?: number; barGap?: number; maxBarWidth?: number;
   theme?: ChartTheme; direction?: 'ltr' | 'rtl';
   font?: Readonly<{ family?: 'sans-serif' | 'serif' | 'monospace'; size?: number; weight?: 400 | 500 | 600 | 700 }>;

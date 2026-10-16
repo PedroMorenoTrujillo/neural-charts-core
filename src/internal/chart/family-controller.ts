@@ -2,7 +2,8 @@ import type { ChartResult, ChartDiagnostic } from '../../public/chart-types.js';
 import { invalid, ok } from '../diagnostics.js';
 import { createBrowserPorts } from '../platform/browser.js';
 import { reserveInstance, type IdReservation } from '../platform/id.js';
-import { createRevisionScheduler, type RevisionScheduler, type RevisionToken } from '../lifecycle/scheduler.js';
+import { createBrowserMotion, paintLayerMotion, type LayerMotion } from '../lifecycle/motion.js';
+import { createRevisionScheduler, type RevisionScheduler, type RevisionToken, type DirtyReason } from '../lifecycle/scheduler.js';
 import { createSvgWriter, type SceneWriter, type PreparedScene } from '../scene/svg-writer.js';
 import { createTextMeasurer, type TextMeasurer } from '../layout/text.js';
 import { shellFrame, type ShellFrame } from '../layout/frame.js';
@@ -23,7 +24,7 @@ import { selectionScene, crosshairScene } from '../interaction/decoration.js';
 
 import type { FamilySpec, FamilyDescription, FamilySnapshot, FamilyController, FamilyOptions, FamilyPolicy, FamilyComputed, FamilyIdentity } from './family.js';
 type Input<S, State, Id extends ChartDatumId> = Readonly<{ spec: S; state: State; selection: Selection<Id> | null; known: ReadonlyMap<string, Id> | null }>;
-type MainCandidate<S, State, P, D extends FamilyDescription, Id extends ChartDatumId> = Readonly<{ input: Input<S, State, Id>; computed: FamilyComputed<P, D>; scene: PreparedScene | null }>;
+type MainCandidate<S, State, P, D extends FamilyDescription, Id extends ChartDatumId> = Readonly<{ input: Input<S, State, Id>; computed: FamilyComputed<P, D>; scene: PreparedScene | null; animate: boolean | 'continue' }>;
 type DetailJob<Target> = Readonly<{ revision: number; generation: number; sequence: number; stage: 'intent' | 'measure'; target: Target | null; detail: boolean; sample?: Readonly<{ x: number; y: number }> }>;
 type DetailCandidate<Target> = Readonly<{ job: DetailJob<Target>; target: Target | null; scene: PreparedScene; model: TooltipModel | null; bounds: Rect; placement: PlacementResult | null }>;
 function invoke<T>(callback: ((value: T) => void) | null, value: T): void { try { callback?.(value); } catch { /* Consumers do not own engine resources. */ } }
@@ -49,6 +50,7 @@ function mount<S extends FamilySpec<State>, State, P, Target, D extends FamilyDe
   let ownedHost = host, accepted = initial, committed: Input<S, State, FamilyIdentity<Activation>> | null = null, computed: FamilyComputed<P, D> | null = null, shell: Shell | null = null;
   let onActivate = options!.onPointActivate ?? null, onState = options!.onStateChange ?? null, onDiagnostic = options!.onDiagnostic ?? null;
   let onSelectionChange = options!.onSelectionChange ?? null;
+  let motion: LayerMotion | null = null;
   const instanceId = options!.instanceId, mode = initial!.spec.state?.mode ?? 'internal', reservations: IdReservation[] = [];
   let measurer: TextMeasurer | null = null, base: SceneWriter | null = null, overlay: SceneWriter | null = null, legend: LegendView | null = null, semantic: SemanticView | null = null, table: ReturnType<typeof policy.table> | null = null, tooltip: TooltipView | null = null;
   let main: RevisionScheduler<Input<S, State, FamilyIdentity<Activation>>> | null = null, interaction: RevisionScheduler<DetailJob<Target>> | null = null, events: ReturnType<typeof attachCartesianInteraction> | null = null, observer: Readonly<{ disconnect(): void }> | null = null;
@@ -60,6 +62,7 @@ function mount<S extends FamilySpec<State>, State, P, Target, D extends FamilyDe
   function resources(): void {
     cleanup(() => releaseExport?.()); releaseExport = null;
     cleanup(() => main?.destroy()); cleanup(() => interaction?.destroy()); main = null; interaction = null;
+    cleanup(() => motion?.destroy()); motion = null;
     cleanup(() => observer?.disconnect()); observer = null; fontHolder.callback = null;
     cleanup(() => fonts?.removeEventListener('loadingdone', fontsChanged)); cleanup(() => fonts?.removeEventListener('loadingerror', fontsChanged)); fonts = null;
     cleanup(() => media?.removeEventListener('change', mediaChanged)); media = null;
@@ -145,10 +148,10 @@ function mount<S extends FamilySpec<State>, State, P, Target, D extends FamilyDe
     } else tooltip?.close(); return ok(undefined);
   }
   function closeDetail(): void { invalidate(); gridFocused = !!shell && shell.root.ownerDocument.activeElement === shell.grid; detailJob(); }
-  function prepareMain(input: Input<S, State, FamilyIdentity<Activation>>, token: RevisionToken): ChartResult<MainCandidate<S, State, P, D, FamilyIdentity<Activation>>> {
+  function prepareMain(input: Input<S, State, FamilyIdentity<Activation>>, token: RevisionToken, reasons: ReadonlySet<DirtyReason>): ChartResult<MainCandidate<S, State, P, D, FamilyIdentity<Activation>>> {
     const result = compute(input); if (result.status === 'invalid') return result; let scene: PreparedScene | null = null;
     if (result.value.shell.body.width > 0 && result.value.shell.body.height > 0) { const prepared = base!.prepare(frame(token.revision, result.value.shell.body.width, result.value.shell.body.height, result.value.layers, result.value.axes), new Map()); if (prepared.status === 'invalid') return prepared; scene = prepared.value; }
-    return ok({ input, computed: result.value, scene });
+    return ok({ input, computed: result.value, scene, animate: reasons.has('data') ? true : reasons.has('size') ? false : 'continue' });
   }
   function commitMain(candidate: MainCandidate<S, State, P, D, FamilyIdentity<Activation>>, token: RevisionToken): ChartResult<void> {
     if (destroyed || !shell || !main?.isCurrent(token)) return ok(undefined); inCommit = true;
@@ -165,7 +168,7 @@ function mount<S extends FamilySpec<State>, State, P, Target, D extends FamilyDe
         if (valid && shell.root.ownerDocument.activeElement !== focused) focused.focus({ preventScroll: true });
         else if (!valid) { const now = shell.root.ownerDocument.activeElement as HTMLElement | null; if (!now || now === shell.root || !shell.root.contains(now) || now.closest('[hidden]') || 'disabled' in now && (now as HTMLButtonElement).disabled) { suppressFocus = true; (shell.grid.hidden ? shell.root : shell.grid).focus({ preventScroll: true }); suppressFocus = false; } }
       }
-      if (destroyed) return ok(undefined); gridFocused = shell.root.ownerDocument.activeElement === shell.grid; if (gridFocused && current) { wanted = true; detailJob(); } else if (committed.selection?.value.length) detailJob(); return ok(undefined);
+      if (destroyed) return ok(undefined); paintLayerMotion(motion, spec.motion, shell.base, c.description.view === 'ready' && candidate.animate); gridFocused = shell.root.ownerDocument.activeElement === shell.grid; if (gridFocused && current) { wanted = true; detailJob(); } else if (committed.selection?.value.length) detailJob(); return ok(undefined);
     } catch { return invalid('INTERNAL_INVARIANT', 'DOM_WRITE_FAILED', 'controller'); } finally { inCommit = false; if (disposeRequested) dispose(); }
   }
   function accept(input: Input<S, State, FamilyIdentity<Activation>>): ChartResult<number> {
@@ -195,6 +198,7 @@ function mount<S extends FamilySpec<State>, State, P, Target, D extends FamilyDe
   function activate(target: Target, source: 'pointer' | 'touch' | 'keyboard'): void { if (committed?.selection && !main?.getSnapshot().pending) { const proposed = toggleSelection(committed.selection, policy.datumId(target)), result = proposed.status === 'invalid' ? proposed : select(proposed.value, source); if (result.status === 'invalid') invoke(onDiagnostic, result.diagnostic); } if (!destroyed) invoke(onActivate, policy.activate(target, source, committedRevision)); }
   try {
     const ports = createBrowserPorts(ownedHost!); if (ports.status === 'invalid') return ports;
+    motion = createBrowserMotion(ports.value.clock, ownedHost!.ownerDocument.defaultView!, report);
     for (const id of Object.values(shellIds(instanceId))) if (ownedHost!.ownerDocument.getElementById(id)) return invalid('INVALID_CONFIG', 'ID_COLLISION', 'options.instanceId');
     const text = createTextMeasurer(ownedHost!.ownerDocument); if (text.status === 'invalid') return text; measurer = text.value;
     const parent = reserveInstance(ownedHost!, instanceId); if (parent.status === 'invalid') { dispose(); return parent; } reservations.push(parent.value); shell = createShell(ownedHost!, instanceId); shell.title.textContent = accepted!.spec.title; shell.description.textContent = accepted!.spec.description ?? '';
@@ -226,7 +230,7 @@ function mount<S extends FamilySpec<State>, State, P, Target, D extends FamilyDe
     observer = ports.value.sizeObserver.observe(ownedHost!, next => {
       if (destroyed || phase === 'faulted') return; if (![next.width, next.height].every(Number.isFinite) || next.width < 0 || next.height < 0) { report(invalid('INVALID_NUMBER', 'NONFINITE', 'host.size').diagnostic); return; }
       if (size.width === next.width && size.height === next.height) return; size = { ...next };
-      if (size.width <= 0 || size.height <= 0) { phase = 'suspended'; invalidate(); base?.clear(); current = null; computed = null; if (shell) { const focused = shell.root.contains(shell.root.ownerDocument.activeElement); table?.close(false); legend?.disable(true); semantic?.update({ rowCount: 0, columnCount: 0, current: null, summary: 'Chart has no visible size.' }, { x: 0, y: 0, width: 0, height: 0 }, false); shell.root.style.width = `${size.width}px`; shell.root.style.height = `${size.height}px`; shell.status.textContent = 'Chart has no visible size.'; shell.status.hidden = false; if (focused) { suppressFocus = true; shell.root.focus({ preventScroll: true }); suppressFocus = false; } } } else phase = 'active'; submit('size');
+      if (size.width <= 0 || size.height <= 0) { phase = 'suspended'; motion?.cancel(); invalidate(); base?.clear(); current = null; computed = null; if (shell) { const focused = shell.root.contains(shell.root.ownerDocument.activeElement); table?.close(false); legend?.disable(true); semantic?.update({ rowCount: 0, columnCount: 0, current: null, summary: 'Chart has no visible size.' }, { x: 0, y: 0, width: 0, height: 0 }, false); shell.root.style.width = `${size.width}px`; shell.root.style.height = `${size.height}px`; shell.status.textContent = 'Chart has no visible size.'; shell.status.hidden = false; if (focused) { suppressFocus = true; shell.root.focus({ preventScroll: true }); suppressFocus = false; } } } else phase = 'active'; submit('size');
     });
     if (destroyed || snapshot().phase === 'faulted') { dispose(); return invalid('LIFECYCLE_ERROR', 'PLATFORM_UNAVAILABLE', 'host'); }
     host = null; initial = null; options = null;

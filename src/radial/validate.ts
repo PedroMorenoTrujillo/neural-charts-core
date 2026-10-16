@@ -3,7 +3,7 @@ import { invalid, ok } from '../internal/diagnostics.js';
 import { selectionBinding } from '../internal/interaction/selection.js';
 import type { RadialChartSpec, RadialState, PieSlice, RadialMountOptions } from '../public/radial-types.js';
 import { record, array, text, number, choice, color, optional, fail, ValidationFailure } from '../internal/data/validation.js';
-const familyKeys = ['family', 'title', 'description', 'data', 'theme', 'direction', 'font', 'legend', 'tooltip', 'labels', 'state', 'status', 'selection'];
+const familyKeys = ['family', 'title', 'description', 'data', 'theme', 'direction', 'font', 'legend', 'tooltip', 'labels', 'state', 'status', 'selection', 'motion'];
 export function validateRadialState(value: unknown, ids: ReadonlySet<string>, path = 'state'): RadialState {
   const result = record(value, ['hiddenSliceIds'], ['hiddenSliceIds'], path), seen = new Set<string>();
   const hidden = array(result.hiddenSliceIds, 1000, path + '.hiddenSliceIds').map((value, i) => {
@@ -60,6 +60,7 @@ export function validateRadial<T>(value: unknown, family: 'pie' | 'donut'): Char
       }, 'spec');
     }
     optional(spec, 'selection', selectionBinding, 'spec');
+    optional(spec, 'motion', (value, path) => choice(value, ['none', 'subtle'], path), 'spec');
     return ok(Object.freeze(spec) as unknown as RadialChartSpec<T>);
   } catch (error) { return error instanceof ValidationFailure ? { status: 'invalid', diagnostic: error.diagnostic } : invalid('INVALID_CONFIG', 'BAD_SPEC', 'spec'); }
 }

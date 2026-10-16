@@ -10,7 +10,7 @@ import type { Rect } from '../tooltip/place.js';
 import type { Shell } from './shell.js';
 import type { DataTableView } from '../accessibility/table-frame.js';
 import type { ExportRecords } from '../../public/export-types.js';
-import type { ChartDatumId, SeriesPointId, SlicePointId, ChartSelectionBinding, ChartSelectionChange, ChartCrosshair } from '../../public/interaction-types.js';
+import type { ChartDatumId, SeriesPointId, SlicePointId, ChartSelectionBinding, ChartSelectionChange, ChartCrosshair, ChartMotion } from '../../public/interaction-types.js';
 export type FamilyIdentity<Activation> = Activation extends Readonly<{ seriesId: string }> ? SeriesPointId : SlicePointId;
 
 /** Private strategy contract: shared resource/DOM lifecycle, family-owned math. */
@@ -20,7 +20,7 @@ export type FamilySpec<State> = Readonly<{
   legend?: Readonly<{ position?: 'bottom' | 'end' | 'none' }>;
   tooltip?: Readonly<{ mode?: string; placement?: 'top' | 'bottom' | 'start' | 'end' }>;
   status?: ChartStatus; state?: Readonly<{ mode: 'internal' }> | Readonly<{ mode: 'controlled'; value: State }>;
-  selection?: ChartSelectionBinding; crosshair?: ChartCrosshair;
+  selection?: ChartSelectionBinding; crosshair?: ChartCrosshair; motion?: ChartMotion;
 }>;
 export type FamilyView = 'ready' | 'loading' | 'empty' | 'error' | 'no-visible-slices' | 'no-visible-series';
 export type FamilyDescription = Readonly<{ title: string; description: string; direction: 'ltr' | 'rtl'; view: FamilyView; status: string; context: string; table: ChartDataTable }>;

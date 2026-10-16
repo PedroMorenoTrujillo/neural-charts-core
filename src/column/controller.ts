@@ -5,7 +5,8 @@ import type { Domain } from '../internal/math/domain.js';
 import { invalid, ok } from '../internal/diagnostics.js';
 import { createBrowserPorts } from '../internal/platform/browser.js';
 import { reserveInstance, type IdReservation } from '../internal/platform/id.js';
-import { createRevisionScheduler, type RevisionScheduler, type RevisionToken } from '../internal/lifecycle/scheduler.js';
+import { createBrowserMotion, paintLayerMotion, type LayerMotion } from '../internal/lifecycle/motion.js';
+import { createRevisionScheduler, type RevisionScheduler, type RevisionToken, type DirtyReason } from '../internal/lifecycle/scheduler.js';
 import { createSvgWriter, type SceneWriter, type PreparedScene } from '../internal/scene/svg-writer.js';
 import { createTextMeasurer, ellipsis, type TextMeasurer } from '../internal/layout/text.js';
 import { shellFrame, type ShellFrame } from '../internal/layout/frame.js';
@@ -38,7 +39,7 @@ import { columnKey } from './normalize.js';
 
 type Input<T> = Readonly<{ data: NormalizedColumn<T>; state: ChartState; domain: Domain | null; selection: Selection<SeriesPointId> | null; known: ReadonlyMap<string, SeriesPointId> | null }>;
 type Computed<T> = Readonly<{ shell: ShellFrame; palette: Palette; font: ResolvedFont; axes: AxesPlan | null; projection: ColumnProjection<T> | null; layers: Layers; view: NonNullable<ColumnSnapshot['view']>; status: string; legend: readonly LegendItem[]; tooltipSeries: readonly TooltipSeries[]; table: TableSource }>;
-type MainCandidate<T> = Readonly<{ input: Input<T>; value: Computed<T>; scene: PreparedScene | null }>;
+type MainCandidate<T> = Readonly<{ input: Input<T>; value: Computed<T>; scene: PreparedScene | null; animate: boolean | 'continue' }>;
 type DetailJob<T> = Readonly<{ revision: number; generation: number; sequence: number; stage: 'intent' | 'measure'; target: ColumnRect<T> | null; detail: boolean; sample?: Readonly<{ x: number; y: number }> }>;
 type DetailCandidate<T> = Readonly<{ job: DetailJob<T>; target: ColumnRect<T> | null; scene: PreparedScene; model: TooltipModel | null; bounds: Rect; placement: PlacementResult | null }>;
 function invoke<T>(fn: ((value:T)=>void)|null, value:T):void { try { fn?.(value); } catch { /* Consumer exceptions do not own engine lifecycle. */ } }
@@ -62,6 +63,7 @@ function mount<T,S>(host:HTMLElement|null, initial:Input<T>|null, options:Column
   let ownedHost=host,accepted=initial,committed:Input<T>|null=null,computed:Computed<T>|null=null,shell:Shell|null=null;
   let onActivate=options!.onPointActivate??null,onState=options!.onStateChange??null,onDiagnostic=options!.onDiagnostic??null;
   let onSelectionChange=options!.onSelectionChange??null;
+  let motion:LayerMotion|null=null;
   const instanceId=options!.instanceId,mode=initial!.data.spec.state?.mode??'internal',reservations:IdReservation[]=[];
   let measurer:TextMeasurer|null=null,base:SceneWriter|null=null,overlay:SceneWriter|null=null,legend:LegendView|null=null,semantic:SemanticView|null=null,table:TableView|null=null,tooltip:TooltipView|null=null;
   let main:RevisionScheduler<Input<T>>|null=null,interaction:RevisionScheduler<DetailJob<T>>|null=null,events:ReturnType<typeof attachCartesianInteraction>|null=null,observer:Readonly<{disconnect():void}>|null=null;
@@ -72,7 +74,7 @@ function mount<T,S>(host:HTMLElement|null, initial:Input<T>|null, options:Column
   function snapshot():ColumnSnapshot { return Object.freeze({phase,revision,committedRevision,view:phase==='active'?computed?.view??null:null,size:Object.freeze({...size})}); }
   function resources():void {
     cleanup(()=>releaseExport?.());releaseExport=null;
-    cleanup(()=>main?.destroy());cleanup(()=>interaction?.destroy());main=null;interaction=null;
+    cleanup(()=>main?.destroy());cleanup(()=>interaction?.destroy());main=null;interaction=null;cleanup(()=>motion?.destroy());motion=null;
     cleanup(()=>observer?.disconnect());observer=null;fontHolder.callback=null;
     cleanup(()=>fonts?.removeEventListener('loadingdone',fontsChanged));cleanup(()=>fonts?.removeEventListener('loadingerror',fontsChanged));fonts=null;
     cleanup(()=>media?.removeEventListener('change',mediaChanged));media=null;
@@ -177,10 +179,10 @@ function mount<T,S>(host:HTMLElement|null, initial:Input<T>|null, options:Column
     return ok(undefined);
   }
   function closeDetail():void { invalidate();gridFocused=!!shell&&shell.root.ownerDocument.activeElement===shell.grid;detailJob(); }
-  function prepareMain(input:Input<T>,token:RevisionToken):ChartResult<MainCandidate<T>> {
+  function prepareMain(input:Input<T>,token:RevisionToken,reasons:ReadonlySet<DirtyReason>):ChartResult<MainCandidate<T>> {
     const c=compute(input);if(c.status==='invalid')return c;let scene:PreparedScene|null=null;
     if(c.value.shell.body.width>0&&c.value.shell.body.height>0){const prepared=base!.prepare(frame(token.revision,c.value.shell.body.width,c.value.shell.body.height,c.value.layers,c.value.axes??undefined),new Map());if(prepared.status==='invalid')return prepared;scene=prepared.value;}
-    return ok({input,value:c.value,scene});
+    return ok({input,value:c.value,scene,animate: reasons.has('data') ? true : reasons.has('size') ? false : 'continue'});
   }
   function commitMain(candidate:MainCandidate<T>,token:RevisionToken):ChartResult<void> {
     if(destroyed||!shell||!main?.isCurrent(token))return ok(undefined);inCommit=true;
@@ -200,7 +202,7 @@ function mount<T,S>(host:HTMLElement|null, initial:Input<T>|null, options:Column
           if(!now||now===shell.root||!shell.root.contains(now)||now.closest('[hidden]')||'disabled'in now&&(now as HTMLButtonElement).disabled){suppressFocus=true;(shell.grid.hidden?shell.root:shell.grid).focus({preventScroll:true});suppressFocus=false;}
         }
       }
-      if(destroyed)return ok(undefined);gridFocused=shell.root.ownerDocument.activeElement===shell.grid;if(gridFocused&&current){wanted=true;detailJob();}else if(committed.selection?.value.length)detailJob();return ok(undefined);
+      if(destroyed)return ok(undefined);paintLayerMotion(motion,spec.motion,shell.base,c.view==='ready'&&candidate.animate);gridFocused=shell.root.ownerDocument.activeElement===shell.grid;if(gridFocused&&current){wanted=true;detailJob();}else if(committed.selection?.value.length)detailJob();return ok(undefined);
     }catch{return invalid('INTERNAL_INVARIANT','DOM_WRITE_FAILED','controller');}finally{inCommit=false;if(disposeRequested)dispose();}
   }
   function accept(data:NormalizedColumn<T>,state:ChartState):ChartResult<number> {
@@ -227,7 +229,7 @@ function mount<T,S>(host:HTMLElement|null, initial:Input<T>|null, options:Column
   }
   function activate(target:ColumnRect<T>,source:'pointer'|'touch'|'keyboard'):void { if(committed?.selection&&!main?.getSnapshot().pending){const proposed=toggleSelection(committed.selection,{seriesId:target.series.spec.id,pointId:target.point.id}),result=proposed.status==='invalid'?proposed:select(proposed.value,source);if(result.status==='invalid')invoke(onDiagnostic,result.diagnostic);}if(!destroyed)invoke(onActivate,Object.freeze({seriesId:target.series.spec.id,point:target.point,xKind:'category',source,revision:committedRevision})); }
   try {
-    const ports=createBrowserPorts(ownedHost!);if(ports.status==='invalid')return ports;for(const id of Object.values(shellIds(instanceId)))if(ownedHost!.ownerDocument.getElementById(id))return invalid('INVALID_CONFIG','ID_COLLISION','options.instanceId');
+    const ports=createBrowserPorts(ownedHost!);if(ports.status==='invalid')return ports;motion=createBrowserMotion(ports.value.clock,ownedHost!.ownerDocument.defaultView!,report);for(const id of Object.values(shellIds(instanceId)))if(ownedHost!.ownerDocument.getElementById(id))return invalid('INVALID_CONFIG','ID_COLLISION','options.instanceId');
     const text=createTextMeasurer(ownedHost!.ownerDocument);if(text.status==='invalid')return text;measurer=text.value;
     const parent=reserveInstance(ownedHost!,instanceId);if(parent.status==='invalid'){dispose();return parent;}reservations.push(parent.value);shell=createShell(ownedHost!,instanceId);shell.title.textContent=accepted!.data.spec.title;shell.description.textContent=accepted!.data.spec.description??'';
     for(const [element,prefix]of [[shell.base,instanceId+'-v'],[shell.overlay,instanceId+'-i']] as const){const reservation=reserveInstance(element,prefix);if(reservation.status==='invalid'){dispose();return reservation;}reservations.push(reservation.value);const writer=createSvgWriter(element,prefix);if(writer.status==='invalid'){dispose();return writer;}if(element===shell.base)base=writer.value;else overlay=writer.value;}
@@ -244,7 +246,7 @@ function mount<T,S>(host:HTMLElement|null, initial:Input<T>|null, options:Column
     });
     fonts=ownedHost!.ownerDocument.fonts??null;fontHolder.callback=fontsChanged;fonts?.addEventListener('loadingdone',fontsChanged);fonts?.addEventListener('loadingerror',fontsChanged);if(fonts){const holder=fontHolder;void fonts.ready.then(()=>holder.callback?.(),()=>holder.callback?.());}ensureMedia();
     const submitted=submit('data');if(submitted.status==='invalid'){dispose();return submitted;}
-    observer=ports.value.sizeObserver.observe(ownedHost!,next=>{if(destroyed||phase==='faulted')return;if(![next.width,next.height].every(Number.isFinite)||next.width<0||next.height<0){report(invalid('INVALID_NUMBER','NONFINITE','host.size').diagnostic);return;}if(size.width===next.width&&size.height===next.height)return;size={...next};if(size.width<=0||size.height<=0){phase='suspended';invalidate();base?.clear();current=null;computed=null;if(shell){const focused=shell.root.contains(shell.root.ownerDocument.activeElement);table?.close(false);legend?.disable(true);semantic?.update({rowCount:0,columnCount:0,current:null,summary:'Chart has no visible size.'},{x:0,y:0,width:0,height:0},false);shell.root.style.width=`${size.width}px`;shell.root.style.height=`${size.height}px`;shell.status.textContent='Chart has no visible size.';shell.status.hidden=false;if(focused){suppressFocus=true;shell.root.focus({preventScroll:true});suppressFocus=false;}}}else phase='active';submit('size');});
+    observer=ports.value.sizeObserver.observe(ownedHost!,next=>{if(destroyed||phase==='faulted')return;if(![next.width,next.height].every(Number.isFinite)||next.width<0||next.height<0){report(invalid('INVALID_NUMBER','NONFINITE','host.size').diagnostic);return;}if(size.width===next.width&&size.height===next.height)return;size={...next};if(size.width<=0||size.height<=0){phase='suspended';motion?.cancel();invalidate();base?.clear();current=null;computed=null;if(shell){const focused=shell.root.contains(shell.root.ownerDocument.activeElement);table?.close(false);legend?.disable(true);semantic?.update({rowCount:0,columnCount:0,current:null,summary:'Chart has no visible size.'},{x:0,y:0,width:0,height:0},false);shell.root.style.width=`${size.width}px`;shell.root.style.height=`${size.height}px`;shell.status.textContent='Chart has no visible size.';shell.status.hidden=false;if(focused){suppressFocus=true;shell.root.focus({preventScroll:true});suppressFocus=false;}}}else phase='active';submit('size');});
     if(destroyed||snapshot().phase==='faulted'){dispose();return invalid('LIFECYCLE_ERROR','PLATFORM_UNAVAILABLE','host');}
     host=null;initial=null;options=null;
     const controller=Object.freeze({update,refresh(){if(destroyed)return invalid('LIFECYCLE_ERROR','DESTROYED','controller');if(phase==='faulted')return invalid('LIFECYCLE_ERROR','FAULTED','controller');measurer?.invalidate();return submit('paint');},getState:()=>accepted?orderedState(accepted.state,accepted.data.series.map(s=>s.spec.id)):Object.freeze({hiddenSeriesIds:Object.freeze([])}),getSelection:()=>accepted?.selection?.value??Object.freeze([]),requestSelection:(value:readonly SeriesPointId[])=>select(value,'api'),getSnapshot:snapshot,destroy});

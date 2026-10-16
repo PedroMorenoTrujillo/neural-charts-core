@@ -1,7 +1,7 @@
-import type { ChartSelectionBinding, ChartSelectionChange, SeriesPointId, SlicePointId } from '@neural-charts/core';
-import type { LineController, LineChartSpec } from '@neural-charts/core/line';
-import type { PieController, PieChartSpec } from '@neural-charts/core/pie';
-import type { ScatterController, ScatterChartSpec } from '@neural-charts/core/scatter';
+import type { ChartSelectionBinding, ChartSelectionChange, SeriesPointId, SlicePointId, ChartMotion } from '../../src/index.js';
+import type { LineController, LineChartSpec } from '../../src/line.js';
+import type { PieController, PieChartSpec } from '../../src/pie.js';
+import type { ScatterController, ScatterChartSpec } from '../../src/scatter.js';
 declare const line: LineController;
 declare const pie: PieController;
 declare const scatter: ScatterController;
@@ -27,3 +27,11 @@ change.selection.push({ seriesId: 's', pointId: 'p' });
 // @ts-expect-error domain output cannot be a browser DOM Event
 const browserEvent: Event = change;
 void partialLine; void partialPie; void partialXY; void radialCrosshair; void missingValue; void doubleOwner; void browserEvent;
+const motion: ChartMotion = 'subtle';
+const lineMotion: Pick<LineChartSpec, 'motion'> = { motion };
+const pieMotion: Pick<PieChartSpec, 'motion'> = { motion: 'none' };
+// @ts-expect-error V1 motion is an explicit bounded enum, not arbitrary durations
+const unboundedMotion: ChartMotion = { duration: 10000 };
+// @ts-expect-error unsupported animation modes cannot silently pretend support
+const unsupportedMotion: Pick<ScatterChartSpec, 'motion'> = { motion: 'morph' };
+void lineMotion; void pieMotion; void unboundedMotion; void unsupportedMotion;

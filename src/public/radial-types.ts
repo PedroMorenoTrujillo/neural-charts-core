@@ -1,5 +1,5 @@
 import type { ChartDiagnostic, ChartResult, ChartStatus, ChartTheme, ChartDataTable } from './chart-types.js';
-import type { SlicePointId, ChartSelectionBinding, ChartSelectionChange } from './interaction-types.js';
+import type { SlicePointId, ChartSelectionBinding, ChartSelectionChange, ChartMotion } from './interaction-types.js';
 export type PieSlice<T = unknown> = Readonly<{ id: string; label: string; value: number | null; color?: string; datum?: T }>;
 export type RadialState = Readonly<{ hiddenSliceIds: readonly string[] }>;
 export type RadialStateBinding = Readonly<{ mode: 'internal' }> | Readonly<{ mode: 'controlled'; value: RadialState }>;
@@ -7,7 +7,7 @@ export type RadialStateChange = Readonly<{ state: RadialState; effect: 'proposal
 export type RadialFont = Readonly<{ family?: 'sans-serif' | 'serif' | 'monospace'; size?: number; weight?: 400 | 500 | 600 | 700 }>;
 export type RadialCommon<T> = Readonly<{
   title: string; description?: string; data: readonly PieSlice<T>[];
-  selection?: ChartSelectionBinding<SlicePointId>;
+  selection?: ChartSelectionBinding<SlicePointId>; motion?: ChartMotion;
   theme?: ChartTheme; direction?: 'ltr' | 'rtl'; font?: RadialFont;
   legend?: Readonly<{ position?: 'bottom' | 'end' | 'none' }>;
   tooltip?: Readonly<{ mode?: 'point' | 'off'; placement?: 'top' | 'bottom' | 'start' | 'end' }>;

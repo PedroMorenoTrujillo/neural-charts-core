@@ -1,5 +1,5 @@
 import type { ChartTheme, ChartStateBinding, ChartStatus, ChartState, ChartStateChange, ChartDiagnostic, ChartResult } from './chart-types.js';
-import type { SeriesPointId, ChartSelectionBinding, ChartSelectionChange, ChartCrosshair } from './interaction-types.js';
+import type { SeriesPointId, ChartSelectionBinding, ChartSelectionChange, ChartCrosshair, ChartMotion } from './interaction-types.js';
 
 // @neural-charts/core/line: REQUIRED NOW; references the root types via type imports
 export type LinePoint<T = unknown, TX extends string | number = string | number> =
@@ -42,7 +42,7 @@ export type LineFont = Readonly<{
 }>;
 type LineCommon = Readonly<{
   family: 'line'; title: string; description?: string;
-  selection?: ChartSelectionBinding<SeriesPointId>; crosshair?: ChartCrosshair;
+  selection?: ChartSelectionBinding<SeriesPointId>; crosshair?: ChartCrosshair; motion?: ChartMotion;
   theme?: ChartTheme; direction?: 'ltr' | 'rtl'; font?: LineFont;
   legend?: LineLegendSpec; tooltip?: LineTooltipSpec;
   state?: ChartStateBinding; status?: ChartStatus;

@@ -46,7 +46,7 @@ function checked<V>(work: () => V): ChartResult<V> { try { return ok(work()); } 
 export function validateColumnState(value: unknown, ids: ReadonlySet<string>, path: string): ChartResult<ChartState> { return checked(() => state(value, ids, path)); }
 export function validateColumn<T>(value: unknown): ChartResult<ColumnChartSpec<T>> {
   return checked(() => {
-    const s = record(value, ['family','title','description','orientation','groupGap','barGap','maxBarWidth','theme','direction','font','axes','series','references','legend','tooltip','state','status','selection','crosshair'], ['family','title','axes','series'], 'spec');
+    const s = record(value, ['family','title','description','orientation','groupGap','barGap','maxBarWidth','theme','direction','font','axes','series','references','legend','tooltip','state','status','selection','crosshair','motion'], ['family','title','axes','series'], 'spec');
     choice(s.family, ['column'], 'family'); text(s.title, 'title'); optional(s, 'description', (v,p) => text(v,p,2048), 'spec');
     optional(s,'orientation',(v,p)=>choice(v,['vertical','horizontal'],p),'spec'); optional(s,'theme',(v,p)=>choice(v,['light','dark','auto'],p),'spec'); optional(s,'direction',(v,p)=>choice(v,['ltr','rtl'],p),'spec');
     for (const [key,max] of [['groupGap',.95],['barGap',1],['maxBarWidth',1024]] as const) optional(s,key,(v,p)=>number(v,p,key==='maxBarWidth'?.25:0,max),'spec');
@@ -67,6 +67,7 @@ export function validateColumn<T>(value: unknown): ChartResult<ColumnChartSpec<T
     if(Object.hasOwn(s,'state')){const t=record(s.state,['mode','value'],['mode'],'state');choice(t.mode,['internal','controlled'],'state.mode');if(t.mode==='controlled')t.value=state(t.value,ids,'state.value');else if(Object.hasOwn(t,'value'))fail('state.value');s.state=Object.freeze(t);}
     if(Object.hasOwn(s,'selection'))s.selection=selectionBinding(s.selection);
     if(Object.hasOwn(s,'crosshair'))choice(s.crosshair,[false,'x','y','xy'],'crosshair');
+    if(Object.hasOwn(s,'motion'))choice(s.motion,['none','subtle'],'motion');
     return Object.freeze(s) as unknown as ColumnChartSpec<T>;
   });
 }
