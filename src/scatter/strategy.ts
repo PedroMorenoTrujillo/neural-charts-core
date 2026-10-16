@@ -8,7 +8,9 @@ import { emptyLayers, axesScene, referenceScene } from '../internal/axes/scene.j
 import { ellipsis } from '../internal/layout/text.js';
 import { detailText } from '../internal/tooltip/model.js';
 import { ok } from '../internal/diagnostics.js';
-import { normalizeScatter, scatterDomains, type NormalizedScatter } from './data.js';
+import { seriesIdentities } from '../internal/interaction/identities.js';
+import { datumKey } from '../internal/interaction/selection.js';
+import { normalizeScatter, scatterDomains, targetKey, type NormalizedScatter } from './data.js';
 import { describeScatterData } from './describe.js';
 import { projectScatter, pickScatter, navigateScatter, type ScatterProjection, type ScatterTarget } from './geometry.js';
 import { scatterScene, scatterFocusScene, scatterMarkerShape } from './scene.js';
@@ -33,7 +35,9 @@ export function scatterPolicy<T>(): Policy<T> {
     validateData(spec, state) { const data = dataOf(spec); return data.status === 'invalid' ? data : scatterDomains(data.value, state); },
     ids: spec => spec.series.map(series => series.id), hidden: state => state.hiddenSeriesIds,
     state: hidden => Object.freeze({ hiddenSeriesIds: Object.freeze([...hidden]) }), names: spec => spec.series.map(series => series.name),
-    exportRecords(spec, state) { const hidden = new Set(state.hiddenSeriesIds); return { columns: ['Series ID', 'Series', 'Point ID', 'X', 'Y', 'Visible'], rows: spec.series.flatMap(series => series.data.map(point => [series.id, series.name, point.id, point.x, point.y, hidden.has(series.id) ? 'false' : 'true'])) }; },
+    selectable: seriesIdentities, datumId: target => ({ seriesId: target.series.spec.id, pointId: target.point.id }),
+    selectedTarget: (projection, id) => projection.byKey.get(targetKey(id.seriesId, id.pointId)) ?? null,
+    exportRecords(spec, state, _value, selection) { const hidden = new Set(state.hiddenSeriesIds), selected = selection ? new Set(selection.map(datumKey)) : null; return { columns: ['Series ID', 'Series', 'Point ID', 'X', 'Y', 'Visible', ...(selected ? ['Selected'] : [])], rows: spec.series.flatMap(series => series.data.map(point => [series.id, series.name, point.id, point.x, point.y, hidden.has(series.id) ? 'false' : 'true', ...(selected ? [String(selected.has(datumKey({ seriesId: series.id, pointId: point.id })))] : [])])) }; },
     compute(spec, state, shell, palette, font, measurer) {
       const result = dataOf(spec); if (result.status === 'invalid') return result; const data = result.value, domains = scatterDomains(data, state); if (domains.status === 'invalid') return domains;
       const planned = planAxes({ x: spec.axes.x, y: spec.axes.y, domains: domains.value, width: shell.body.width, height: shell.body.height, font, direction: spec.direction ?? 'ltr', labels: new Map(), measurer, compact: shell.body.width < 480 }); if (planned.status === 'invalid') return planned;

@@ -1,6 +1,8 @@
 import type { ColumnChartSpec, ColumnMountOptions } from '../public/column-types.js';
 import type { ChartDiagnostic, ChartResult, ChartState } from '../public/chart-types.js';
 import { invalid, ok } from '../internal/diagnostics.js';
+import { selectionBinding } from '../internal/interaction/selection.js';
+import { ValidationFailure } from '../internal/data/validation.js';
 
 type RecordValue = Record<string, unknown>;
 class Rejected { constructor(readonly diagnostic: ChartDiagnostic) {} }
@@ -40,11 +42,11 @@ function state(value: unknown, ids: ReadonlySet<string>, path: string): ChartSta
   const hidden = array(s.hiddenSeriesIds, 16, path + '.hiddenSeriesIds').map((v, i) => { const id = text(v, path + '.hiddenSeriesIds[' + i + ']', 128); if (!ids.has(id) || seen.has(id)) fail(path, 'BAD_STATE'); seen.add(id); return id; });
   return Object.freeze({ hiddenSeriesIds: Object.freeze(hidden) });
 }
-function checked<V>(work: () => V): ChartResult<V> { try { return ok(work()); } catch (e) { return e instanceof Rejected ? { status: 'invalid', diagnostic: e.diagnostic } : invalid('INVALID_CONFIG', 'BAD_COLUMN_SPEC', 'spec'); } }
+function checked<V>(work: () => V): ChartResult<V> { try { return ok(work()); } catch (e) { return e instanceof Rejected || e instanceof ValidationFailure ? { status: 'invalid', diagnostic: e.diagnostic } : invalid('INVALID_CONFIG', 'BAD_COLUMN_SPEC', 'spec'); } }
 export function validateColumnState(value: unknown, ids: ReadonlySet<string>, path: string): ChartResult<ChartState> { return checked(() => state(value, ids, path)); }
 export function validateColumn<T>(value: unknown): ChartResult<ColumnChartSpec<T>> {
   return checked(() => {
-    const s = record(value, ['family','title','description','orientation','groupGap','barGap','maxBarWidth','theme','direction','font','axes','series','references','legend','tooltip','state','status'], ['family','title','axes','series'], 'spec');
+    const s = record(value, ['family','title','description','orientation','groupGap','barGap','maxBarWidth','theme','direction','font','axes','series','references','legend','tooltip','state','status','selection','crosshair'], ['family','title','axes','series'], 'spec');
     choice(s.family, ['column'], 'family'); text(s.title, 'title'); optional(s, 'description', (v,p) => text(v,p,2048), 'spec');
     optional(s,'orientation',(v,p)=>choice(v,['vertical','horizontal'],p),'spec'); optional(s,'theme',(v,p)=>choice(v,['light','dark','auto'],p),'spec'); optional(s,'direction',(v,p)=>choice(v,['ltr','rtl'],p),'spec');
     for (const [key,max] of [['groupGap',.95],['barGap',1],['maxBarWidth',1024]] as const) optional(s,key,(v,p)=>number(v,p,key==='maxBarWidth'?.25:0,max),'spec');
@@ -63,9 +65,11 @@ export function validateColumn<T>(value: unknown): ChartResult<ColumnChartSpec<T
     if(Object.hasOwn(s,'tooltip')){const t=record(s.tooltip,['mode','placement'],[],'tooltip');optional(t,'mode',(v,p)=>choice(v,['point','shared','off'],p),'tooltip');optional(t,'placement',(v,p)=>choice(v,['top','bottom','start','end'],p),'tooltip');s.tooltip=Object.freeze(t);}
     if(Object.hasOwn(s,'status')){const t=record(s.status,['kind','message'],['kind'],'status');choice(t.kind,['ready','loading','empty','error'],'status.kind');optional(t,'message',(v,p)=>text(v,p,2048),'status');if(t.kind==='error'&&!t.message)fail('status.message');if(t.kind==='ready'&&Object.hasOwn(t,'message'))fail('status.message');s.status=Object.freeze(t);}
     if(Object.hasOwn(s,'state')){const t=record(s.state,['mode','value'],['mode'],'state');choice(t.mode,['internal','controlled'],'state.mode');if(t.mode==='controlled')t.value=state(t.value,ids,'state.value');else if(Object.hasOwn(t,'value'))fail('state.value');s.state=Object.freeze(t);}
+    if(Object.hasOwn(s,'selection'))s.selection=selectionBinding(s.selection);
+    if(Object.hasOwn(s,'crosshair'))choice(s.crosshair,[false,'x','y','xy'],'crosshair');
     return Object.freeze(s) as unknown as ColumnChartSpec<T>;
   });
 }
 export function validateColumnOptions<T>(value: unknown, ids: ReadonlySet<string>): ChartResult<ColumnMountOptions<T>> {
-  return checked(()=>{const o=record(value,['instanceId','initialState','onPointActivate','onStateChange','onDiagnostic'],['instanceId'],'options');const id=text(o.instanceId,'options.instanceId',64);if(!/^[a-zA-Z][a-zA-Z0-9_-]*$/.test(id))fail('options.instanceId','BAD_INSTANCE_ID');for(const key of ['onPointActivate','onStateChange','onDiagnostic'])if(Object.hasOwn(o,key)&&typeof o[key]!=='function')fail('options.'+key);if(Object.hasOwn(o,'initialState'))o.initialState=state(o.initialState,ids,'options.initialState');return Object.freeze(o) as unknown as ColumnMountOptions<T>;});
+  return checked(()=>{const o=record(value,['instanceId','initialState','onPointActivate','onStateChange','onSelectionChange','onDiagnostic'],['instanceId'],'options');const id=text(o.instanceId,'options.instanceId',64);if(!/^[a-zA-Z][a-zA-Z0-9_-]*$/.test(id))fail('options.instanceId','BAD_INSTANCE_ID');for(const key of ['onPointActivate','onStateChange','onSelectionChange','onDiagnostic'])if(Object.hasOwn(o,key)&&typeof o[key]!=='function')fail('options.'+key);if(Object.hasOwn(o,'initialState'))o.initialState=state(o.initialState,ids,'options.initialState');return Object.freeze(o) as unknown as ColumnMountOptions<T>;});
 }

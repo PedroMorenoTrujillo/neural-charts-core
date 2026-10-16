@@ -17,14 +17,17 @@ import { createTooltipView, allowedRect, unsupportedPortalMapping, type TooltipV
 import { placeTooltip, type Rect, type PlacementResult } from '../tooltip/place.js';
 import { attachCartesianInteraction } from '../interaction/cartesian.js';
 import { provideExport } from '../export/capture.js';
+import type { ChartDatumId, ChartSelectionChange } from '../../public/interaction-types.js';
+import { prepareSelection, replaceSelection, toggleSelection, selectionChanged, datumKey, type Selection } from '../interaction/selection.js';
+import { selectionScene, crosshairScene } from '../interaction/decoration.js';
 
-import type { FamilySpec, FamilyDescription, FamilySnapshot, FamilyController, FamilyOptions, FamilyPolicy, FamilyComputed } from './family.js';
-type Input<S, State> = Readonly<{ spec: S; state: State }>;
-type MainCandidate<S, State, P, D extends FamilyDescription> = Readonly<{ input: Input<S, State>; computed: FamilyComputed<P, D>; scene: PreparedScene | null }>;
+import type { FamilySpec, FamilyDescription, FamilySnapshot, FamilyController, FamilyOptions, FamilyPolicy, FamilyComputed, FamilyIdentity } from './family.js';
+type Input<S, State, Id extends ChartDatumId> = Readonly<{ spec: S; state: State; selection: Selection<Id> | null; known: ReadonlyMap<string, Id> | null }>;
+type MainCandidate<S, State, P, D extends FamilyDescription, Id extends ChartDatumId> = Readonly<{ input: Input<S, State, Id>; computed: FamilyComputed<P, D>; scene: PreparedScene | null }>;
 type DetailJob<Target> = Readonly<{ revision: number; generation: number; sequence: number; stage: 'intent' | 'measure'; target: Target | null; detail: boolean; sample?: Readonly<{ x: number; y: number }> }>;
 type DetailCandidate<Target> = Readonly<{ job: DetailJob<Target>; target: Target | null; scene: PreparedScene; model: TooltipModel | null; bounds: Rect; placement: PlacementResult | null }>;
 function invoke<T>(callback: ((value: T) => void) | null, value: T): void { try { callback?.(value); } catch { /* Consumers do not own engine resources. */ } }
-export function mountFamily<S extends FamilySpec<State>, State, P, Target, D extends FamilyDescription, Activation>(host: HTMLElement, inputSpec: S, inputOptions: FamilyOptions<State, Activation>, policy: FamilyPolicy<S, State, P, Target, D, Activation>): ChartResult<FamilyController<S, State, D['view']>> {
+export function mountFamily<S extends FamilySpec<State>, State, P, Target, D extends FamilyDescription, Activation>(host: HTMLElement, inputSpec: S, inputOptions: FamilyOptions<State, Activation>, policy: FamilyPolicy<S, State, P, Target, D, Activation>): ChartResult<FamilyController<S, State, D['view'], FamilyIdentity<Activation>>> {
   const ordered = (state: State, ids: readonly string[]): State => { const hidden = new Set(policy.hidden(state)); return policy.state(ids.filter(id => hidden.has(id))); };
   const parsed = policy.parse(inputSpec); if (parsed.status === 'invalid') return parsed;
   const ids = new Set(policy.ids(parsed.value)), opts = policy.options(inputOptions, ids); if (opts.status === 'invalid') return opts;
@@ -33,19 +36,22 @@ export function mountFamily<S extends FamilySpec<State>, State, P, Target, D ext
   if (mode === 'controlled' && ids.size && parsed.value.legend?.position !== 'none' && !opts.value.onStateChange) return invalid('INVALID_CONFIG', 'MISSING_STATE_HANDLER', 'options.onStateChange');
   const state = ordered(parsed.value.state?.mode === 'controlled' ? parsed.value.state.value : opts.value.initialState ?? policy.state([]), [...ids]);
   const checked = policy.validateData(parsed.value, state); if (checked.status === 'invalid') return checked;
+  const known = parsed.value.selection ? policy.selectable(parsed.value) : null, selected = known ? prepareSelection(parsed.value.selection, known) : ok(null); if (selected.status === 'invalid') return selected;
+  if (selected.value?.mode === 'controlled' && !opts.value.onSelectionChange) return invalid('INVALID_CONFIG', 'MISSING_SELECTION_HANDLER', 'options.onSelectionChange');
   try {
     if (!host || host.nodeType !== 1 || host.namespaceURI !== 'http://www.w3.org/1999/xhtml' || !host.isConnected || !host.ownerDocument.defaultView || host.getRootNode() !== host.ownerDocument) return invalid('LIFECYCLE_ERROR', 'PLATFORM_UNAVAILABLE', 'host');
-    return mount(host, { spec: parsed.value, state }, opts.value, policy);
+    return mount(host, { spec: parsed.value, state, selection: selected.value, known }, opts.value, policy);
   } catch { return invalid('LIFECYCLE_ERROR', 'PLATFORM_UNAVAILABLE', 'host'); }
 }
-function mount<S extends FamilySpec<State>, State, P, Target, D extends FamilyDescription, Activation>(host: HTMLElement | null, initial: Input<S, State> | null, options: FamilyOptions<State, Activation> | null, policy: FamilyPolicy<S, State, P, Target, D, Activation>): ChartResult<FamilyController<S, State, D['view']>> {
+function mount<S extends FamilySpec<State>, State, P, Target, D extends FamilyDescription, Activation>(host: HTMLElement | null, initial: Input<S, State, FamilyIdentity<Activation>> | null, options: FamilyOptions<State, Activation> | null, policy: FamilyPolicy<S, State, P, Target, D, Activation>): ChartResult<FamilyController<S, State, D['view'], FamilyIdentity<Activation>>> {
   const ordered = (state: State, ids: readonly string[]): State => { const hidden = new Set(policy.hidden(state)); return policy.state(ids.filter(id => hidden.has(id))); };
   const changed = (a: State, b: State): boolean => { const hidden = new Set(policy.hidden(b)); return policy.hidden(a).length !== hidden.size || policy.hidden(a).some(id => !hidden.has(id)); };
-  let ownedHost = host, accepted = initial, committed: Input<S, State> | null = null, computed: FamilyComputed<P, D> | null = null, shell: Shell | null = null;
+  let ownedHost = host, accepted = initial, committed: Input<S, State, FamilyIdentity<Activation>> | null = null, computed: FamilyComputed<P, D> | null = null, shell: Shell | null = null;
   let onActivate = options!.onPointActivate ?? null, onState = options!.onStateChange ?? null, onDiagnostic = options!.onDiagnostic ?? null;
+  let onSelectionChange = options!.onSelectionChange ?? null;
   const instanceId = options!.instanceId, mode = initial!.spec.state?.mode ?? 'internal', reservations: IdReservation[] = [];
   let measurer: TextMeasurer | null = null, base: SceneWriter | null = null, overlay: SceneWriter | null = null, legend: LegendView | null = null, semantic: SemanticView | null = null, table: ReturnType<typeof policy.table> | null = null, tooltip: TooltipView | null = null;
-  let main: RevisionScheduler<Input<S, State>> | null = null, interaction: RevisionScheduler<DetailJob<Target>> | null = null, events: ReturnType<typeof attachCartesianInteraction> | null = null, observer: Readonly<{ disconnect(): void }> | null = null;
+  let main: RevisionScheduler<Input<S, State, FamilyIdentity<Activation>>> | null = null, interaction: RevisionScheduler<DetailJob<Target>> | null = null, events: ReturnType<typeof attachCartesianInteraction> | null = null, observer: Readonly<{ disconnect(): void }> | null = null;
   let media: MediaQueryList | null = null, fonts: FontFaceSet | null = null; const fontHolder: { callback: (() => void) | null } = { callback: null };
   let phase: FamilySnapshot['phase'] = 'suspended', size = { width: 0, height: 0 }, revision = 0, committedRevision = 0, generation = 0, sequence = 0;
   let releaseExport: (() => void) | null = null;
@@ -59,7 +65,7 @@ function mount<S extends FamilySpec<State>, State, P, Target, D extends FamilyDe
     cleanup(() => media?.removeEventListener('change', mediaChanged)); media = null;
     cleanup(() => events?.destroy()); events = null; cleanup(() => legend?.destroy()); legend = null; cleanup(() => semantic?.destroy()); semantic = null; cleanup(() => table?.destroy()); table = null; cleanup(() => tooltip?.destroy()); tooltip = null;
     cleanup(() => base?.dispose()); base = null; cleanup(() => overlay?.dispose()); overlay = null; cleanup(() => measurer?.destroy()); measurer = null;
-    accepted = null; committed = null; computed = null; current = null; hover = null; activeId = null; onActivate = null; onState = null; initial = null; options = null; host = null;
+    accepted = null; committed = null; computed = null; current = null; hover = null; activeId = null; onActivate = null; onState = null; onSelectionChange = null; initial = null; options = null; host = null;
   }
   function dispose(): void { resources(); onDiagnostic = null; removeOwnedNode(shell?.root ?? null); shell = null; for (const reservation of reservations.splice(0).reverse()) cleanup(() => reservation.release()); ownedHost = null; disposeRequested = false; }
   function destroy(): void { if (destroyed) return; destroyed = true; phase = 'destroyed'; sequence++; cleanup(() => main?.destroy()); cleanup(() => interaction?.destroy()); if (inCommit) disposeRequested = true; else dispose(); }
@@ -80,7 +86,7 @@ function mount<S extends FamilySpec<State>, State, P, Target, D extends FamilyDe
     if (accepted?.spec.theme === 'auto' && !media) { try { media = ownedHost.ownerDocument.defaultView!.matchMedia('(prefers-color-scheme: dark)'); } catch { return; } media.addEventListener('change', mediaChanged); }
     else if (accepted?.spec.theme !== 'auto' && media) { cleanup(() => media?.removeEventListener('change', mediaChanged)); media = null; }
   }
-  function compute(input: Input<S, State>): ChartResult<FamilyComputed<P, D>> {
+  function compute(input: Input<S, State, FamilyIdentity<Activation>>): ChartResult<FamilyComputed<P, D>> {
     if (!ownedHost || !measurer) return invalid('LIFECYCLE_ERROR', 'PLATFORM_UNAVAILABLE', 'host');
     const spec = input.spec, direction = spec.direction ?? 'ltr', font: ResolvedFont = { family: spec.font?.family ?? 'sans-serif', size: spec.font?.size ?? 12, weight: spec.font?.weight ?? 400 }, palette = resolvePalette(ownedHost, spec.theme ?? 'light', media?.matches ?? false);
     const layout = shellFrame(size, !!spec.description, policy.names(spec), spec.legend?.position ?? 'bottom', font, direction, measurer);
@@ -91,7 +97,22 @@ function mount<S extends FamilySpec<State>, State, P, Target, D extends FamilyDe
   function semanticUpdate(navigation = false): void {
     if (!semantic || !computed || !committed) return;
     const enabled = policy.enabled(computed), target = enabled ? current : null, dimensions = policy.dimensions(computed.projection);
-    semantic.update({ rowCount: enabled ? dimensions.rows : 0, columnCount: enabled ? dimensions.columns : 0, current: target ? policy.semantic(computed, target) : null, summary: computed.status || 'No observations in the displayed chart. Use the data table.' }, { x: 0, y: 0, width: computed.shell.body.width, height: computed.shell.body.height }, navigation);
+    const selected = committed.selection, basePoint = target ? policy.semantic(computed, target) : null, id = target ? policy.datumId(target) : null;
+    const active = basePoint && selected && id ? { ...basePoint, selected: selected.value.some(value => datumKey(value) === datumKey(id)), detail: basePoint.detail + ' Selection: ' + selected.value.length + ' observations.' } : basePoint;
+    semantic.update({ rowCount: enabled ? dimensions.rows : 0, columnCount: enabled ? dimensions.columns : 0, current: active, summary: computed.status || 'No observations in the displayed chart. Use the data table.', ...(selected ? { multiselectable: selected.kind === 'multiple' } : {}) }, { x: 0, y: 0, width: computed.shell.body.width, height: computed.shell.body.height }, navigation);
+  }
+  function paintSelection(layers: Layers, value: FamilyComputed<P, D>, input: Input<S, State, FamilyIdentity<Activation>>): void {
+    if (!input.selection || !policy.enabled(value)) return;
+    selectionScene(layers, input.selection.value, (id, selected) => { const target = policy.selectedTarget(value.projection, id); if (target) policy.focus(value.projection, target, value.palette, selected); });
+  }
+  function select(value: readonly FamilyIdentity<Activation>[], source: 'api' | 'pointer' | 'touch' | 'keyboard'): ChartResult<number> {
+    if (destroyed) return invalid('LIFECYCLE_ERROR', 'DESTROYED', 'controller');
+    if (phase !== 'active' || !accepted || !committed?.selection || !committed.known) return invalid('LIFECYCLE_ERROR', 'SELECTION_UNAVAILABLE', 'selection');
+    if (main?.getSnapshot().pending) return invalid('LIFECYCLE_ERROR', 'UPDATE_PENDING', 'selection');
+    const checked = replaceSelection(committed.selection, committed.known, value); if (checked.status === 'invalid') return checked; if (!selectionChanged(committed.selection, checked.value)) return ok(committedRevision);
+    const event: ChartSelectionChange<FamilyIdentity<Activation>> = Object.freeze({ selection: checked.value.value, effect: checked.value.mode === 'controlled' ? 'proposal' : 'accepted', source, revision: committedRevision });
+    if (checked.value.mode === 'internal') { accepted = { ...accepted, selection: checked.value }; committed = { ...committed, selection: checked.value }; try { sequence++; semanticUpdate(); detailJob(); } catch { const diagnostic = invalid('INTERNAL_INVARIANT', 'DOM_WRITE_FAILED', 'selection').diagnostic; fault(diagnostic); return { status: 'invalid', diagnostic }; } }
+    invoke(onSelectionChange, event); return ok(event.revision);
   }
   function detailFocused(): boolean { return !!shell && shell.detail.contains(shell.root.ownerDocument.activeElement); }
   function invalidate(): void { sequence++; hover = null; pinned = false; wanted = false; events?.pin(false, committedRevision); const previous = suppressFocus; suppressFocus = true; tooltip?.close(true); suppressFocus = previous; overlay?.clear(); }
@@ -106,7 +127,7 @@ function mount<S extends FamilySpec<State>, State, P, Target, D extends FamilyDe
     if (!fresh(job) || !computed || !ownedHost) return ok(null);
     let target = job.target; const m = matrix();
     if (job.sample) { if (gridFocused || pinned || detailFocused()) return ok(null); const local = m ? mapped(m.inverse(), job.sample.x, job.sample.y) : null; target = local ? policy.pick(computed.projection, local.x, local.y) : null; }
-    const layers = emptyLayers(); if (target) policy.focus(computed.projection, target, computed.palette, layers);
+    const layers = emptyLayers(); paintSelection(layers, computed, committed!); if (target) { if (computed.axes) crosshairScene(layers, committed!.spec.crosshair, computed.axes.plot, policy.anchor(computed.projection, target), computed.palette); policy.focus(computed.projection, target, computed.palette, layers); }
     const scene = overlay!.prepare(frame(token.revision, computed.shell.body.width, computed.shell.body.height, layers, computed.axes), new Map()); if (scene.status === 'invalid') return scene;
     const model = target && job.detail && committed!.spec.tooltip?.mode !== 'off' ? policy.tooltip(computed, target, committedRevision) : null, bounds = allowedRect(ownedHost); let placement: PlacementResult | null = null;
     if (job.stage === 'measure' && model && target) {
@@ -124,12 +145,12 @@ function mount<S extends FamilySpec<State>, State, P, Target, D extends FamilyDe
     } else tooltip?.close(); return ok(undefined);
   }
   function closeDetail(): void { invalidate(); gridFocused = !!shell && shell.root.ownerDocument.activeElement === shell.grid; detailJob(); }
-  function prepareMain(input: Input<S, State>, token: RevisionToken): ChartResult<MainCandidate<S, State, P, D>> {
+  function prepareMain(input: Input<S, State, FamilyIdentity<Activation>>, token: RevisionToken): ChartResult<MainCandidate<S, State, P, D, FamilyIdentity<Activation>>> {
     const result = compute(input); if (result.status === 'invalid') return result; let scene: PreparedScene | null = null;
     if (result.value.shell.body.width > 0 && result.value.shell.body.height > 0) { const prepared = base!.prepare(frame(token.revision, result.value.shell.body.width, result.value.shell.body.height, result.value.layers, result.value.axes), new Map()); if (prepared.status === 'invalid') return prepared; scene = prepared.value; }
     return ok({ input, computed: result.value, scene });
   }
-  function commitMain(candidate: MainCandidate<S, State, P, D>, token: RevisionToken): ChartResult<void> {
+  function commitMain(candidate: MainCandidate<S, State, P, D, FamilyIdentity<Activation>>, token: RevisionToken): ChartResult<void> {
     if (destroyed || !shell || !main?.isCurrent(token)) return ok(undefined); inCommit = true;
     try {
       const previousId = current === null ? undefined : policy.identity(current), focused = shell.root.ownerDocument.activeElement as HTMLElement | null, hadFocus = !!focused && shell.root.contains(focused), c = candidate.computed, spec = candidate.input.spec;
@@ -144,10 +165,10 @@ function mount<S extends FamilySpec<State>, State, P, Target, D extends FamilyDe
         if (valid && shell.root.ownerDocument.activeElement !== focused) focused.focus({ preventScroll: true });
         else if (!valid) { const now = shell.root.ownerDocument.activeElement as HTMLElement | null; if (!now || now === shell.root || !shell.root.contains(now) || now.closest('[hidden]') || 'disabled' in now && (now as HTMLButtonElement).disabled) { suppressFocus = true; (shell.grid.hidden ? shell.root : shell.grid).focus({ preventScroll: true }); suppressFocus = false; } }
       }
-      if (destroyed) return ok(undefined); gridFocused = shell.root.ownerDocument.activeElement === shell.grid; if (gridFocused && current) { wanted = true; detailJob(); } return ok(undefined);
+      if (destroyed) return ok(undefined); gridFocused = shell.root.ownerDocument.activeElement === shell.grid; if (gridFocused && current) { wanted = true; detailJob(); } else if (committed.selection?.value.length) detailJob(); return ok(undefined);
     } catch { return invalid('INTERNAL_INVARIANT', 'DOM_WRITE_FAILED', 'controller'); } finally { inCommit = false; if (disposeRequested) dispose(); }
   }
-  function accept(input: Input<S, State>): ChartResult<number> {
+  function accept(input: Input<S, State, FamilyIdentity<Activation>>): ChartResult<number> {
     if (size.width > 0 && size.height > 0) { try { const checked = compute(input); if (checked.status === 'invalid') return checked; } catch { return invalid('LIFECYCLE_ERROR', 'PLATFORM_UNAVAILABLE', 'layout'); } }
     const previous = accepted; accepted = input; const result = submit('data'); if (result.status === 'invalid') accepted = previous; return result;
   }
@@ -156,18 +177,22 @@ function mount<S extends FamilySpec<State>, State, P, Target, D extends FamilyDe
     const hidden = new Set(policy.hidden(accepted.state)); if (hidden.has(id)) hidden.delete(id); else hidden.add(id);
     const state = ordered(policy.state([...hidden]), policy.ids(accepted.spec));
     if (mode === 'controlled') { invoke(onState, Object.freeze({ state, effect: 'proposal', source: 'legend', revision: committedRevision })); return; }
-    const result = accept({ spec: accepted.spec, state }); if (result.status === 'invalid') invoke(onDiagnostic, result.diagnostic); else invoke(onState, Object.freeze({ state, effect: 'accepted', source: 'legend', revision: result.value }));
+    const result = accept({ ...accepted, state }); if (result.status === 'invalid') invoke(onDiagnostic, result.diagnostic); else invoke(onState, Object.freeze({ state, effect: 'accepted', source: 'legend', revision: result.value }));
   }
   function update(spec: S): ChartResult<number> {
     if (destroyed) return invalid('LIFECYCLE_ERROR', 'DESTROYED', 'controller'); if (phase === 'faulted' || !accepted) return invalid('LIFECYCLE_ERROR', 'FAULTED', 'controller');
     const parsed = policy.parse(spec); if (parsed.status === 'invalid') return parsed; if ((parsed.value.state?.mode ?? 'internal') !== mode) return invalid('INVALID_CONFIG', 'STATE_MODE_CHANGE', 'state.mode');
     if (mode === 'controlled' && policy.ids(parsed.value).length && parsed.value.legend?.position !== 'none' && !onState) return invalid('INVALID_CONFIG', 'MISSING_STATE_HANDLER', 'options.onStateChange');
     const validated = policy.validateData(parsed.value, parsed.value.state?.mode === 'controlled' ? parsed.value.state.value : ordered(accepted.state, policy.ids(parsed.value))); if (validated.status === 'invalid') return validated;
-    const next = ordered(parsed.value.state?.mode === 'controlled' ? parsed.value.state.value : accepted.state, policy.ids(parsed.value)), previous = accepted.state, result = accept({ spec: parsed.value, state: next }); if (result.status === 'invalid') return result;
+    const next = ordered(parsed.value.state?.mode === 'controlled' ? parsed.value.state.value : accepted.state, policy.ids(parsed.value)), previous = accepted;
+    const known = parsed.value.selection ? policy.selectable(parsed.value) : null, selected = known ? prepareSelection(parsed.value.selection, known, accepted.selection) : ok(null); if (selected.status === 'invalid') return selected;
+    if (selected.value?.mode === 'controlled' && !onSelectionChange) return invalid('INVALID_CONFIG', 'MISSING_SELECTION_HANDLER', 'options.onSelectionChange');
+    const result = accept({ spec: parsed.value, state: next, selection: selected.value, known }); if (result.status === 'invalid') return result;
     try { ensureMedia(); } catch { fault(invalid('LIFECYCLE_ERROR', 'PLATFORM_UNAVAILABLE', 'theme').diagnostic); return invalid('LIFECYCLE_ERROR', 'FAULTED', 'controller'); }
-    if (mode === 'internal' && changed(previous, next)) invoke(onState, Object.freeze({ state: next, effect: 'accepted', source: 'update', revision: result.value })); return result;
+    if (mode === 'internal' && changed(previous.state, next)) invoke(onState, Object.freeze({ state: next, effect: 'accepted', source: 'update', revision: result.value }));
+    if (previous.selection?.mode === 'internal' && selected.value?.mode !== 'controlled' && selectionChanged(previous.selection, selected.value)) invoke(onSelectionChange, Object.freeze({ selection: selected.value?.value ?? Object.freeze([]), effect: 'accepted', source: 'update', revision: result.value })); return result;
   }
-  function activate(target: Target, source: 'pointer' | 'touch' | 'keyboard'): void { invoke(onActivate, policy.activate(target, source, committedRevision)); }
+  function activate(target: Target, source: 'pointer' | 'touch' | 'keyboard'): void { if (committed?.selection && !main?.getSnapshot().pending) { const proposed = toggleSelection(committed.selection, policy.datumId(target)), result = proposed.status === 'invalid' ? proposed : select(proposed.value, source); if (result.status === 'invalid') invoke(onDiagnostic, result.diagnostic); } if (!destroyed) invoke(onActivate, policy.activate(target, source, committedRevision)); }
   try {
     const ports = createBrowserPorts(ownedHost!); if (ports.status === 'invalid') return ports;
     for (const id of Object.values(shellIds(instanceId))) if (ownedHost!.ownerDocument.getElementById(id)) return invalid('INVALID_CONFIG', 'ID_COLLISION', 'options.instanceId');
@@ -190,7 +215,7 @@ function mount<S extends FamilySpec<State>, State, P, Target, D extends FamilyDe
       blur(next) { gridFocused = false; if (next && shell?.detail.contains(next as Node)) return; if (!pinned) { sequence++; wanted = false; tooltip?.close(); detailJob(); } },
       key(key, control) {
         if (key === 'Escape') { closeDetail(); return true; } if (!computed || !current || computed.description.view !== 'ready') return false;
-        if (key === 'Enter' || key === ' ' || key === 'Spacebar') { const handled = key !== 'Enter' || !!onActivate; activate(current, 'keyboard'); return handled; }
+        if (key === 'Enter' || key === ' ' || key === 'Spacebar') { const handled = key !== 'Enter' || !!onActivate || !!committed?.selection; activate(current, 'keyboard'); return handled; }
         if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(key)) return false;
         const next = policy.navigate(computed.projection, current, key, control);
         if (next !== null && next !== current) { setCurrent(next); hover = null; pinned = false; events?.pin(false, committedRevision); sequence++; wanted = true; semanticUpdate(true); detailJob(); } return true;
@@ -205,11 +230,12 @@ function mount<S extends FamilySpec<State>, State, P, Target, D extends FamilyDe
     });
     if (destroyed || snapshot().phase === 'faulted') { dispose(); return invalid('LIFECYCLE_ERROR', 'PLATFORM_UNAVAILABLE', 'host'); }
     host = null; initial = null; options = null;
-    const controller = Object.freeze({ update, refresh() { if (destroyed) return invalid('LIFECYCLE_ERROR', 'DESTROYED', 'controller'); if (phase === 'faulted') return invalid('LIFECYCLE_ERROR', 'FAULTED', 'controller'); measurer?.invalidate(); return submit('paint'); }, getState: () => accepted ? ordered(accepted.state, policy.ids(accepted.spec)) : policy.state([]), getSnapshot: snapshot, destroy });
+    const controller = Object.freeze({ update, refresh() { if (destroyed) return invalid('LIFECYCLE_ERROR', 'DESTROYED', 'controller'); if (phase === 'faulted') return invalid('LIFECYCLE_ERROR', 'FAULTED', 'controller'); measurer?.invalidate(); return submit('paint'); }, getState: () => accepted ? ordered(accepted.state, policy.ids(accepted.spec)) : policy.state([]), getSelection: () => accepted?.selection?.value ?? Object.freeze([]), requestSelection: (value: readonly FamilyIdentity<Activation>[]) => select(value, 'api'), getSnapshot: snapshot, destroy });
     releaseExport = provideExport(controller, () => {
       if (phase !== 'active' || !computed || !committed || !shell) return invalid('LIFECYCLE_ERROR', 'EXPORT_UNAVAILABLE', 'controller');
       const c = computed, input = committed, spec = input.spec;
-      return ok({ document: shell.root.ownerDocument, instanceId, revision: committedRevision, frame: frame(committedRevision, c.shell.body.width, c.shell.body.height, c.layers, c.axes), layout: c.shell, palette: c.palette, font: c.font, direction: spec.direction ?? 'ltr', title: spec.title, description: spec.description ?? '', context: c.description.context, status: c.status, legend: c.legend, hiddenLegendIds: policy.hidden(input.state), records: () => policy.exportRecords(spec, input.state, c) });
+      const selected = emptyLayers(); paintSelection(selected, c, input); const layers = selected.interaction.length ? { ...c.layers, labels: [...c.layers.labels, ...selected.interaction] } : c.layers;
+      return ok({ document: shell.root.ownerDocument, instanceId, revision: committedRevision, frame: frame(committedRevision, c.shell.body.width, c.shell.body.height, layers, c.axes), layout: c.shell, palette: c.palette, font: c.font, direction: spec.direction ?? 'ltr', title: spec.title, description: spec.description ?? '', context: c.description.context, status: c.status, legend: c.legend, hiddenLegendIds: policy.hidden(input.state), records: () => policy.exportRecords(spec, input.state, c, input.selection?.value) });
     });
     return ok(controller);
   } catch { dispose(); return invalid('LIFECYCLE_ERROR', 'PLATFORM_UNAVAILABLE', 'host'); }

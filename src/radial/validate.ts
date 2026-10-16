@@ -1,8 +1,9 @@
 import type { ChartResult, ChartStatus } from '../public/chart-types.js';
 import { invalid, ok } from '../internal/diagnostics.js';
+import { selectionBinding } from '../internal/interaction/selection.js';
 import type { RadialChartSpec, RadialState, PieSlice, RadialMountOptions } from '../public/radial-types.js';
 import { record, array, text, number, choice, color, optional, fail, ValidationFailure } from '../internal/data/validation.js';
-const familyKeys = ['family', 'title', 'description', 'data', 'theme', 'direction', 'font', 'legend', 'tooltip', 'labels', 'state', 'status'];
+const familyKeys = ['family', 'title', 'description', 'data', 'theme', 'direction', 'font', 'legend', 'tooltip', 'labels', 'state', 'status', 'selection'];
 export function validateRadialState(value: unknown, ids: ReadonlySet<string>, path = 'state'): RadialState {
   const result = record(value, ['hiddenSliceIds'], ['hiddenSliceIds'], path), seen = new Set<string>();
   const hidden = array(result.hiddenSliceIds, 1000, path + '.hiddenSliceIds').map((value, i) => {
@@ -58,16 +59,17 @@ export function validateRadial<T>(value: unknown, family: 'pie' | 'donut'): Char
         optional(center, 'label', (value, path) => text(value, path, 256, true), path); optional(center, 'value', (value, path) => text(value, path, 128, true), path); return Object.freeze(center);
       }, 'spec');
     }
+    optional(spec, 'selection', selectionBinding, 'spec');
     return ok(Object.freeze(spec) as unknown as RadialChartSpec<T>);
   } catch (error) { return error instanceof ValidationFailure ? { status: 'invalid', diagnostic: error.diagnostic } : invalid('INVALID_CONFIG', 'BAD_SPEC', 'spec'); }
 }
 export function validateRadialOptions<T>(value: unknown, ids: ReadonlySet<string>): ChartResult<RadialMountOptions<T>> {
   try {
-    const options = record(value, ['instanceId', 'initialState', 'onPointActivate', 'onStateChange', 'onDiagnostic'], ['instanceId'], 'options');
+    const options = record(value, ['instanceId', 'initialState', 'onPointActivate', 'onStateChange', 'onSelectionChange', 'onDiagnostic'], ['instanceId'], 'options');
     options.instanceId = text(options.instanceId, 'options.instanceId', 64);
     if (!/^[A-Za-z][A-Za-z0-9_-]*$/.test(options.instanceId as string)) fail('options.instanceId', 'BAD_INSTANCE_ID');
     optional(options, 'initialState', (value, path) => validateRadialState(value, ids, path), 'options');
-    for (const key of ['onPointActivate', 'onStateChange', 'onDiagnostic']) if (Object.hasOwn(options, key) && typeof options[key] !== 'function') fail('options.' + key);
+    for (const key of ['onPointActivate', 'onStateChange', 'onSelectionChange', 'onDiagnostic']) if (Object.hasOwn(options, key) && typeof options[key] !== 'function') fail('options.' + key);
     return ok(Object.freeze(options) as unknown as RadialMountOptions<T>);
   } catch (error) { return error instanceof ValidationFailure ? { status: 'invalid', diagnostic: error.diagnostic } : invalid('INVALID_CONFIG', 'BAD_OPTIONS', 'options'); }
 }

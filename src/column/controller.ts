@@ -30,8 +30,13 @@ import { planColumnAxes } from './axes.js';
 import { columnScene, columnFocusScene, columnReferenceCaption } from './scene.js';
 import { provideExport } from '../internal/export/capture.js';
 import { cartesianRecords } from '../internal/export/records.js';
+import type { SeriesPointId, ChartSelectionChange } from '../public/interaction-types.js';
+import { prepareSelection, replaceSelection, toggleSelection, selectionChanged, type Selection } from '../internal/interaction/selection.js';
+import { seriesIdentities } from '../internal/interaction/identities.js';
+import { selectionScene, crosshairScene } from '../internal/interaction/decoration.js';
+import { columnKey } from './normalize.js';
 
-type Input<T> = Readonly<{ data: NormalizedColumn<T>; state: ChartState; domain: Domain | null }>;
+type Input<T> = Readonly<{ data: NormalizedColumn<T>; state: ChartState; domain: Domain | null; selection: Selection<SeriesPointId> | null; known: ReadonlyMap<string, SeriesPointId> | null }>;
 type Computed<T> = Readonly<{ shell: ShellFrame; palette: Palette; font: ResolvedFont; axes: AxesPlan | null; projection: ColumnProjection<T> | null; layers: Layers; view: NonNullable<ColumnSnapshot['view']>; status: string; legend: readonly LegendItem[]; tooltipSeries: readonly TooltipSeries[]; table: TableSource }>;
 type MainCandidate<T> = Readonly<{ input: Input<T>; value: Computed<T>; scene: PreparedScene | null }>;
 type DetailJob<T> = Readonly<{ revision: number; generation: number; sequence: number; stage: 'intent' | 'measure'; target: ColumnRect<T> | null; detail: boolean; sample?: Readonly<{ x: number; y: number }> }>;
@@ -46,14 +51,17 @@ export function createColumnChart<T=unknown,S=ColumnChartSpec<T>>(host: HTMLElem
   if(mode==='controlled'&&data.series.length&&data.spec.legend?.position!=='none'&&!opts.value.onStateChange)return invalid('INVALID_CONFIG','MISSING_STATE_HANDLER','options.onStateChange');
   const state=validateColumnState(data.spec.state?.mode==='controlled'?data.spec.state.value:opts.value.initialState??{hiddenSeriesIds:[]},ids,'state');if(state.status==='invalid')return state;
   const ordered=orderedState(state.value,[...ids]),domain=policy?policy.domain(data,ordered):columnDomain(data,ordered);if(domain.status==='invalid')return domain;
+  const known=data.spec.selection?seriesIdentities(data.spec):null,selected=known?prepareSelection(data.spec.selection,known):ok(null);if(selected.status==='invalid')return selected;
+  if(selected.value?.mode==='controlled'&&!opts.value.onSelectionChange)return invalid('INVALID_CONFIG','MISSING_SELECTION_HANDLER','options.onSelectionChange');
   try {
     if(!host||host.nodeType!==1||host.namespaceURI!=='http://www.w3.org/1999/xhtml'||!host.isConnected||!host.ownerDocument.defaultView||host.getRootNode()!==host.ownerDocument)return invalid('LIFECYCLE_ERROR','PLATFORM_UNAVAILABLE','host');
-    return mount<T,S>(host,{data,state:ordered,domain:domain.value},opts.value,policy??null);
+    return mount<T,S>(host,{data,state:ordered,domain:domain.value,selection:selected.value,known},opts.value,policy??null);
   } catch { return invalid('LIFECYCLE_ERROR','PLATFORM_UNAVAILABLE','host'); }
 }
 function mount<T,S>(host:HTMLElement|null, initial:Input<T>|null, options:ColumnMountOptions<T>|null, policy:ColumnPolicy<T>|null):ChartResult<ColumnEngineController<T,S>> {
   let ownedHost=host,accepted=initial,committed:Input<T>|null=null,computed:Computed<T>|null=null,shell:Shell|null=null;
   let onActivate=options!.onPointActivate??null,onState=options!.onStateChange??null,onDiagnostic=options!.onDiagnostic??null;
+  let onSelectionChange=options!.onSelectionChange??null;
   const instanceId=options!.instanceId,mode=initial!.data.spec.state?.mode??'internal',reservations:IdReservation[]=[];
   let measurer:TextMeasurer|null=null,base:SceneWriter|null=null,overlay:SceneWriter|null=null,legend:LegendView|null=null,semantic:SemanticView|null=null,table:TableView|null=null,tooltip:TooltipView|null=null;
   let main:RevisionScheduler<Input<T>>|null=null,interaction:RevisionScheduler<DetailJob<T>>|null=null,events:ReturnType<typeof attachCartesianInteraction>|null=null,observer:Readonly<{disconnect():void}>|null=null;
@@ -70,7 +78,7 @@ function mount<T,S>(host:HTMLElement|null, initial:Input<T>|null, options:Column
     cleanup(()=>media?.removeEventListener('change',mediaChanged));media=null;
     cleanup(()=>events?.destroy());events=null;cleanup(()=>legend?.destroy());legend=null;cleanup(()=>semantic?.destroy());semantic=null;cleanup(()=>table?.destroy());table=null;cleanup(()=>tooltip?.destroy());tooltip=null;
     cleanup(()=>base?.dispose());base=null;cleanup(()=>overlay?.dispose());overlay=null;cleanup(()=>measurer?.destroy());measurer=null;
-    accepted=null;committed=null;computed=null;current=null;hover=null;onActivate=null;onState=null;initial=null;options=null;host=null;policy=null;
+    accepted=null;committed=null;computed=null;current=null;hover=null;onActivate=null;onState=null;onSelectionChange=null;initial=null;options=null;host=null;policy=null;
   }
   function dispose():void { resources();onDiagnostic=null;removeOwnedNode(shell?.root??null);shell=null;for(const r of reservations.splice(0).reverse())cleanup(()=>r.release());ownedHost=null;disposeRequested=false; }
   function destroy():void { if(destroyed)return;destroyed=true;phase='destroyed';sequence++;cleanup(()=>main?.destroy());cleanup(()=>interaction?.destroy());if(inCommit)disposeRequested=true;else dispose(); }
@@ -119,7 +127,22 @@ function mount<T,S>(host:HTMLElement|null, initial:Input<T>|null, options:Column
   function pick(projection:ColumnProjection<T>,x:number,y:number):ColumnRect<T>|null { return policy?policy.pick(projection,x,y):pickColumn(projection,x,y); }
   function semanticUpdate(navigation=false):void {
     if(!semantic||!computed||!committed)return;const model=current?tooltipFor(current):null,context=[computed.table.context,...computed.table.references].join(' ');
-    semantic.update({rowCount:computed.projection?.rows.length??0,columnCount:committed.data.spec.axes.x.values.length,current:current&&model?semanticPoint(current.series.spec.name,current.seriesIndex+1,current.categoryIndex+1,model.header,current.point.y!,context,model):null,summary:computed.status||'Chart data. No bars in the displayed domain. Use the data table.'},computed.axes?.plot??{x:0,y:0,width:computed.shell.body.width,height:computed.shell.body.height},navigation);
+    const selected=committed.selection,basePoint=current&&model?semanticPoint(current.series.spec.name,current.seriesIndex+1,current.categoryIndex+1,model.header,current.point.y!,context,model):null;
+    const active=basePoint&&selected&&current?{...basePoint,selected:selected.value.some(id=>id.seriesId===current!.series.spec.id&&id.pointId===current!.point.id),detail:basePoint.detail+' Selection: '+selected.value.length+' observations.'}:basePoint;
+    semantic.update({rowCount:computed.projection?.rows.length??0,columnCount:committed.data.spec.axes.x.values.length,current:active,summary:computed.status||'Chart data. No bars in the displayed domain. Use the data table.',...(selected?{multiselectable:selected.kind==='multiple'}:{})},computed.axes?.plot??{x:0,y:0,width:computed.shell.body.width,height:computed.shell.body.height},navigation);
+  }
+  function paintSelection(layers:Layers,value:Computed<T>,input:Input<T>):void {
+    if(!input.selection||!value.projection)return;
+    selectionScene(layers,input.selection.value,(id,selected)=>{const target=value.projection!.byId.get(columnKey(id.seriesId,id.pointId));if(target)columnFocusScene(target,value.palette,selected);});
+  }
+  function select(value:readonly SeriesPointId[],source:'api'|'pointer'|'touch'|'keyboard'):ChartResult<number> {
+    if(destroyed)return invalid('LIFECYCLE_ERROR','DESTROYED','controller');
+    if(phase!=='active'||!accepted||!committed?.selection||!committed.known)return invalid('LIFECYCLE_ERROR','SELECTION_UNAVAILABLE','selection');
+    if(main?.getSnapshot().pending)return invalid('LIFECYCLE_ERROR','UPDATE_PENDING','selection');
+    const checked=replaceSelection(committed.selection,committed.known,value);if(checked.status==='invalid')return checked;if(!selectionChanged(committed.selection,checked.value))return ok(committedRevision);
+    const event:ChartSelectionChange<SeriesPointId>=Object.freeze({selection:checked.value.value,effect:checked.value.mode==='controlled'?'proposal':'accepted',source,revision:committedRevision});
+    if(checked.value.mode==='internal'){accepted={...accepted,selection:checked.value};committed={...committed,selection:checked.value};try{sequence++;semanticUpdate();detailJob();}catch{const diagnostic=invalid('INTERNAL_INVARIANT','DOM_WRITE_FAILED','selection').diagnostic;fault(diagnostic);return{status:'invalid',diagnostic};}}
+    invoke(onSelectionChange,event);return ok(event.revision);
   }
   function detailFocused():boolean { return !!shell&&shell.detail.contains(shell.root.ownerDocument.activeElement); }
   function invalidate():void { sequence++;hover=null;pinned=false;wanted=false;events?.pin(false,committedRevision);const previous=suppressFocus;suppressFocus=true;tooltip?.close(true);suppressFocus=previous;overlay?.clear(); }
@@ -134,14 +157,16 @@ function mount<T,S>(host:HTMLElement|null, initial:Input<T>|null, options:Column
     if(!fresh(job)||!computed?.projection||!ownedHost)return ok(null);
     let target=job.target;const m=matrix();
     if(job.sample){if(gridFocused||pinned||detailFocused())return ok(null);const local=m?mapped(m.inverse(),job.sample.x,job.sample.y):null;target=local?pick(computed.projection,local.x,local.y):null;}
-    const layers=emptyLayers();if(target)columnFocusScene(target,computed.palette,layers);
+    const layers=emptyLayers();paintSelection(layers,computed,committed!);if(target){crosshairScene(layers,committed!.data.spec.crosshair,computed.projection.plot,target.anchor,computed.palette,computed.projection.horizontal);columnFocusScene(target,computed.palette,layers);}
     const scene=overlay!.prepare(frame(token.revision,computed.shell.body.width,computed.shell.body.height,layers,computed.axes??undefined),new Map());if(scene.status==='invalid')return scene;
     const model=target&&job.detail&&committed!.data.spec.tooltip?.mode!=='off'?tooltipFor(target):null,bounds=allowedRect(ownedHost);let placement:PlacementResult|null=null;
     if(job.stage==='measure'&&model){
-      const measured=tooltip?.measure(),r=target!;
-      const corners=m?[[r.x,r.y],[r.x+r.width,r.y],[r.x,r.y+r.height],[r.x+r.width,r.y+r.height]].map(([x,y])=>mapped(m,x!,y!)):null;
+      const measured=tooltip?.measure(),r=target!,zeroTarget=r.width===0||r.height===0,px=r.width===0?4:0,py=r.height===0?4:0;
+      // An observed zero still has a visible focus cue. A degenerate rectangle
+      // has zero intersection area and cannot protect that cue from a tooltip.
+      const corners=m?[[r.x-px,r.y-py],[r.x+r.width+px,r.y-py],[r.x-px,r.y+r.height+py],[r.x+r.width+px,r.y+r.height+py]].map(([x,y])=>mapped(m,x!,y!)):null;
       const anchor=corners?{x:Math.min(...corners.map(p=>p.x)),y:Math.min(...corners.map(p=>p.y)),width:Math.max(...corners.map(p=>p.x))-Math.min(...corners.map(p=>p.x)),height:Math.max(...corners.map(p=>p.y))-Math.min(...corners.map(p=>p.y))}:null;
-      placement=!m||!anchor||unsupportedPortalMapping(ownedHost.ownerDocument)?{kind:'docked'}:measured?placeTooltip(anchor,measured,bounds,committed!.data.spec.tooltip?.placement??'top',committed!.data.spec.direction??'ltr',!!policy):{kind:'closed'};
+      placement=!m||!anchor||unsupportedPortalMapping(ownedHost.ownerDocument)?{kind:'docked'}:measured?placeTooltip(anchor,measured,bounds,committed!.data.spec.tooltip?.placement??'top',committed!.data.spec.direction??'ltr',!!policy||zeroTarget):{kind:'closed'};
     }
     return ok({job,target,scene:scene.value,model,bounds,placement});
   }
@@ -175,11 +200,14 @@ function mount<T,S>(host:HTMLElement|null, initial:Input<T>|null, options:Column
           if(!now||now===shell.root||!shell.root.contains(now)||now.closest('[hidden]')||'disabled'in now&&(now as HTMLButtonElement).disabled){suppressFocus=true;(shell.grid.hidden?shell.root:shell.grid).focus({preventScroll:true});suppressFocus=false;}
         }
       }
-      if(destroyed)return ok(undefined);gridFocused=shell.root.ownerDocument.activeElement===shell.grid;if(gridFocused&&current){wanted=true;detailJob();}return ok(undefined);
+      if(destroyed)return ok(undefined);gridFocused=shell.root.ownerDocument.activeElement===shell.grid;if(gridFocused&&current){wanted=true;detailJob();}else if(committed.selection?.value.length)detailJob();return ok(undefined);
     }catch{return invalid('INTERNAL_INVARIANT','DOM_WRITE_FAILED','controller');}finally{inCommit=false;if(disposeRequested)dispose();}
   }
   function accept(data:NormalizedColumn<T>,state:ChartState):ChartResult<number> {
-    const domain=policy?policy.domain(data,state):columnDomain(data,state);if(domain.status==='invalid')return domain;const next={data,state,domain:domain.value};
+    const domain=policy?policy.domain(data,state):columnDomain(data,state);if(domain.status==='invalid')return domain;
+    const known=data.spec.selection?(accepted?.data===data?accepted.known:seriesIdentities(data.spec)):null,selected=known?prepareSelection(data.spec.selection,known,accepted?.selection??null):ok(null);if(selected.status==='invalid')return selected;
+    if(selected.value?.mode==='controlled'&&!onSelectionChange)return invalid('INVALID_CONFIG','MISSING_SELECTION_HANDLER','options.onSelectionChange');
+    const next={data,state,domain:domain.value,selection:selected.value,known};
     if(size.width>0&&size.height>0){try{const checked=compute(next);if(checked.status==='invalid')return checked;}catch{return invalid('LIFECYCLE_ERROR','PLATFORM_UNAVAILABLE','layout');}}
     const previous=accepted;accepted=next;const result=submit('data');if(result.status==='invalid')accepted=previous;return result;
   }
@@ -192,11 +220,12 @@ function mount<T,S>(host:HTMLElement|null, initial:Input<T>|null, options:Column
     if(destroyed)return invalid('LIFECYCLE_ERROR','DESTROYED','controller');if(phase==='faulted'||!accepted)return invalid('LIFECYCLE_ERROR','FAULTED','controller');
     const validation=policy?policy.parse(spec):validateColumn<T>(spec);if(validation.status==='invalid')return validation;const data=normalizeColumn(validation.value);if((data.spec.state?.mode??'internal')!==mode)return invalid('INVALID_CONFIG','STATE_MODE_CHANGE','state.mode');
     if(mode==='controlled'&&data.series.length&&data.spec.legend?.position!=='none'&&!onState)return invalid('INVALID_CONFIG','MISSING_STATE_HANDLER','options.onStateChange');
-    const state=orderedState(data.spec.state?.mode==='controlled'?data.spec.state.value:accepted.state,data.series.map(s=>s.spec.id)),previous=accepted.state,result=accept(data,state);if(result.status==='invalid')return result;
+    const state=orderedState(data.spec.state?.mode==='controlled'?data.spec.state.value:accepted.state,data.series.map(s=>s.spec.id)),previous=accepted,result=accept(data,state);if(result.status==='invalid')return result;
     try{ensureMedia();}catch{fault(invalid('LIFECYCLE_ERROR','PLATFORM_UNAVAILABLE','theme').diagnostic);return invalid('LIFECYCLE_ERROR','FAULTED','controller');}
-    if(mode==='internal'&&membershipChanged(previous,state))invoke(onState,Object.freeze({state,effect:'accepted',source:'update',revision:result.value}));return result;
+    if(mode==='internal'&&membershipChanged(previous.state,state))invoke(onState,Object.freeze({state,effect:'accepted',source:'update',revision:result.value}));
+    if(previous.selection?.mode==='internal'&&accepted?.selection?.mode!=='controlled'&&selectionChanged(previous.selection,accepted?.selection??null))invoke(onSelectionChange,Object.freeze({selection:accepted?.selection?.value??Object.freeze([]),effect:'accepted',source:'update',revision:result.value}));return result;
   }
-  function activate(target:ColumnRect<T>,source:'pointer'|'touch'|'keyboard'):void { invoke(onActivate,Object.freeze({seriesId:target.series.spec.id,point:target.point,xKind:'category',source,revision:committedRevision})); }
+  function activate(target:ColumnRect<T>,source:'pointer'|'touch'|'keyboard'):void { if(committed?.selection&&!main?.getSnapshot().pending){const proposed=toggleSelection(committed.selection,{seriesId:target.series.spec.id,pointId:target.point.id}),result=proposed.status==='invalid'?proposed:select(proposed.value,source);if(result.status==='invalid')invoke(onDiagnostic,result.diagnostic);}if(!destroyed)invoke(onActivate,Object.freeze({seriesId:target.series.spec.id,point:target.point,xKind:'category',source,revision:committedRevision})); }
   try {
     const ports=createBrowserPorts(ownedHost!);if(ports.status==='invalid')return ports;for(const id of Object.values(shellIds(instanceId)))if(ownedHost!.ownerDocument.getElementById(id))return invalid('INVALID_CONFIG','ID_COLLISION','options.instanceId');
     const text=createTextMeasurer(ownedHost!.ownerDocument);if(text.status==='invalid')return text;measurer=text.value;
@@ -210,7 +239,7 @@ function mount<T,S>(host:HTMLElement|null, initial:Input<T>|null, options:Column
       leave(){if(!gridFocused&&!pinned&&!detailFocused()){sequence++;hover=null;wanted=false;tooltip?.close();detailJob();}},
       focus(){gridFocused=true;if(suppressFocus||!computed?.projection)return;current??=computed.projection.rects[0]??null;hover=null;sequence++;wanted=true;semanticUpdate();detailJob();},
       blur(next){gridFocused=false;if(next&&shell?.detail.contains(next as Node))return;if(!pinned){sequence++;wanted=false;tooltip?.close();detailJob();}},
-      key(key,ctrl){if(key==='Escape'){closeDetail();return true;}if(!computed?.projection||!current)return false;if(key==='Enter'||key===' '||key==='Spacebar'){const handled=key!=='Enter'||!!onActivate;activate(current,'keyboard');return handled;}if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End'].includes(key))return false;const next=navigateColumn(computed.projection,current,key,ctrl);if(next!==current){current=next;hover=null;pinned=false;events?.pin(false,committedRevision);sequence++;wanted=true;semanticUpdate(true);detailJob();}return true;},
+      key(key,ctrl){if(key==='Escape'){closeDetail();return true;}if(!computed?.projection||!current)return false;if(key==='Enter'||key===' '||key==='Spacebar'){const handled=key!=='Enter'||!!onActivate||!!committed?.selection;activate(current,'keyboard');return handled;}if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Home','End'].includes(key))return false;const next=navigateColumn(computed.projection,current,key,ctrl);if(next!==current){current=next;hover=null;pinned=false;events?.pin(false,committedRevision);sequence++;wanted=true;semanticUpdate(true);detailJob();}return true;},
       closeDetail,reposition(){if(wanted){sequence++;detailJob();}},
     });
     fonts=ownedHost!.ownerDocument.fonts??null;fontHolder.callback=fontsChanged;fonts?.addEventListener('loadingdone',fontsChanged);fonts?.addEventListener('loadingerror',fontsChanged);if(fonts){const holder=fontHolder;void fonts.ready.then(()=>holder.callback?.(),()=>holder.callback?.());}ensureMedia();
@@ -218,11 +247,12 @@ function mount<T,S>(host:HTMLElement|null, initial:Input<T>|null, options:Column
     observer=ports.value.sizeObserver.observe(ownedHost!,next=>{if(destroyed||phase==='faulted')return;if(![next.width,next.height].every(Number.isFinite)||next.width<0||next.height<0){report(invalid('INVALID_NUMBER','NONFINITE','host.size').diagnostic);return;}if(size.width===next.width&&size.height===next.height)return;size={...next};if(size.width<=0||size.height<=0){phase='suspended';invalidate();base?.clear();current=null;computed=null;if(shell){const focused=shell.root.contains(shell.root.ownerDocument.activeElement);table?.close(false);legend?.disable(true);semantic?.update({rowCount:0,columnCount:0,current:null,summary:'Chart has no visible size.'},{x:0,y:0,width:0,height:0},false);shell.root.style.width=`${size.width}px`;shell.root.style.height=`${size.height}px`;shell.status.textContent='Chart has no visible size.';shell.status.hidden=false;if(focused){suppressFocus=true;shell.root.focus({preventScroll:true});suppressFocus=false;}}}else phase='active';submit('size');});
     if(destroyed||snapshot().phase==='faulted'){dispose();return invalid('LIFECYCLE_ERROR','PLATFORM_UNAVAILABLE','host');}
     host=null;initial=null;options=null;
-    const controller=Object.freeze({update,refresh(){if(destroyed)return invalid('LIFECYCLE_ERROR','DESTROYED','controller');if(phase==='faulted')return invalid('LIFECYCLE_ERROR','FAULTED','controller');measurer?.invalidate();return submit('paint');},getState:()=>accepted?orderedState(accepted.state,accepted.data.series.map(s=>s.spec.id)):Object.freeze({hiddenSeriesIds:Object.freeze([])}),getSnapshot:snapshot,destroy});
+    const controller=Object.freeze({update,refresh(){if(destroyed)return invalid('LIFECYCLE_ERROR','DESTROYED','controller');if(phase==='faulted')return invalid('LIFECYCLE_ERROR','FAULTED','controller');measurer?.invalidate();return submit('paint');},getState:()=>accepted?orderedState(accepted.state,accepted.data.series.map(s=>s.spec.id)):Object.freeze({hiddenSeriesIds:Object.freeze([])}),getSelection:()=>accepted?.selection?.value??Object.freeze([]),requestSelection:(value:readonly SeriesPointId[])=>select(value,'api'),getSnapshot:snapshot,destroy});
     releaseExport=provideExport(controller,()=>{
       if(phase!=='active'||!computed||!committed||!shell)return invalid('LIFECYCLE_ERROR','EXPORT_UNAVAILABLE','controller');
       const c=computed,input=committed,spec=input.data.spec;
-      return ok({document:shell.root.ownerDocument,instanceId,revision:committedRevision,frame:frame(committedRevision,c.shell.body.width,c.shell.body.height,c.layers,c.axes??undefined),layout:c.shell,palette:c.palette,font:c.font,direction:spec.direction??'ltr',title:spec.title,description:spec.description??'',context:[c.table.context,...c.table.references].join(' '),status:c.status,legend:c.legend,hiddenLegendIds:input.state.hiddenSeriesIds,records:()=>cartesianRecords(spec,input.state.hiddenSeriesIds)});
+      const selected=emptyLayers();paintSelection(selected,c,input);const layers=selected.interaction.length?{...c.layers,labels:[...c.layers.labels,...selected.interaction]}:c.layers;
+      return ok({document:shell.root.ownerDocument,instanceId,revision:committedRevision,frame:frame(committedRevision,c.shell.body.width,c.shell.body.height,layers,c.axes??undefined),layout:c.shell,palette:c.palette,font:c.font,direction:spec.direction??'ltr',title:spec.title,description:spec.description??'',context:[c.table.context,...c.table.references].join(' '),status:c.status,legend:c.legend,hiddenLegendIds:input.state.hiddenSeriesIds,records:()=>cartesianRecords(spec,input.state.hiddenSeriesIds,input.selection?.value)});
     });
     return ok(controller);
   }catch{dispose();return invalid('LIFECYCLE_ERROR','PLATFORM_UNAVAILABLE','host');}

@@ -4,6 +4,8 @@ import { invalid, ok } from '../internal/diagnostics.js';
 import { ValidationFailure, record, fail } from '../internal/data/validation.js';
 import { normalizeRadial, type RadialData } from './math.js';
 import { validateRadial, validateRadialState } from './validate.js';
+import { sliceIdentities } from '../internal/interaction/identities.js';
+import { selectionDescription } from '../internal/interaction/selection-description.js';
 export function sliceShareText(value: number | null, fraction: number, hasPositive: boolean): string {
   if (value === null) return 'Missing observation';
   if (!hasPositive) return 'Undefined: zero visible total';
@@ -33,6 +35,7 @@ export function describeRadial<T>(input: unknown, family: 'pie' | 'donut', optio
     const config = record(options === undefined ? {} : options, ['initialState'], [], 'options'), spec = parsed.value;
     if (spec.state?.mode === 'controlled' && Object.hasOwn(config, 'initialState')) fail('options.initialState', 'BAD_STATE');
     const state = validateRadialState(spec.state?.mode === 'controlled' ? spec.state.value : config.initialState ?? { hiddenSliceIds: [] }, new Set(spec.data.map(point => point.id)));
-    const data = normalizeRadial(spec.data, new Set(state.hiddenSliceIds)); return data.status === 'invalid' ? data : ok(describeRadialData(spec, state, data.value));
+    const data = normalizeRadial(spec.data, new Set(state.hiddenSliceIds)); if (data.status === 'invalid') return data;
+    return spec.selection ? selectionDescription(describeRadialData(spec, state, data.value), spec.selection, sliceIdentities(spec), index => ({ pointId: spec.data[index]!.id })) : ok(describeRadialData(spec, state, data.value));
   } catch (error) { return error instanceof ValidationFailure ? { status: 'invalid', diagnostic: error.diagnostic } : invalid('INVALID_CONFIG', 'BAD_SPEC', 'spec'); }
 }

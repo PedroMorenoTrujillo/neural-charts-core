@@ -10,6 +10,7 @@ import { projectRadial, radialFocusAnchor, type RadialProjection } from './geome
 import { describeRadialData, sliceShareText } from './describe.js';
 import { radialScene, radialFocusScene } from './scene.js';
 import { createRadialTable } from './table.js';
+import { sliceIdentities } from '../internal/interaction/identities.js';
 
 type Target<T> = RadialSlice<PieSlice<T>>;
 function names<T>(spec: RadialChartSpec<T>): readonly string[] {
@@ -18,6 +19,7 @@ function names<T>(spec: RadialChartSpec<T>): readonly string[] {
   return spec.data.map(point => duplicates.has(point.label) && point.label !== point.id ? point.label + ' (' + point.id + ')' : point.label);
 }
 export function radialPolicy<T>(family: 'pie' | 'donut'): FamilyPolicy<RadialChartSpec<T>, RadialState, RadialProjection<T>, Target<T>, RadialDescription, RadialPointActivation<T>> {
+  const selectedIndex = new WeakMap<RadialProjection<T>, ReadonlyMap<string, Target<T>>>();
   const tooltip: ReturnType<typeof radialPolicy<T>>['tooltip'] = (c, target, revision) => {
     const value = target.point.value, share = sliceShareText(value, target.fraction, c.projection.data.positive > 0), total = c.description.total, header = c.description.table.rows[target.index]!.cells[0]!;
     return Object.freeze({ revision, seriesId: 'slices', pointId: target.point.id, x: target.point.id, header, displayHeader: header, rows: Object.freeze([{ seriesId: target.point.id, name: 'Value', value, availability: value === null ? 'null' as const : 'value' as const, color: target.point.color ?? c.palette.series[assignment(target.point.id).colorIndex]!, dash: 'solid' as const }]), isolateText: true, context: share + ' of visible total. ' + (total === null ? 'Total unavailable.' : (c.description.totalIncomplete ? 'Known total: ' : 'Total: ') + total + '.') });
@@ -27,9 +29,12 @@ export function radialPolicy<T>(family: 'pie' | 'donut'): FamilyPolicy<RadialCha
     validateData: (spec, state) => normalizeRadial(spec.data, new Set(state.hiddenSliceIds)),
     ids: spec => spec.data.map(point => point.id), hidden: state => state.hiddenSliceIds,
     state: hidden => Object.freeze({ hiddenSliceIds: Object.freeze([...hidden]) }), names,
-    exportRecords(spec, state, value) {
+    selectable: sliceIdentities, datumId: target => ({ pointId: target.point.id }),
+    selectedTarget(projection, id) { let index = selectedIndex.get(projection); if (!index) { index = new Map(projection.data.eligible.map(target => [target.point.id, target])); selectedIndex.set(projection, index); } return index.get(id.pointId) ?? null; },
+    exportRecords(spec, state, value, selection) {
       const hidden = new Set(state.hiddenSliceIds), fractions = new Map(value.projection.data.slices.map(slice => [slice.point.id, slice.fraction]));
-      return { columns: ['Slice ID', 'Label', 'Value', 'Visible share (fraction)', 'Visible'], rows: spec.data.map(point => { const fraction = fractions.get(point.id); return [point.id, point.label, point.value, !hidden.has(point.id) && point.value !== null && value.projection.data.positive > 0 && !(point.value > 0 && fraction === 0) ? fraction ?? null : null, hidden.has(point.id) ? 'false' : 'true']; }) };
+      const selected = selection ? new Set(selection.map(id => id.pointId)) : null;
+      return { columns: ['Slice ID', 'Label', 'Value', 'Visible share (fraction)', 'Visible', ...(selected ? ['Selected'] : [])], rows: spec.data.map(point => { const fraction = fractions.get(point.id); return [point.id, point.label, point.value, !hidden.has(point.id) && point.value !== null && value.projection.data.positive > 0 && !(point.value > 0 && fraction === 0) ? fraction ?? null : null, hidden.has(point.id) ? 'false' : 'true', ...(selected ? [String(selected.has(point.id))] : [])]; }) };
     },
     compute(spec, state, shell, palette, font, measurer) {
       const projected = projectRadial(spec, state, { x: 0, y: 0, width: shell.body.width, height: shell.body.height }); if (projected.status === 'invalid') return projected;

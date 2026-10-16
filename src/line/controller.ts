@@ -47,9 +47,14 @@ import { buildHitIndex, firstTarget, navigate, reconcileTarget, pickPoint } from
 import type { HitIndex, HitTarget } from './hit-index.js';
 import { provideExport } from '../internal/export/capture.js';
 import { cartesianRecords } from '../internal/export/records.js';
+import type { SeriesPointId, ChartSelectionChange } from '../public/interaction-types.js';
+import { prepareSelection, replaceSelection, toggleSelection, selectionChanged, type Selection } from '../internal/interaction/selection.js';
+import { seriesIdentities } from '../internal/interaction/identities.js';
+import { selectionScene, crosshairScene } from '../internal/interaction/decoration.js';
+import { pointKey } from './normalize.js';
 
 type Computed<T> = Readonly<{ shell: ShellFrame; palette: Palette; font: ResolvedFont; axes: AxesPlan | null; index: HitIndex<T> | null; layers: Layers; view: NonNullable<LineSnapshot['view']>; statusText: string; legend: readonly LegendItem[]; tooltipSeries: readonly TooltipSeries[]; table: TableSource }>;
-type Accepted<T> = Readonly<{ data: NormalizedLine<T>; state: ChartState; domains: Domains; cached?: Readonly<{ epoch: number; width: number; height: number; value: Computed<T> }> }>;
+type Accepted<T> = Readonly<{ data: NormalizedLine<T>; state: ChartState; domains: Domains; selection: Selection<SeriesPointId> | null; known: ReadonlyMap<string, SeriesPointId> | null; cached?: Readonly<{ epoch: number; width: number; height: number; value: Computed<T> }> }>;
 type MainPrepared<T> = Readonly<{ input: Accepted<T>; computed: Computed<T>; scene: PreparedScene | null }>;
 type InteractionJob<T> = Readonly<{ main: number; layout: number; sequence: number; stage: 'intent' | 'measure'; target: HitTarget<T> | null; keyboard: boolean; detail: boolean; sample?: Readonly<{ x: number; y: number; intent: 'hover' }> }>;
 type InteractionPrepared<T> = Readonly<{ job: InteractionJob<T>; target: HitTarget<T> | null; scene: PreparedScene | null; model: TooltipModel | null; bounds: Rect; placement: PlacementResult | null; noop: boolean }>;
@@ -64,14 +69,17 @@ export function createLineChart<T = unknown, S = LineChartSpec<T>>(host: HTMLEle
   const stateResult = validateState(data.spec.state?.mode === 'controlled' ? data.spec.state.value : opts.initialState ?? { hiddenSeriesIds: [] }, new Set(data.series.map(s => s.spec.id)), mode === 'controlled' ? 'state.value' : 'options.initialState');
   if (stateResult.status === 'invalid') return stateResult;
   const state = orderedState(stateResult.value, data.series.map(s => s.spec.id)), domains = lineDomains(data, state); if (domains.status === 'invalid') return domains;
+  const known = data.spec.selection ? seriesIdentities(data.spec) : null, selected = known ? prepareSelection(data.spec.selection, known) : ok(null); if (selected.status === 'invalid') return selected;
+  if (selected.value?.mode === 'controlled' && !opts.onSelectionChange) return invalid('INVALID_CONFIG', 'MISSING_SELECTION_HANDLER', 'options.onSelectionChange');
   try {
     if (!host || host.nodeType !== 1 || host.namespaceURI !== 'http://www.w3.org/1999/xhtml' || !host.isConnected || !host.ownerDocument.defaultView || host.getRootNode() !== host.ownerDocument) return invalid('LIFECYCLE_ERROR', 'PLATFORM_UNAVAILABLE', 'host');
-    return mount<T, S>(host, { data, state, domains: domains.value }, opts, policy ?? null);
+    return mount<T, S>(host, { data, state, domains: domains.value, selection: selected.value, known }, opts, policy ?? null);
   } catch { return invalid('LIFECYCLE_ERROR', 'PLATFORM_UNAVAILABLE', 'host'); }
 }
 function mount<T, S>(host: HTMLElement | null, initial: Accepted<T> | null, options: LineMountOptions<T> | null, policy: LinePolicy<T> | null): ChartResult<LineEngineController<T, S>> {
   let ownedHost = host, shell: Shell | null = null, failureRoot: HTMLElement | null = null, accepted = initial, committed: Accepted<T> | null = null, computed: Computed<T> | null = null;
   let onDiagnostic = options!.onDiagnostic ?? null, onStateChange = options!.onStateChange ?? null, onPointActivate = options!.onPointActivate ?? null;
+  let onSelectionChange = options!.onSelectionChange ?? null;
   const instanceId = options!.instanceId, mode = initial!.data.spec.state?.mode ?? 'internal', reservations: IdReservation[] = [];
   let measurer: TextMeasurer | null = null, main: RevisionScheduler<Accepted<T>> | null = null, interaction: RevisionScheduler<InteractionJob<T>> | null = null;
   let baseWriter: SceneWriter | null = null, overlayWriter: SceneWriter | null = null, observer: Readonly<{ disconnect(): void }> | null = null, media: MediaQueryList | null = null;
@@ -92,7 +100,7 @@ function mount<T, S>(host: HTMLElement | null, initial: Accepted<T> | null, opti
     cleanup(() => events?.destroy()); events = null; cleanup(() => legend?.destroy()); legend = null; cleanup(() => semantic?.destroy()); semantic = null; cleanup(() => table?.destroy()); table = null; cleanup(() => tooltip?.destroy()); tooltip = null;
     cleanup(() => baseWriter?.dispose()); cleanup(() => overlayWriter?.dispose()); baseWriter = null; overlayWriter = null;
     cleanup(() => measurer?.destroy()); measurer = null; accepted = null; committed = null; computed = null; current = null; hover = null; onPointActivate = null; onStateChange = null;
-    initial = null; options = null; host = null; policy = null;
+    initial = null; options = null; host = null; policy = null; onSelectionChange = null;
   }
   function dispose(): void {
     resources(); onDiagnostic = null;
@@ -163,7 +171,26 @@ function mount<T, S>(host: HTMLElement | null, initial: Accepted<T> | null, opti
   function semanticUpdate(navigation: boolean): void {
     if (!computed || !committed || !shell || !semantic) return;
     const model = current ? tooltipFor(current) : null, context = [...computed.table.references, computed.table.context].join(' ');
-    semantic.update({ rowCount: computed.index?.targets.length ?? 0, columnCount: computed.index?.columnCount ?? 0, current: current && model ? semanticPoint(current.series.series.spec.name, current.seriesIndex + 1, computed.index!.columns.get(current.point.point.x)!, model.header, current.point.point.y!, context, model) : null, summary: computed.statusText || 'Chart data. No points in the displayed domain. Use the data table.' }, computed.axes?.plot ?? { x: 0, y: 0, width: computed.shell.body.width, height: computed.shell.body.height }, navigation);
+    const selected = committed.selection, basePoint = current && model ? semanticPoint(current.series.series.spec.name, current.seriesIndex + 1, computed.index!.columns.get(current.point.point.x)!, model.header, current.point.point.y!, context, model) : null;
+    const active = basePoint && selected && current ? { ...basePoint, selected: selected.value.some(id => id.seriesId === current!.series.series.spec.id && id.pointId === current!.point.point.id), detail: basePoint.detail + ' Selection: ' + selected.value.length + ' observations.' } : basePoint;
+    semantic.update({ rowCount: computed.index?.targets.length ?? 0, columnCount: computed.index?.columnCount ?? 0, current: active, summary: computed.statusText || 'Chart data. No points in the displayed domain. Use the data table.', ...(selected ? { multiselectable: selected.kind === 'multiple' } : {}) }, computed.axes?.plot ?? { x: 0, y: 0, width: computed.shell.body.width, height: computed.shell.body.height }, navigation);
+  }
+  function paintSelection(layers: Layers, value: Computed<T>, input: Accepted<T>): void {
+    if (!input.selection || !value.index) return;
+    selectionScene(layers, input.selection.value, (id, selected) => { const target = value.index!.byId.get(pointKey(id.seriesId, id.pointId)); if (target) selected.interaction.push({ kind: 'circle', key: 'ring', cx: target.point.x, cy: target.point.y, r: 7, clipKey: 'plot', presentation: { fill: { kind: 'none' }, stroke: { kind: 'solid', value: value.palette.focus }, strokeWidth: 2 } }); });
+  }
+  function select(value: readonly SeriesPointId[], source: 'api' | 'pointer' | 'touch' | 'keyboard'): ChartResult<number> {
+    if (destroyed) return invalid('LIFECYCLE_ERROR', 'DESTROYED', 'controller');
+    if (phase !== 'active' || !accepted || !committed?.selection || !committed.known) return invalid('LIFECYCLE_ERROR', 'SELECTION_UNAVAILABLE', 'selection');
+    if (main?.getSnapshot().pending) return invalid('LIFECYCLE_ERROR', 'UPDATE_PENDING', 'selection');
+    const checked = replaceSelection(committed.selection, committed.known, value); if (checked.status === 'invalid') return checked;
+    if (!selectionChanged(committed.selection, checked.value)) return ok(committedRevision);
+    const event: ChartSelectionChange<SeriesPointId> = Object.freeze({ selection: checked.value.value, effect: checked.value.mode === 'controlled' ? 'proposal' : 'accepted', source, revision: committedRevision });
+    if (checked.value.mode === 'internal') {
+      accepted = { ...accepted, selection: checked.value }; committed = { ...committed, selection: checked.value };
+      try { sequence++; semanticUpdate(false); interactionJob(); } catch { const diagnostic = invalid('INTERNAL_INVARIANT', 'DOM_WRITE_FAILED', 'selection').diagnostic; fault(diagnostic); return { status: 'invalid', diagnostic }; }
+    }
+    invoke(onSelectionChange, event); return ok(event.revision);
   }
   function tooltipFor(target: HitTarget<T>): TooltipModel {
     return tooltipModel(committedRevision, target.series.series.spec.id, target.point.point.id, target.point.point.x, committed!.data.spec.axes.x.kind, committed!.data.spec.tooltip?.mode === 'shared' ? 'shared' : 'point', computed!.tooltipSeries, committed!.data.labels, committed!.data.duplicateLabels);
@@ -182,7 +209,9 @@ function mount<T, S>(host: HTMLElement | null, initial: Accepted<T> | null, opti
   }
   function toClient(m: DOMMatrix, x: number, y: number): Readonly<{ x: number; y: number }> { return { x: m.a * x + m.c * y + m.e, y: m.b * x + m.d * y + m.f }; }
   function activate(target: HitTarget<T>, source: 'pointer' | 'touch' | 'keyboard'): void {
-    if (!committed || !onPointActivate) return;
+    if (!committed) return;
+    if (committed.selection && !main?.getSnapshot().pending) { const proposed = toggleSelection(committed.selection, { seriesId: target.series.series.spec.id, pointId: target.point.point.id }); const result = proposed.status === 'invalid' ? proposed : select(proposed.value, source); if (result.status === 'invalid') invoke(onDiagnostic, result.diagnostic); }
+    if (!onPointActivate || destroyed || !committed) return;
     const event = { seriesId: target.series.series.spec.id, source, revision: committedRevision, xKind: committed.data.spec.axes.x.kind, point: target.point.point } as LinePointActivation<T>;
     invoke(onPointActivate, Object.freeze(event));
   }
@@ -195,6 +224,8 @@ function mount<T, S>(host: HTMLElement | null, initial: Accepted<T> | null, opti
       if (m) { const inverse = m.inverse(), local = toClient(inverse, job.sample.x, job.sample.y); target = pickPoint(computed.index, local, job.sample, (x, y) => toClient(m, x, y)); } else target = null;
     }
     const layers = emptyLayers(), plan = computed.axes!;
+    paintSelection(layers, computed, committed!);
+    if (target) crosshairScene(layers, committed!.data.spec.crosshair, plan.plot, target.point, computed.palette);
     if (target) layers.interaction.push({ kind: 'circle', key: 'halo', cx: target.point.x, cy: target.point.y, r: 6, clipKey: 'plot', presentation: { fill: { kind: 'solid', value: computed.palette.surface } } }, { kind: 'circle', key: 'ring', cx: target.point.x, cy: target.point.y, r: 4, clipKey: 'plot', presentation: { fill: { kind: 'none' }, stroke: { kind: 'solid', value: job.keyboard ? computed.palette.focus : target.series.series.spec.color ?? computed.palette.series[target.series.series.colorIndex]! }, strokeWidth: 2 } });
     const scene = overlayWriter!.prepare(frame(token.revision, computed.shell.body.width, computed.shell.body.height, layers, plan), new Map()); if (scene.status === 'invalid') return scene;
     const model = target && job.detail && committed!.data.spec.tooltip?.mode !== 'off' ? tooltipFor(target) : null, bounds = allowedRect(ownedHost);
@@ -222,7 +253,7 @@ function mount<T, S>(host: HTMLElement | null, initial: Accepted<T> | null, opti
     const next = toggleState(committed.state, id, committed.data.series.map(s => s.spec.id));
     if (mode === 'controlled') { invoke(onStateChange, Object.freeze({ state: next, effect: 'proposal', source: 'legend', revision: committedRevision })); return; }
     const domains = lineDomains(accepted.data, next); if (domains.status === 'invalid') { invoke(onDiagnostic, domains.diagnostic); return; }
-    const checked = preflight({ data: accepted.data, state: next, domains: domains.value }); if (checked.status === 'invalid') { invoke(onDiagnostic, checked.diagnostic); return; }
+    const checked = preflight({ ...accepted, state: next, domains: domains.value }); if (checked.status === 'invalid') { invoke(onDiagnostic, checked.diagnostic); return; }
     const previous = accepted; accepted = checked.value; const submitted = submit('data'); if (submitted.status === 'invalid') { accepted = previous; invoke(onDiagnostic, submitted.diagnostic); return; }
     const event: ChartStateChange = { state: next, effect: 'accepted', source: 'legend', revision: submitted.value }; invoke(onStateChange, Object.freeze(event));
   }
@@ -264,7 +295,7 @@ function mount<T, S>(host: HTMLElement | null, initial: Accepted<T> | null, opti
           if (!now || now === shell.root || !shell.root.contains(now) || now.closest('[hidden]') || 'disabled' in now && (now as HTMLButtonElement).disabled) { focusSuppressed = true; (shell.grid.hidden ? shell.root : shell.grid).focus({ preventScroll: true }); focusSuppressed = false; }
         }
       }
-      gridFocused = shell.root.ownerDocument.activeElement === shell.grid; if ((gridFocused || detailOwnsFocus()) && current) interactionJob();
+      gridFocused = shell.root.ownerDocument.activeElement === shell.grid; if ((gridFocused || detailOwnsFocus()) && current || committed.selection?.value.length) interactionJob();
       return ok(undefined);
     } catch { const diagnostic = invalid('INTERNAL_INVARIANT', 'DOM_WRITE_FAILED', 'controller').diagnostic; fault(diagnostic); return { status: 'invalid', diagnostic }; }
     finally { inCommit = false; if (disposeRequested) dispose(); }
@@ -275,10 +306,13 @@ function mount<T, S>(host: HTMLElement | null, initial: Accepted<T> | null, opti
     const data = normalizeLine(validation.value), nextMode = data.spec.state?.mode ?? 'internal'; if (nextMode !== mode) return invalid('INVALID_CONFIG', 'STATE_MODE_CHANGE', 'state.mode');
     if (mode === 'controlled' && data.series.length && data.spec.legend?.position !== 'none' && !onStateChange) return invalid('INVALID_CONFIG', 'MISSING_STATE_HANDLER', 'options.onStateChange');
     const state = orderedState(data.spec.state?.mode === 'controlled' ? data.spec.state.value : accepted.state, data.series.map(s => s.spec.id)), domains = lineDomains(data, state); if (domains.status === 'invalid') return domains;
-    const checked = preflight({ data, state, domains: domains.value }); if (checked.status === 'invalid') return checked;
+    const known = data.spec.selection ? seriesIdentities(data.spec) : null, selected = known ? prepareSelection(data.spec.selection, known, accepted.selection) : ok(null); if (selected.status === 'invalid') return selected;
+    if (selected.value?.mode === 'controlled' && !onSelectionChange) return invalid('INVALID_CONFIG', 'MISSING_SELECTION_HANDLER', 'options.onSelectionChange');
+    const checked = preflight({ data, state, domains: domains.value, selection: selected.value, known }); if (checked.status === 'invalid') return checked;
     const previous = accepted; accepted = checked.value; const result = submit('data'); if (result.status === 'invalid') { accepted = previous; return result; }
     try { ensureMedia(); } catch { fault(invalid('LIFECYCLE_ERROR', 'PLATFORM_UNAVAILABLE', 'theme').diagnostic); return invalid('LIFECYCLE_ERROR', 'FAULTED', 'controller'); }
     if (mode === 'internal' && membershipChanged(previous.state, state)) invoke(onStateChange, Object.freeze({ state, effect: 'accepted', source: 'update', revision: result.value }));
+    if (previous.selection?.mode === 'internal' && selected.value?.mode !== 'controlled' && selectionChanged(previous.selection, selected.value)) invoke(onSelectionChange, Object.freeze({ selection: selected.value?.value ?? Object.freeze([]), effect: 'accepted', source: 'update', revision: result.value }));
     return result;
   }
   try {
@@ -310,7 +344,7 @@ function mount<T, S>(host: HTMLElement | null, initial: Accepted<T> | null, opti
       key(key, ctrl) {
         if (key === 'Escape') { closeDetail(); return true; }
         if (!computed?.index || !current) return false;
-        if (key === 'Enter' || key === ' ' || key === 'Spacebar') { const handled = key !== 'Enter' || !!onPointActivate; activate(current, 'keyboard'); return handled; }
+        if (key === 'Enter' || key === ' ' || key === 'Spacebar') { const handled = key !== 'Enter' || !!onPointActivate || !!committed?.selection; activate(current, 'keyboard'); return handled; }
         if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(key)) return false;
         const next = navigate(computed.index, current, key, ctrl); if (next !== current) { current = next; hover = null; pinned = false; events?.pin(false, committedRevision); sequence++; detailWanted = true; semanticUpdate(true); interactionJob(); } return true;
       },
@@ -339,11 +373,12 @@ function mount<T, S>(host: HTMLElement | null, initial: Accepted<T> | null, opti
     });
     if (scalarSnapshot().phase === 'faulted' || destroyed) { dispose(); return invalid('LIFECYCLE_ERROR', 'PLATFORM_UNAVAILABLE', 'host'); }
     host = null; initial = null; options = null;
-    const controller = Object.freeze({ update, refresh() { if (destroyed) return invalid('LIFECYCLE_ERROR', 'DESTROYED', 'controller'); if (phase === 'faulted') return invalid('LIFECYCLE_ERROR', 'FAULTED', 'controller'); epoch++; measurer?.invalidate(); return submit('paint'); }, getState: () => accepted ? orderedState(accepted.state, accepted.data.series.map(s => s.spec.id)) : Object.freeze({ hiddenSeriesIds: Object.freeze([]) }), getSnapshot: scalarSnapshot, destroy });
+    const controller = Object.freeze({ update, refresh() { if (destroyed) return invalid('LIFECYCLE_ERROR', 'DESTROYED', 'controller'); if (phase === 'faulted') return invalid('LIFECYCLE_ERROR', 'FAULTED', 'controller'); epoch++; measurer?.invalidate(); return submit('paint'); }, getState: () => accepted ? orderedState(accepted.state, accepted.data.series.map(s => s.spec.id)) : Object.freeze({ hiddenSeriesIds: Object.freeze([]) }), getSelection: () => accepted?.selection?.value ?? Object.freeze([]), requestSelection: (value: readonly SeriesPointId[]) => select(value, 'api'), getSnapshot: scalarSnapshot, destroy });
     releaseExport = provideExport(controller, () => {
       if (phase !== 'active' || !computed || !committed || !shell) return invalid('LIFECYCLE_ERROR', 'EXPORT_UNAVAILABLE', 'controller');
       const c = computed, input = committed, spec = input.data.spec;
-      return ok({ document: shell.root.ownerDocument, instanceId, revision: committedRevision, frame: frame(committedRevision, c.shell.body.width, c.shell.body.height, c.layers, c.axes ?? undefined), layout: c.shell, palette: c.palette, font: c.font, direction: spec.direction ?? 'ltr', title: spec.title, description: spec.description ?? '', context: [c.table.context, ...c.table.references].join(' '), status: c.statusText, legend: c.legend, hiddenLegendIds: input.state.hiddenSeriesIds, records: () => cartesianRecords(spec, input.state.hiddenSeriesIds) });
+      const selected = emptyLayers(); paintSelection(selected, c, input); const layers = selected.interaction.length ? { ...c.layers, labels: [...c.layers.labels, ...selected.interaction] } : c.layers;
+      return ok({ document: shell.root.ownerDocument, instanceId, revision: committedRevision, frame: frame(committedRevision, c.shell.body.width, c.shell.body.height, layers, c.axes ?? undefined), layout: c.shell, palette: c.palette, font: c.font, direction: spec.direction ?? 'ltr', title: spec.title, description: spec.description ?? '', context: [c.table.context, ...c.table.references].join(' '), status: c.statusText, legend: c.legend, hiddenLegendIds: input.state.hiddenSeriesIds, records: () => cartesianRecords(spec, input.state.hiddenSeriesIds, input.selection?.value) });
     });
     return ok(controller);
   } catch { dispose(); return invalid('LIFECYCLE_ERROR', 'PLATFORM_UNAVAILABLE', 'host'); }

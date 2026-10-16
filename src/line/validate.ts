@@ -1,6 +1,8 @@
 import type { ChartDiagnostic, ChartResult, ChartState } from '../public/chart-types.js';
 import type { LineChartSpec, LineMountOptions } from '../public/line-types.js';
 import { invalid, ok } from '../internal/diagnostics.js';
+import { selectionBinding } from '../internal/interaction/selection.js';
+import { ValidationFailure } from '../internal/data/validation.js';
 
 type RecordValue = Record<string, unknown>;
 class Rejected { constructor(readonly diagnostic: ChartDiagnostic) {} }
@@ -100,7 +102,7 @@ export function validateState(value: unknown, ids: ReadonlySet<string>, path = '
 }
 export function validateLine<T>(value: unknown): ChartResult<LineChartSpec<T>> {
   try {
-    const s = object(value, ['family', 'title', 'description', 'axes', 'series', 'references', 'theme', 'direction', 'font', 'legend', 'tooltip', 'state', 'status'], ['family', 'title', 'axes', 'series'], '');
+    const s = object(value, ['family', 'title', 'description', 'axes', 'series', 'references', 'theme', 'direction', 'font', 'legend', 'tooltip', 'state', 'status', 'selection', 'crosshair'], ['family', 'title', 'axes', 'series'], '');
     choice(s.family, ['line'], 'family'); text(s.title, 'title');
     const axes = object(s.axes, ['x', 'y'], ['x', 'y'], 'axes'), x = axis(axes.x, true, 'axes.x'), y = axis(axes.y, false, 'axes.y');
     const ranks = new Map<string, number>();
@@ -194,14 +196,16 @@ export function validateLine<T>(value: unknown): ChartResult<LineChartSpec<T>> {
       if (Object.hasOwn(o, 'placement')) choice(o.placement, ['top', 'bottom', 'start', 'end'], 'tooltip.placement');
       s[key] = Object.freeze(o);
     }
+    if (Object.hasOwn(s, 'selection')) s.selection = selectionBinding(s.selection);
+    if (Object.hasOwn(s, 'crosshair')) choice(s.crosshair, [false, 'x', 'y', 'xy'], 'crosshair');
     return ok(Object.freeze(s) as unknown as LineChartSpec<T>);
-  } catch (e) { return e instanceof Rejected ? { status: 'invalid', diagnostic: e.diagnostic } : invalid('INVALID_CONFIG', 'BAD_LINE_SPEC', ''); }
+  } catch (e) { return e instanceof Rejected || e instanceof ValidationFailure ? { status: 'invalid', diagnostic: e.diagnostic } : invalid('INVALID_CONFIG', 'BAD_LINE_SPEC', ''); }
 }
 export function validateOptions<T>(value: unknown): ChartResult<LineMountOptions<T>> {
   try {
-    const o = object(value, ['instanceId', 'initialState', 'onPointActivate', 'onStateChange', 'onDiagnostic'], ['instanceId'], 'options');
+    const o = object(value, ['instanceId', 'initialState', 'onPointActivate', 'onStateChange', 'onSelectionChange', 'onDiagnostic'], ['instanceId'], 'options');
     if (typeof o.instanceId !== 'string' || !/^[A-Za-z][A-Za-z0-9_-]{0,59}$/.test(o.instanceId)) fail('BAD_INSTANCE_ID', 'options.instanceId');
-    for (const key of ['onPointActivate', 'onStateChange', 'onDiagnostic']) if (Object.hasOwn(o, key) && typeof o[key] !== 'function') fail('BAD_LINE_SPEC', `options.${key}`);
+    for (const key of ['onPointActivate', 'onStateChange', 'onSelectionChange', 'onDiagnostic']) if (Object.hasOwn(o, key) && typeof o[key] !== 'function') fail('BAD_LINE_SPEC', `options.${key}`);
     return ok(Object.freeze(o) as unknown as LineMountOptions<T>);
   } catch (e) { return e instanceof Rejected ? { status: 'invalid', diagnostic: e.diagnostic } : invalid('INVALID_CONFIG', 'BAD_LINE_SPEC', 'options'); }
 }

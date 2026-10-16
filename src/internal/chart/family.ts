@@ -10,6 +10,8 @@ import type { Rect } from '../tooltip/place.js';
 import type { Shell } from './shell.js';
 import type { DataTableView } from '../accessibility/table-frame.js';
 import type { ExportRecords } from '../../public/export-types.js';
+import type { ChartDatumId, SeriesPointId, SlicePointId, ChartSelectionBinding, ChartSelectionChange, ChartCrosshair } from '../../public/interaction-types.js';
+export type FamilyIdentity<Activation> = Activation extends Readonly<{ seriesId: string }> ? SeriesPointId : SlicePointId;
 
 /** Private strategy contract: shared resource/DOM lifecycle, family-owned math. */
 export type FamilySpec<State> = Readonly<{
@@ -18,13 +20,14 @@ export type FamilySpec<State> = Readonly<{
   legend?: Readonly<{ position?: 'bottom' | 'end' | 'none' }>;
   tooltip?: Readonly<{ mode?: string; placement?: 'top' | 'bottom' | 'start' | 'end' }>;
   status?: ChartStatus; state?: Readonly<{ mode: 'internal' }> | Readonly<{ mode: 'controlled'; value: State }>;
+  selection?: ChartSelectionBinding; crosshair?: ChartCrosshair;
 }>;
 export type FamilyView = 'ready' | 'loading' | 'empty' | 'error' | 'no-visible-slices' | 'no-visible-series';
 export type FamilyDescription = Readonly<{ title: string; description: string; direction: 'ltr' | 'rtl'; view: FamilyView; status: string; context: string; table: ChartDataTable }>;
 export type FamilyStateChange<State> = Readonly<{ state: State; effect: 'proposal' | 'accepted'; source: 'legend' | 'update'; revision: number }>;
-export type FamilyOptions<State, Activation> = Readonly<{ instanceId: string; initialState?: State; onPointActivate?: (event: Activation) => void; onStateChange?: (event: FamilyStateChange<State>) => void; onDiagnostic?: (diagnostic: ChartDiagnostic) => void }>;
+export type FamilyOptions<State, Activation> = Readonly<{ instanceId: string; initialState?: State; onPointActivate?: (event: Activation) => void; onStateChange?: (event: FamilyStateChange<State>) => void; onSelectionChange?: (event: ChartSelectionChange<FamilyIdentity<Activation>>) => void; onDiagnostic?: (diagnostic: ChartDiagnostic) => void }>;
 export type FamilySnapshot = Readonly<{ phase: 'suspended' | 'active' | 'faulted' | 'destroyed'; revision: number; committedRevision: number; view: FamilyView | null; size: Readonly<{ width: number; height: number }> }>;
-export interface FamilyController<S, State, View extends FamilyView = FamilyView> { update(spec: S): ChartResult<number>; refresh(): ChartResult<number>; getState(): State; getSnapshot(): FamilySnapshot & Readonly<{ view: View | null }>; destroy(): void; }
+export interface FamilyController<S, State, View extends FamilyView = FamilyView, Id extends ChartDatumId = ChartDatumId> { update(spec: S): ChartResult<number>; refresh(): ChartResult<number>; getState(): State; getSelection(): readonly Id[]; requestSelection(value: readonly Id[]): ChartResult<number>; getSnapshot(): FamilySnapshot & Readonly<{ view: View | null }>; destroy(): void; }
 export type FamilyComputed<P, D extends FamilyDescription> = Readonly<{ shell: ShellFrame; palette: Palette; font: ResolvedFont; projection: P; description: D; layers: Layers; legend: readonly LegendItem[]; status: string; axes?: AxesPlan }>;
 export type FamilyTableSource<D> = D & Readonly<{ references: readonly string[] }>;
 export type FamilyPolicy<S extends FamilySpec<State>, State, P, Target, D extends FamilyDescription, Activation> = Readonly<{
@@ -34,7 +37,10 @@ export type FamilyPolicy<S extends FamilySpec<State>, State, P, Target, D extend
   ids(spec: S): readonly string[];
   hidden(state: State): readonly string[];
   state(hidden: readonly string[]): State;
-  exportRecords(spec: S, state: State, value: FamilyComputed<P, D>): ExportRecords;
+  selectable(spec: S): ReadonlyMap<string, FamilyIdentity<Activation>>;
+  datumId(target: Target): FamilyIdentity<Activation>;
+  selectedTarget(projection: P, id: FamilyIdentity<Activation>): Target | null;
+  exportRecords(spec: S, state: State, value: FamilyComputed<P, D>, selection?: readonly FamilyIdentity<Activation>[]): ExportRecords;
   names(spec: S): readonly string[];
   compute(spec: S, state: State, shell: ShellFrame, palette: Palette, font: ResolvedFont, measurer: TextMeasurer): ChartResult<FamilyComputed<P, D>>;
   enabled(value: FamilyComputed<P, D>): boolean;

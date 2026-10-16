@@ -1,4 +1,5 @@
 import type { ChartTheme, ChartStateBinding, ChartStatus, ChartState, ChartStateChange, ChartDiagnostic, ChartResult } from './chart-types.js';
+import type { SeriesPointId, ChartSelectionBinding, ChartSelectionChange, ChartCrosshair } from './interaction-types.js';
 
 // @neural-charts/core/line: REQUIRED NOW; references the root types via type imports
 export type LinePoint<T = unknown, TX extends string | number = string | number> =
@@ -41,6 +42,7 @@ export type LineFont = Readonly<{
 }>;
 type LineCommon = Readonly<{
   family: 'line'; title: string; description?: string;
+  selection?: ChartSelectionBinding<SeriesPointId>; crosshair?: ChartCrosshair;
   theme?: ChartTheme; direction?: 'ltr' | 'rtl'; font?: LineFont;
   legend?: LineLegendSpec; tooltip?: LineTooltipSpec;
   state?: ChartStateBinding; status?: ChartStatus;
@@ -68,6 +70,7 @@ export type LineMountOptions<T = unknown> = Readonly<{
   instanceId: string; initialState?: ChartState;
   onPointActivate?: (event: LinePointActivation<T>) => void;
   onStateChange?: (event: ChartStateChange) => void;
+  onSelectionChange?: (event: ChartSelectionChange<SeriesPointId>) => void;
   onDiagnostic?: (diagnostic: ChartDiagnostic) => void;
 }>;
 export type LineSnapshot = Readonly<{
@@ -80,6 +83,8 @@ export interface LineController<T = unknown> {
   update(nextSpec: LineChartSpec<T>): ChartResult<number>;
   refresh(): ChartResult<number>;
   getState(): ChartState;
+  getSelection(): readonly SeriesPointId[];
+  requestSelection(value: readonly SeriesPointId[]): ChartResult<number>;
   getSnapshot(): LineSnapshot;
   destroy(): void;
 }

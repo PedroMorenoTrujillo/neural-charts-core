@@ -4,6 +4,8 @@ import { invalid, ok } from '../internal/diagnostics.js';
 import { ValidationFailure, record, fail } from '../internal/data/validation.js';
 import { validateScatter, scatterState } from './validate.js';
 import { normalizeScatter, scatterDomains, targetKey, type NormalizedScatter } from './data.js';
+import { seriesIdentities } from '../internal/interaction/identities.js';
+import { selectionDescription } from '../internal/interaction/selection-description.js';
 export function describeScatterData<T>(data: NormalizedScatter<T, ScatterChartSpec<T>>, state: ChartState): ScatterDescription {
   const spec = data.spec, hidden = new Set(state.hiddenSeriesIds); let visible = 0;
   for (const series of data.series) if (!hidden.has(series.spec.id)) visible += series.paired.length;
@@ -20,6 +22,9 @@ export function describeScatter<T>(input: unknown, options?: unknown): ChartResu
     if (spec.state?.mode === 'controlled' && Object.hasOwn(config, 'initialState')) fail('options.initialState', 'BAD_STATE');
     const state = scatterState(spec.state?.mode === 'controlled' ? spec.state.value : config.initialState ?? { hiddenSeriesIds: [] }, new Set(spec.series.map(series => series.id)));
     const data = normalizeScatter<T, ScatterChartSpec<T>>(spec); if (data.status === 'invalid') return data;
-    const domains = scatterDomains(data.value, state); return domains.status === 'invalid' ? domains : ok(describeScatterData(data.value, state));
+    const domains = scatterDomains(data.value, state); if (domains.status === 'invalid') return domains;
+    if (!spec.selection) return ok(describeScatterData(data.value, state));
+    const rows = spec.series.flatMap(series => series.data.map(point => ({ seriesId: series.id, pointId: point.id })));
+    return selectionDescription(describeScatterData(data.value, state), spec.selection, seriesIdentities(spec), index => rows[index]!);
   } catch (error) { return error instanceof ValidationFailure ? { status: 'invalid', diagnostic: error.diagnostic } : invalid('INVALID_CONFIG', 'BAD_SPEC', 'spec'); }
 }
