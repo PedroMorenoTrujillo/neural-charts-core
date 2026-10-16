@@ -49,10 +49,10 @@ function scales(x: AxisInput, y: AxisInput, sx: TickSelection, sy: TickSelection
   if (xs?.status === 'invalid') return xs;
   return ok({ mapX: v => typeof v === 'number' && xs?.status === 'ok' ? xs.value.map(v) : null, mapY });
 }
-function overlap(a: Plot, b: Plot): boolean { return a.x - 4 < b.x + b.width + 4 && a.x + a.width + 4 > b.x - 4 && a.y - 4 < b.y + b.height + 4 && a.y + a.height + 4 > b.y - 4; }
-export function filterLabels(labels: readonly TickLabel[]): readonly TickLabel[] {
+function overlap(a: Plot, b: Plot, gap=4): boolean { return a.x - gap < b.x + b.width + gap && a.x + a.width + gap > b.x - gap && a.y - gap < b.y + b.height + gap && a.y + a.height + gap > b.y - gap; }
+export function filterLabels(labels: readonly TickLabel[], gap=4): readonly TickLabel[] {
   const accepted: TickLabel[] = [], indices = labels.length > 1 ? [0, labels.length - 1, ...Array.from({ length: labels.length - 2 }, (_, i) => i + 1)] : [0];
-  for (const i of indices) { const label = labels[i]; if (label?.text && !accepted.some(other => overlap(label.box, other.box))) accepted.push(label); }
+  for (const i of indices) { const label = labels[i]; if (label?.text && !accepted.some(other => overlap(label.box, other.box,gap))) accepted.push(label); }
   const set = new Set(accepted); return Object.freeze(labels.map(label => set.has(label) ? label : { ...label, text: null }));
 }
 export function planAxes(input: Readonly<{ x: AxisInput; y: AxisInput; domains: Readonly<{ x: Domain | null; y: Domain | null }>; width: number; height: number; font: ResolvedFont; direction: 'ltr' | 'rtl'; labels: ReadonlyMap<string, string>; measurer: TextMeasurer; compact?: boolean }>): Result<AxesPlan> {
