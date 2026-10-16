@@ -65,3 +65,12 @@ export function reconcileColumn<T>(p: ColumnProjection<T>, old: ColumnRect<T> | 
   const same=p.rows.find(row=>row[0]?.series.spec.id===old.series.spec.id);
   return (same&&nearest(same,p.ranks.get(old.point.x)??old.categoryIndex))??p.rects[0]??null;
 }
+
+// A compact side dock leaves the baseline half of horizontal bars available to touch.
+export function columnDockBody(body: Plot, rect: Plot, horizontal: boolean, direction: 'ltr' | 'rtl'): Plot {
+  if(!horizontal||body.width<280||body.width>430)return body;
+  const width=144,right=body.x+body.width-width,left=body.x;
+  const end={x:right,y:body.y,width,height:body.height},start={x:left,y:body.y,width,height:body.height};
+  const fitsEnd=rect.x+rect.width+10<=right,fitsStart=rect.x-10>=left+width;
+  return direction==='rtl'?(fitsStart?start:fitsEnd?end:body):(fitsEnd?end:fitsStart?start:body);
+}

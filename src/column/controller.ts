@@ -24,9 +24,9 @@ import { placeTooltip, type Rect, type PlacementResult } from '../internal/toolt
 import { attachCartesianInteraction } from '../internal/interaction/cartesian.js';
 import { validateColumn, validateColumnOptions, validateColumnState } from './validate.js';
 import { normalizeColumn, columnDomain, type NormalizedColumn } from './normalize.js';
-import { projectColumn, pickColumn, navigateColumn, reconcileColumn, type ColumnProjection, type ColumnRect } from './geometry.js';
+import { projectColumn, pickColumn, navigateColumn, reconcileColumn, columnDockBody, type ColumnProjection, type ColumnRect } from './geometry.js';
 import { planColumnAxes } from './axes.js';
-import { columnScene, columnFocusScene } from './scene.js';
+import { columnScene, columnFocusScene, columnReferenceCaption } from './scene.js';
 
 type Input<T> = Readonly<{ data: NormalizedColumn<T>; state: ChartState; domain: Domain | null }>;
 type Computed<T> = Readonly<{ shell: ShellFrame; palette: Palette; font: ResolvedFont; axes: AxesPlan | null; projection: ColumnProjection<T> | null; layers: Layers; view: NonNullable<ColumnSnapshot['view']>; status: string; legend: readonly LegendItem[]; tooltipSeries: readonly TooltipSeries[]; table: TableSource }>;
@@ -91,18 +91,21 @@ function mount<T>(host:HTMLElement|null, initial:Input<T>|null, options:ColumnMo
     const data=input.data,spec=data.spec,direction=spec.direction??'ltr',font:ResolvedFont={family:spec.font?.family??'sans-serif',size:spec.font?.size??12,weight:spec.font?.weight??400};
     const palette=resolvePalette(ownedHost,spec.theme??'light',media?.matches??false),layout=shellFrame(size,!!spec.description,data.series.map(s=>s.spec.name),spec.legend?.position??'bottom',font,direction,measurer),hidden=new Set(input.state.hiddenSeriesIds),visible=data.series.filter(s=>!hidden.has(s.spec.id));
     const view=derivedView(spec.status?.kind??'ready',data.nonnullCount,visible.reduce((n,s)=>n+s.valid.length,0),data.series.length,hidden.size),layers=emptyLayers(),dashes=resolveDashes(data.series,hidden,palette);
+    const referenceCaptionHeight=view==='ready'&&(spec.references?.length??0)>0&&layout.body.width>=48&&layout.body.height>=font.size*1.5+40?Math.ceil(font.size*1.5)+8:0;
     let axes:AxesPlan|null=null,projection:ColumnProjection<T>|null=null;
     if(view==='ready'){
-      const planned=planColumnAxes(spec,input.domain,layout.body.width,layout.body.height,font,data.labels,measurer,layout.compact);if(planned.status==='invalid')return planned;axes=planned.value;
+      const planned=planColumnAxes(spec,input.domain,layout.body.width,layout.body.height-referenceCaptionHeight,font,data.labels,measurer,layout.compact);if(planned.status==='invalid')return planned;axes=planned.value;
       const domain=spec.orientation==='horizontal'?axes.x.domain:axes.y.domain;
       if(!axes.tooSmall&&domain){const projected=projectColumn(data,input.state,axes.plot,domain);if(projected.status==='invalid')return projected;projection=projected.value;
         axesScene(axes,spec.orientation==='horizontal'?{...spec.axes.y,grid:spec.axes.y.grid??true}:spec.axes.x,spec.orientation==='horizontal'?{...spec.axes.x,grid:spec.axes.x.grid??false}:spec.axes.y,palette,layers,layout.compact);columnScene(projection,palette,layers);
       }
     }
-    const horizontal=spec.orientation==='horizontal',refs=spec.references??[],referenceInfo=axes?referenceScene(refs.map(r=>horizontal?{...r,axis:'x' as const}:r),axes,palette,layers,text=>{const rendered=ellipsis(text,Math.max(0,axes!.plot.width-8),s=>measurer!.measure(s,font,direction)),m=measurer!.measure(rendered??'',font,direction);return{text:rendered,width:m.width,height:m.height};}):[];
+    const horizontal=spec.orientation==='horizontal',refs=spec.references??[],referenceInfo=axes?referenceScene(refs.map(r=>horizontal?{...r,axis:'x' as const}:r),axes,palette,layers,()=>({text:null,width:0,height:0})):[];
     const shownDomain=axes?(horizontal?axes.x.domain:axes.y.domain):input.domain;
     const context=[spec.axes.x.title?`Category: ${spec.axes.x.title}.`:'',spec.axes.y.title?`Value: ${spec.axes.y.title}.`:'',shownDomain?`Displayed value domain ${shownDomain[0]} to ${shownDomain[1]}. Baseline zero; rectangles are clipped to this domain.`:'','Categories follow the supplied category order.'].filter(Boolean).join(' ');
     const references=refs.map(r=>`${r.label??r.id}. Y ${r.value}.${(referenceInfo.find(i=>i.id===r.id)?.outside??(!!shownDomain&&(r.value<shownDomain[0]||r.value>shownDomain[1])))?' Outside displayed domain.':''}`);
+    const referenceCaption=referenceCaptionHeight?ellipsis((refs.length===1?'Reference: ':'References: ')+refs.map(r=>(r.label??r.id+' · '+r.value)+(referenceInfo.find(i=>i.id===r.id)?.outside?' (outside domain)':'')).join(' | '),layout.body.width-24,text=>measurer!.measure(text,font,direction)):null;
+    columnReferenceCaption(layers,referenceCaption,palette,font,direction,layout.body.width,layout.body.height);
     const tableLabels=new Map([...data.labels].map(([id,label])=>[id,data.duplicateLabels.has(label)?`${label} · ${id}`:label]));
     const status=view==='ready'?axes?.tooSmall?'Chart is too small to display bars. Enlarge the chart or view the data table.':projection&&!projection.rects.length?'No bars intersect the displayed domain. View the data table for all observations.':'':spec.status&&'message'in spec.status?spec.status.message??(view==='loading'?'Loading chart data.':'No observations.'):view==='no-visible-series'?'No visible series. Use the legend to show a series.':view==='loading'?'Loading chart data.':view==='error'?'Chart data unavailable.':'No visible observations.';
     return ok({shell:layout,palette,font,axes,projection,layers,view,status,legend:data.series.map((s,i)=>({id:s.spec.id,name:s.spec.name,color:s.spec.color??palette.series[s.colorIndex]!,dash:dashes.get(s.spec.id)!,width:layout.legendPosition==='end'?160:layout.buttonWidths[i]!})),tooltipSeries:visible.map(s=>({id:s.spec.id,name:s.spec.name,color:s.spec.color??palette.series[s.colorIndex]!,dash:dashes.get(s.spec.id)!,byX:s.byX})),table:{title:spec.title,kind:'category',labels:tableLabels,series:spec.series,hidden,context,references}});
@@ -139,7 +142,7 @@ function mount<T>(host:HTMLElement|null, initial:Input<T>|null, options:ColumnMo
   function commitDetail(value:DetailCandidate<T>|null):ChartResult<void> {
     if(!value||!fresh(value.job)||!computed)return ok(undefined);const applied=overlay!.apply(value.scene);if(applied.status==='invalid')return applied;
     if(value.job.sample)hover=value.target;
-    if(value.model&&fresh(value.job)){if(value.job.stage==='intent'){tooltip!.write(value.model,value.bounds,computed.palette,computed.font,committed!.data.spec.direction??'ltr');detailJob('measure');}else if(value.placement&&value.target)tooltip!.show(value.placement,value.model,{anchor:{x:value.target.x-2,y:value.target.y-2,width:Math.max(4,value.target.width+4),height:Math.max(4,value.target.height+4)},plot:computed.axes!.plot,body:{x:0,y:0,width:computed.shell.body.width,height:computed.shell.body.height}});}else tooltip?.close();
+    if(value.model&&fresh(value.job)){if(value.job.stage==='intent'){tooltip!.write(value.model,value.bounds,computed.palette,computed.font,committed!.data.spec.direction??'ltr');detailJob('measure');}else if(value.placement&&value.target){const body=columnDockBody({x:0,y:0,width:computed.shell.body.width,height:computed.shell.body.height},value.target,computed.projection!.horizontal,committed!.data.spec.direction??'ltr'),p=computed.axes!.plot,x=Math.max(p.x,body.x),plot={...p,x,width:Math.max(0,Math.min(p.x+p.width,body.x+body.width)-x)};tooltip!.show(value.placement,value.model,{anchor:{x:value.target.x-2,y:value.target.y-2,width:Math.max(4,value.target.width+4),height:Math.max(4,value.target.height+4)},plot,body});}}else tooltip?.close();
     return ok(undefined);
   }
   function closeDetail():void { invalidate();gridFocused=!!shell&&shell.root.ownerDocument.activeElement===shell.grid;detailJob(); }
