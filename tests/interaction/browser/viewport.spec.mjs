@@ -1,8 +1,10 @@
 import { test, expect } from '@playwright/test';
 import { familyFixture, coreFamily, ready, captureCoverage } from './helpers.mjs';
 import fs from 'node:fs';
+import path from 'node:path';
 import { probeChartResources } from '../../../../../tooling/browser-resource-probe.mjs';
-const directory = 'artifacts/v1-viewport';
+const directory = process.env.NC_VIEWPORT_ARTIFACT_DIR ?? 'artifacts/v1-viewport';
+if (!path.resolve(directory).startsWith(path.resolve('artifacts') + path.sep)) throw Error('Project-local viewport evidence required');
 async function mount(page, family, viewport = { mode: 'internal', axes: 'xy', controls: false }, overrides = {}) {
   await page.setContent('<!doctype html><html lang="en"><title>Viewport acceptance</title><main><h1>Applied viewport</h1><div id="host" style="width:768px;height:400px"></div><button id="outside">Outside</button></main></html>');
   await page.addScriptTag({ path: directory + '/browser-harness.js' });

@@ -3,7 +3,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { mount, ready, captureCoverage } from './helpers.mjs';
-const directory = 'artifacts/v1-viewport';
+const directory = process.env.NC_VIEWPORT_ARTIFACT_DIR ?? 'artifacts/v1-viewport';
+if (!path.resolve(directory).startsWith(path.resolve('artifacts') + path.sep)) throw Error('Project-local viewport evidence required');
 test.afterEach(async ({ page }, info) => { await captureCoverage(page, info, 'viewport-visual', directory); });
 for (const family of ['line', 'spline', 'area', 'column', 'bar', 'stacked-column', 'stacked-bar', 'percent', 'scatter']) for (const width of [320, 768]) for (const theme of ['light', 'dark']) {
   test(family + ' viewport @visual ' + width + '/' + theme, async ({ page }, info) => {

@@ -169,7 +169,7 @@ function mount<T,S>(host:HTMLElement|null, initial:Input<T>|null, options:Column
     if(main?.getSnapshot().pending)return invalid('LIFECYCLE_ERROR','UPDATE_PENDING','selection');
     const checked=replaceSelection(committed.selection,committed.known,value);if(checked.status==='invalid')return checked;if(!selectionChanged(committed.selection,checked.value))return ok(committedRevision);
     const event:ChartSelectionChange<SeriesPointId>=Object.freeze({selection:checked.value.value,effect:checked.value.mode==='controlled'?'proposal':'accepted',source,revision:committedRevision});
-    if(checked.value.mode==='internal'){accepted={...accepted,selection:checked.value};committed={...committed,selection:checked.value};try{sequence++;semanticUpdate();detailJob();}catch{const diagnostic=invalid('INTERNAL_INVARIANT','DOM_WRITE_FAILED','selection').diagnostic;fault(diagnostic);return{status:'invalid',diagnostic};}}
+    if(checked.value.mode==='internal'){accepted={...accepted,selection:checked.value};committed={...committed,selection:checked.value};try{table?.updateSelection(checked.value.value);sequence++;semanticUpdate();detailJob();}catch{const diagnostic=invalid('INTERNAL_INVARIANT','DOM_WRITE_FAILED','selection').diagnostic;fault(diagnostic);return{status:'invalid',diagnostic};}}
     invoke(onSelectionChange,event);return ok(event.revision);
   }
   function detailFocused():boolean { return !!shell&&shell.detail.contains(shell.root.ownerDocument.activeElement); }
@@ -217,7 +217,7 @@ function mount<T,S>(host:HTMLElement|null, initial:Input<T>|null, options:Column
       if(candidate.scene){const applied=base!.apply(candidate.scene);if(applied.status==='invalid')return applied;}else base!.clear();if(destroyed)return ok(undefined);
       invalidate();applyShell(shell,c.shell,c.palette,c.font,spec.direction??'ltr',spec.title,spec.description);
       for(const element of [shell.base,shell.overlay]){const svg=element.querySelector('svg');if(svg){svg.setAttribute('aria-hidden','true');svg.setAttribute('focusable','false');svg.setAttribute('direction',spec.direction??'ltr');svg.style.letterSpacing='0px';svg.style.pointerEvents='none';}}
-      shell.root.setAttribute('aria-busy',String(c.view==='loading'));shell.status.hidden=!c.status;shell.status.textContent=c.status;shell.status.style.backgroundColor=policy&&c.status?c.palette.surface:'';const disabled=(spec.status?.kind??'ready')!=='ready';legend!.update(c.legend,candidate.input.state,disabled);table!.update(c.table,!disabled);if(destroyed)return ok(undefined);
+      shell.root.setAttribute('aria-busy',String(c.view==='loading'));shell.status.hidden=!c.status;shell.status.textContent=c.status;shell.status.style.backgroundColor=policy&&c.status?c.palette.surface:'';const disabled=(spec.status?.kind??'ready')!=='ready';legend!.update(c.legend,candidate.input.state,disabled);table!.update(c.table,!disabled,candidate.input.selection?.value??null);if(destroyed)return ok(undefined);
       committed=candidate.input;computed=c;committedRevision=token.revision;generation++;current=c.projection?reconcileColumn(c.projection,old):null;semanticUpdate(!!old&&!!current&&old.key!==current.key);
       viewportView?.update(committed.viewport&&c.axes?{model:committed.viewport,plot:c.axes.plot,domains:{x:c.axes.x.domain,y:c.axes.y.domain},horizontal:spec.orientation==='horizontal',xReversed:false,yReversed:!!spec.axes.y.reversed,enabled:!disabled&&!c.axes.tooSmall}:null);
       if(hadFocus&&focused){

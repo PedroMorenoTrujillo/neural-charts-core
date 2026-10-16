@@ -214,7 +214,7 @@ function mount<T, S>(host: HTMLElement | null, initial: Accepted<T> | null, opti
     const event: ChartSelectionChange<SeriesPointId> = Object.freeze({ selection: checked.value.value, effect: checked.value.mode === 'controlled' ? 'proposal' : 'accepted', source, revision: committedRevision });
     if (checked.value.mode === 'internal') {
       accepted = { ...accepted, selection: checked.value }; committed = { ...committed, selection: checked.value };
-      try { sequence++; semanticUpdate(false); interactionJob(); } catch { const diagnostic = invalid('INTERNAL_INVARIANT', 'DOM_WRITE_FAILED', 'selection').diagnostic; fault(diagnostic); return { status: 'invalid', diagnostic }; }
+      try { table?.updateSelection(checked.value.value); sequence++; semanticUpdate(false); interactionJob(); } catch { const diagnostic = invalid('INTERNAL_INVARIANT', 'DOM_WRITE_FAILED', 'selection').diagnostic; fault(diagnostic); return { status: 'invalid', diagnostic }; }
     }
     invoke(onSelectionChange, event); return ok(event.revision);
   }
@@ -321,7 +321,7 @@ function mount<T, S>(host: HTMLElement | null, initial: Accepted<T> | null, opti
       for (const container of [shell.base, shell.overlay]) { const svg = container.querySelector('svg'); if (svg) { svg.setAttribute('aria-hidden', 'true'); svg.setAttribute('focusable', 'false'); svg.setAttribute('direction', spec.direction ?? 'ltr'); svg.style.letterSpacing = '0px'; svg.style.pointerEvents = 'none'; } }
       shell.root.setAttribute('aria-busy', String(c.view === 'loading')); shell.status.hidden = !c.statusText; if (shell.status.textContent !== c.statusText) shell.status.textContent = c.statusText;
       const disabled = (spec.status?.kind ?? 'ready') !== 'ready'; legend!.update(c.legend, candidate.input.state, disabled);
-      table!.update(c.table, !disabled);
+      table!.update(c.table, !disabled, candidate.input.selection?.value ?? null);
       if (destroyed) return ok(undefined);
       committed = candidate.input; computed = c; committedRevision = token.revision; lastView = c.view; layoutGeneration++;
       viewportView?.update(committed.viewport && c.axes ? { model: committed.viewport, plot: c.axes.plot, domains: { x: c.axes.x.domain, y: c.axes.y.domain }, categorySpacing: spec.axes.x.kind === 'category' ? spec.axes.x.edgeSpacing ?? .5 : .5, horizontal: false, xReversed: false, yReversed: !!spec.axes.y.reversed, enabled: !disabled && !c.axes.tooSmall } : null);

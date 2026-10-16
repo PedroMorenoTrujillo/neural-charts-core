@@ -75,7 +75,7 @@ export function scatterPolicy<T>(): Policy<T> {
     focus: scatterFocusScene, anchor: (_projection, target) => ({ x: target.x, y: target.y }),
     detailBounds: c => ({ plot: c.projection.plot, body: { x: 0, y: 0, width: c.shell.body.width, height: c.shell.body.height } }),
     activate: (target, source, revision) => Object.freeze({ seriesId: target.series.spec.id, point: target.point, source, revision }),
-    table: (shell, onOpen) => createDataTableFrame<FamilyTableSource<ScatterDescription>>(shell, onOpen, { columns: ['Series', 'Observation', 'X', 'Y', 'Visibility'], notice: 'All provided observations are retained in input order.', rowHeaders: true, size: source => source.table.rows.length, rows: (source, first, count) => source.table.rows.slice(first, first + count).map(row => row.cells) }),
+    table: (shell, onOpen) => createDataTableFrame<FamilyTableSource<ScatterDescription>>(shell, onOpen, { columns: ['Series', 'Observation', 'X', 'Y', 'Visibility'], notice: 'All provided observations are retained in input order.', rowHeaders: true, selectionKey: id => id.seriesId === undefined ? null : targetKey(id.seriesId, id.pointId), size: source => source.table.rows.length, rows: (source, first, count) => source.table.rows.slice(first, first + count) }),
     help: 'Left and Right move through observations in original data order, including right-to-left charts. Up and Down move to the closest XY observation in the adjacent visible series. Home and End move to series endpoints; Control+Home and Control+End reach chart endpoints. Missing or clipped pairs are skipped. Escape closes detail. Enter or Space activates an observation. Tab leaves the chart.',
   };
 }

@@ -1,6 +1,8 @@
 import { test, expect } from '@playwright/test';
 import { mount, ready, captureCoverage } from './helpers.mjs';
-const directory = 'artifacts/v1-viewport';
+import path from 'node:path';
+const directory = process.env.NC_VIEWPORT_ARTIFACT_DIR ?? 'artifacts/v1-viewport';
+if (!path.resolve(directory).startsWith(path.resolve('artifacts') + path.sep)) throw Error('Project-local viewport evidence required');
 test.afterEach(async ({ page }, info) => { await captureCoverage(page, info, 'viewport-device', directory); });
 test('native wheel zoom changes the applied domain while a disabled wheel leaves page scrolling available', async ({ page }) => {
   await mount(page, 'scatter', false, { viewport: { mode: 'internal', axes: 'xy', wheel: true, controls: false, initial: { x: [-1, 1], y: [-1, 1] } } }, directory + '/browser-harness.js');

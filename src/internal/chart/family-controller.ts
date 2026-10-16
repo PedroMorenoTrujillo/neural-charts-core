@@ -126,7 +126,7 @@ function mount<S extends FamilySpec<State>, State, P, Target, D extends FamilyDe
     if (main?.getSnapshot().pending) return invalid('LIFECYCLE_ERROR', 'UPDATE_PENDING', 'selection');
     const checked = replaceSelection(committed.selection, committed.known, value); if (checked.status === 'invalid') return checked; if (!selectionChanged(committed.selection, checked.value)) return ok(committedRevision);
     const event: ChartSelectionChange<FamilyIdentity<Activation>> = Object.freeze({ selection: checked.value.value, effect: checked.value.mode === 'controlled' ? 'proposal' : 'accepted', source, revision: committedRevision });
-    if (checked.value.mode === 'internal') { accepted = { ...accepted, selection: checked.value }; committed = { ...committed, selection: checked.value }; try { sequence++; semanticUpdate(); detailJob(); } catch { const diagnostic = invalid('INTERNAL_INVARIANT', 'DOM_WRITE_FAILED', 'selection').diagnostic; fault(diagnostic); return { status: 'invalid', diagnostic }; } }
+    if (checked.value.mode === 'internal') { accepted = { ...accepted, selection: checked.value }; committed = { ...committed, selection: checked.value }; try { table?.updateSelection(checked.value.value); sequence++; semanticUpdate(); detailJob(); } catch { const diagnostic = invalid('INTERNAL_INVARIANT', 'DOM_WRITE_FAILED', 'selection').diagnostic; fault(diagnostic); return { status: 'invalid', diagnostic }; } }
     invoke(onSelectionChange, event); return ok(event.revision);
   }
   function detailFocused(): boolean { return !!shell && shell.detail.contains(shell.root.ownerDocument.activeElement); }
@@ -173,7 +173,7 @@ function mount<S extends FamilySpec<State>, State, P, Target, D extends FamilyDe
       invalidate(); applyShell(shell, c.shell, c.palette, c.font, spec.direction ?? 'ltr', spec.title, spec.description);
       for (const element of [shell.base, shell.overlay]) { const svg = element.querySelector('svg'); if (svg) { svg.setAttribute('aria-hidden', 'true'); svg.setAttribute('focusable', 'false'); svg.setAttribute('direction', spec.direction ?? 'ltr'); svg.style.letterSpacing = '0px'; svg.style.pointerEvents = 'none'; } }
       shell.root.setAttribute('aria-busy', String(c.description.view === 'loading')); shell.status.hidden = !c.status; shell.status.textContent = c.status; const disabled = (spec.status?.kind ?? 'ready') !== 'ready';
-      legend!.update(c.legend, { hiddenSeriesIds: policy.hidden(candidate.input.state) }, disabled); table!.update({ ...c.description, references: [] }, !disabled); if (destroyed) return ok(undefined);
+      legend!.update(c.legend, { hiddenSeriesIds: policy.hidden(candidate.input.state) }, disabled); table!.update({ ...c.description, references: [] }, !disabled, candidate.input.selection?.value ?? null); if (destroyed) return ok(undefined);
       committed = candidate.input; computed = c; committedRevision = token.revision; generation++; setCurrent(policy.enabled(c) ? reconcile(c.projection) : null); semanticUpdate(previousId !== undefined && current !== null && policy.identity(current) !== previousId);
       viewportView?.update(committed.viewport && c.axes && policy.viewport ? policy.viewport.viewState(spec, committed.viewport, c.axes) : null);
       if (hadFocus && focused) {
