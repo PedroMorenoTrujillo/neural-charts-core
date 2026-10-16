@@ -70,7 +70,7 @@ test('internal legend accepts state; controlled legend emits only proposals', as
 });
 test('@a11y paged table includes null and hidden data and returns focus', async ({ page }) => {
   const data = Array.from({ length: 205 }, (_, x) => ({ id: String(x), x, y: x === 0 ? null : x }));
-  await mount(page, { axes: { x: { kind: 'linear' }, y: { kind: 'linear' } }, series: [{ id: 's', name: 'Rows', data }] }); await page.getByRole('button', { name: 'View data table' }).click(); await expect(page.locator('tbody tr')).toHaveCount(100); await expect(page.locator('tbody tr').first()).toContainText('Missing observation'); await expect(page.locator('[data-nc-table] h3')).toBeFocused();
+  await mount(page, { axes: { x: { kind: 'linear' }, y: { kind: 'linear' } }, series: [{ id: 's', name: 'Rows', data }] }); await page.getByRole('button', { name: 'View data table' }).click(); await expect(page.locator('tbody tr')).toHaveCount(100); await expect(page.locator('tbody tr').first()).toContainText('Missing observation'); await expect(page.getByRole('heading', { level: 2 })).toBeFocused();
   await page.getByRole('button', { name: 'Next page' }).click(); await expect(page.locator('tbody tr').first()).toContainText('100'); await page.getByRole('button', { name: 'Next page' }).click(); await expect(page.locator('tbody tr')).toHaveCount(5); await expect(page.getByRole('button', { name: 'Next page' })).toBeDisabled();
   await page.getByRole('button', { name: 'Close data table' }).click(); await expect(page.locator('tbody tr')).toHaveCount(0); await expect(page.getByRole('button', { name: 'View data table' })).toBeFocused();
 });
