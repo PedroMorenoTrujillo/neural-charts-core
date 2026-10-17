@@ -113,7 +113,7 @@ function mount<S extends FamilySpec<State>, State, P, Target, D extends FamilyDe
   function semanticUpdate(navigation = false): void {
     if (!semantic || !computed || !committed) return;
     const enabled = policy.enabled(computed), target = enabled ? current : null, dimensions = policy.dimensions(computed.projection);
-    const selected = committed.selection, basePoint = target ? policy.semantic(computed, target) : null, id = target ? policy.datumId(target) : null;
+    const selected = committed.selection, basePoint = target ? policy.semantic(computed, target) : null, id = target && (policy.selectionEligible?.(target) ?? true) ? policy.datumId(target) : null;
     const active = basePoint && selected && id ? { ...basePoint, selected: selected.value.some(value => datumKey(value) === datumKey(id)), detail: basePoint.detail + ' Selection: ' + selected.value.length + ' observations.' } : basePoint;
     semantic.update({ rowCount: enabled ? dimensions.rows : 0, columnCount: enabled ? dimensions.columns : 0, current: active, summary: computed.status || 'No observations in the displayed chart. Use the data table.', ...(selected ? { multiselectable: selected.kind === 'multiple' } : {}) }, { x: 0, y: 0, width: computed.shell.body.width, height: computed.shell.body.height }, navigation);
   }
@@ -148,8 +148,14 @@ function mount<S extends FamilySpec<State>, State, P, Target, D extends FamilyDe
     const scene = overlay!.prepare(frame(token.revision, computed.shell.body.width, computed.shell.body.height, layers, computed.axes), new Map()); if (scene.status === 'invalid') return scene;
     const model = target && job.detail && committed!.spec.tooltip?.mode !== 'off' ? policy.tooltip(computed, target, committedRevision) : null, bounds = allowedRect(committed!.viewport ? shell!.body : ownedHost); let placement: PlacementResult | null = null;
     if (job.stage === 'measure' && model && target) {
-      const measured = tooltip?.measure(), anchor = policy.anchor(computed.projection, target), point = m ? mapped(m, anchor.x, anchor.y) : null;
-      placement = !m || !point || unsupportedPortalMapping(ownedHost.ownerDocument) ? { kind: 'docked' } : measured ? placeTooltip({ x: point.x - 4, y: point.y - 4, width: 8, height: 8 }, measured, bounds, committed!.spec.tooltip?.placement ?? 'top', committed!.spec.direction ?? 'ltr', true) : { kind: 'closed' };
+      const measured = tooltip?.measure(), anchor = policy.anchor(computed.projection, target), point = m ? mapped(m, anchor.x, anchor.y) : null, shape = policy.detailAnchor?.(computed.projection, target);
+      let anchorRect: Rect | null = point ? { x: point.x - 4, y: point.y - 4, width: 8, height: 8 } : null;
+      if (shape && m) {
+        const corners = [[shape.x, shape.y], [shape.x + shape.width, shape.y], [shape.x, shape.y + shape.height], [shape.x + shape.width, shape.y + shape.height]].map(([x, y]) => mapped(m, x!, y!));
+        if (corners.every(value => value !== null)) { const xs = corners.map(value => value!.x), ys = corners.map(value => value!.y), left = Math.min(...xs), top = Math.min(...ys); anchorRect = { x: left, y: top, width: Math.max(...xs) - left, height: Math.max(...ys) - top }; }
+        else anchorRect = null;
+      }
+      placement = !m || !anchorRect || unsupportedPortalMapping(ownedHost.ownerDocument) ? { kind: 'docked' } : measured ? placeTooltip(anchorRect, measured, bounds, committed!.spec.tooltip?.placement ?? 'top', committed!.spec.direction ?? 'ltr', true) : { kind: 'closed' };
     }
     return ok({ job, target, scene: scene.value, model, bounds, placement });
   }
@@ -232,7 +238,7 @@ function mount<S extends FamilySpec<State>, State, P, Target, D extends FamilyDe
     if (mode === 'internal' && changed(previous.state, next)) invoke(onState, Object.freeze({ state: next, effect: 'accepted', source: 'update', revision: result.value }));
     if (previous.selection?.mode === 'internal' && selected.value?.mode !== 'controlled' && selectionChanged(previous.selection, selected.value)) invoke(onSelectionChange, Object.freeze({ selection: selected.value?.value ?? Object.freeze([]), effect: 'accepted', source: 'update', revision: result.value })); return result;
   }
-  function activate(target: Target, source: 'pointer' | 'touch' | 'keyboard'): void { if (committed?.selection && (!main?.getSnapshot().pending || sameSelectionInput(accepted, committed))) { const proposed = toggleSelection(committed.selection, policy.datumId(target)), result = proposed.status === 'invalid' ? proposed : select(proposed.value, source); if (result.status === 'invalid') invoke(onDiagnostic, result.diagnostic); } if (!destroyed) invoke(onActivate, policy.activate(target, source, committedRevision)); }
+  function activate(target: Target, source: 'pointer' | 'touch' | 'keyboard'): void { if (committed?.selection && (policy.selectionEligible?.(target) ?? true) && (!main?.getSnapshot().pending || sameSelectionInput(accepted, committed))) { const proposed = toggleSelection(committed.selection, policy.datumId(target)), result = proposed.status === 'invalid' ? proposed : select(proposed.value, source); if (result.status === 'invalid') invoke(onDiagnostic, result.diagnostic); } if (!destroyed) invoke(onActivate, policy.activate(target, source, committedRevision)); }
   try {
     const ports = createBrowserPorts(ownedHost!); if (ports.status === 'invalid') return ports;
     motion = createBrowserMotion(ports.value.clock, ownedHost!.ownerDocument.defaultView!, report);

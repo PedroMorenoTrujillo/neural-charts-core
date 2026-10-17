@@ -53,6 +53,8 @@ export type FamilyPolicy<S extends FamilySpec<State>, State, P, Target, D extend
   state(hidden: readonly string[]): State;
   selectable(spec: S): ReadonlyMap<string, FamilyIdentity<Activation>>;
   datumId(target: Target): FamilyIdentity<Activation>;
+  /** Sparse coordinate targets remain navigable without inventing observations. */
+  selectionEligible?(target: Target): boolean;
   selectedTarget(projection: P, id: FamilyIdentity<Activation>): Target | null;
   exportRecords(spec: S, state: State, value: FamilyComputed<P, D>, selection?: readonly FamilyIdentity<Activation>[]): ExportRecords;
   names(spec: S): readonly string[];
@@ -68,6 +70,8 @@ export type FamilyPolicy<S extends FamilySpec<State>, State, P, Target, D extend
   dimensions(projection: P): Readonly<{ rows: number; columns: number }>;
   focus(projection: P, target: Target, palette: Palette, layers: Layers): void;
   anchor(projection: P, target: Target): Readonly<{ x: number; y: number }>;
+  /** Optional visible shape bounds for detail avoidance; crosshair keeps its point anchor. */
+  detailAnchor?(projection: P, target: Target): Rect;
   detailBounds(value: FamilyComputed<P, D>): Readonly<{ plot: Rect; body: Rect }>;
   activate(target: Target, source: 'pointer' | 'touch' | 'keyboard', revision: number): Activation;
   table(shell: Shell, onOpen: () => void): DataTableView<FamilyTableSource<D>>;

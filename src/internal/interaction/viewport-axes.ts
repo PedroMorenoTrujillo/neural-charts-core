@@ -10,10 +10,10 @@ type NumericAxis = Readonly<{ kind: 'linear' | 'time'; domain?: Domain; nice?: b
 type Axis = CategoryAxis | NumericAxis;
 type CartesianAxes = Readonly<{ x: AxisInput; y: AxisInput }>;
 const numeric = (value: ChartAxisWindow): value is ChartNumericWindow => Array.isArray(value);
-export function cartesianViewportContext(axes: Readonly<{ x: Axis; y: NumericAxis }>, domains: Readonly<{ x: Domain | null; y: Domain | null }>, automatic = domains): ChartResult<ViewportContext> {
+export function cartesianViewportContext(axes: Readonly<{ x: Axis; y: Axis }>, domains: Readonly<{ x: Domain | null; y: Domain | null }>, automatic = domains): ChartResult<ViewportContext> {
   const x = axes.x.kind === 'category' ? categoryViewportAxis(axes.x.values.map(value => value.id)) : numericViewportAxis(axes.x.kind, domains.x, automatic.x);
   if (x.status === 'invalid') return x;
-  const y = numericViewportAxis(axes.y.kind, domains.y, automatic.y); if (y.status === 'invalid') return y;
+  const y = axes.y.kind === 'category' ? categoryViewportAxis(axes.y.values.map(value => value.id)) : numericViewportAxis(axes.y.kind, domains.y, automatic.y); if (y.status === 'invalid') return y;
   return ok(Object.freeze({ x: x.value, y: y.value }));
 }
 export function withViewportDomains(domains: Readonly<{ x: Domain | null; y: Domain | null }>, viewport: Viewport | null): Readonly<{ x: Domain | null; y: Domain | null }> {
@@ -41,8 +41,16 @@ export function withViewportAxes(axes: CartesianAxes, viewport: Viewport | null)
     }
   }
   if (yWindow) {
-    if (!numeric(yWindow)) return invalid('INVALID_CONFIG', 'BAD_VIEWPORT_AXIS', 'viewport.y');
-    y = Object.freeze({ ...y, domain: yWindow, nice: false, includeZero: false });
+    if (numeric(yWindow)) {
+      if (y.kind === 'category') return invalid('INVALID_CONFIG', 'BAD_VIEWPORT_AXIS', 'viewport.y');
+      y = Object.freeze({ ...y, domain: yWindow, nice: false, includeZero: false });
+    } else {
+      const bounds = viewport.context.y;
+      if (y.kind !== 'category' || bounds.kind !== 'category' || !y.values) return invalid('INVALID_CONFIG', 'BAD_VIEWPORT_AXIS', 'viewport.y');
+      const first = bounds.ranks.get(yWindow.firstId), last = bounds.ranks.get(yWindow.lastId);
+      if (first === undefined || last === undefined || first > last) return invalid('INVALID_CONFIG', 'BAD_CATEGORY_WINDOW', 'viewport.y');
+      y = Object.freeze({ ...y, values: Object.freeze(y.values.slice(first, last + 1)) });
+    }
   }
   return ok(Object.freeze({ x, y }));
 }
