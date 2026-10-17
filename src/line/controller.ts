@@ -57,6 +57,7 @@ import { cartesianRecords } from '../internal/export/records.js';
 import type { SeriesPointId, ChartSelectionChange } from '../public/interaction-types.js';
 import { prepareSelection, replaceSelection, toggleSelection, selectionChanged, type Selection } from '../internal/interaction/selection.js';
 import { seriesIdentities } from '../internal/interaction/identities.js';
+import { sameSelectionInput } from '../internal/interaction/selection-frame.js';
 import { selectionScene, crosshairScene } from '../internal/interaction/decoration.js';
 import { pointKey } from './normalize.js';
 
@@ -211,12 +212,14 @@ function mount<T, S>(host: HTMLElement | null, initial: Accepted<T> | null, opti
   function select(value: readonly SeriesPointId[], source: 'api' | 'pointer' | 'touch' | 'keyboard'): ChartResult<number> {
     if (destroyed) return invalid('LIFECYCLE_ERROR', 'DESTROYED', 'controller');
     if (phase !== 'active' || !accepted || !committed?.selection || !committed.known) return invalid('LIFECYCLE_ERROR', 'SELECTION_UNAVAILABLE', 'selection');
-    if (main?.getSnapshot().pending) return invalid('LIFECYCLE_ERROR', 'UPDATE_PENDING', 'selection');
+    const pending = !!main?.getSnapshot().pending;
+    if (pending && (source === 'api' || !sameSelectionInput(accepted, committed))) return invalid('LIFECYCLE_ERROR', 'UPDATE_PENDING', 'selection');
     const checked = replaceSelection(committed.selection, committed.known, value); if (checked.status === 'invalid') return checked;
     if (!selectionChanged(committed.selection, checked.value)) return ok(committedRevision);
     const event: ChartSelectionChange<SeriesPointId> = Object.freeze({ selection: checked.value.value, effect: checked.value.mode === 'controlled' ? 'proposal' : 'accepted', source, revision: committedRevision });
     if (checked.value.mode === 'internal') {
       accepted = { ...accepted, selection: checked.value }; committed = { ...committed, selection: checked.value };
+      if (pending) { const submitted = submit('paint'); if (submitted.status === 'invalid') { fault(submitted.diagnostic); return submitted; } }
       try { table?.updateSelection(checked.value.value); sequence++; semanticUpdate(false); interactionJob(); } catch { const diagnostic = invalid('INTERNAL_INVARIANT', 'DOM_WRITE_FAILED', 'selection').diagnostic; fault(diagnostic); return { status: 'invalid', diagnostic }; }
     }
     invoke(onSelectionChange, event); return ok(event.revision);
@@ -252,7 +255,7 @@ function mount<T, S>(host: HTMLElement | null, initial: Accepted<T> | null, opti
   function toClient(m: DOMMatrix, x: number, y: number): Readonly<{ x: number; y: number }> { return { x: m.a * x + m.c * y + m.e, y: m.b * x + m.d * y + m.f }; }
   function activate(target: HitTarget<T>, source: 'pointer' | 'touch' | 'keyboard'): void {
     if (!committed) return;
-    if (committed.selection && !main?.getSnapshot().pending) { const proposed = toggleSelection(committed.selection, { seriesId: target.series.series.spec.id, pointId: target.point.point.id }); const result = proposed.status === 'invalid' ? proposed : select(proposed.value, source); if (result.status === 'invalid') invoke(onDiagnostic, result.diagnostic); }
+    if (committed.selection && (!main?.getSnapshot().pending || sameSelectionInput(accepted, committed))) { const proposed = toggleSelection(committed.selection, { seriesId: target.series.series.spec.id, pointId: target.point.point.id }); const result = proposed.status === 'invalid' ? proposed : select(proposed.value, source); if (result.status === 'invalid') invoke(onDiagnostic, result.diagnostic); }
     if (!onPointActivate || destroyed || !committed) return;
     const event = { seriesId: target.series.series.spec.id, source, revision: committedRevision, xKind: committed.data.spec.axes.x.kind, point: target.point.point } as LinePointActivation<T>;
     invoke(onPointActivate, Object.freeze(event));

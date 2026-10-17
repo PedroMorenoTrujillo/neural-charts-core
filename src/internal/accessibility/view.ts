@@ -11,7 +11,7 @@ export function createSemanticView(shell: Shell): SemanticView {
       if (model.multiselectable === undefined) grid.removeAttribute('aria-multiselectable'); else grid.setAttribute('aria-multiselectable', String(model.multiselectable));
       if (!model.current || !model.columnCount) {
         grid.removeAttribute('aria-multiselectable');
-        grid.removeAttribute('role'); grid.removeAttribute('aria-readonly'); grid.removeAttribute('aria-rowcount'); grid.removeAttribute('aria-colcount'); grid.removeAttribute('aria-activedescendant'); grid.setAttribute('aria-label', model.summary); grid.replaceChildren(); row = null; cell = null; owned.semanticDetail.textContent = model.summary; return;
+        grid.setAttribute('role', 'group'); grid.removeAttribute('aria-readonly'); grid.removeAttribute('aria-rowcount'); grid.removeAttribute('aria-colcount'); grid.removeAttribute('aria-activedescendant'); grid.setAttribute('aria-label', model.summary); grid.replaceChildren(); row = null; cell = null; owned.semanticDetail.textContent = model.summary; return;
       }
       grid.setAttribute('role', 'grid'); grid.setAttribute('aria-readonly', 'true'); grid.setAttribute('aria-rowcount', String(model.rowCount)); grid.setAttribute('aria-colcount', String(model.columnCount)); grid.setAttribute('aria-label', 'Chart data');
       if (!row) { row = grid.ownerDocument.createElement('div'); row.setAttribute('role', 'row'); hiddenText(row); grid.append(row); }

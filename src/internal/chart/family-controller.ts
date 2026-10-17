@@ -23,6 +23,7 @@ import type { ChartDatumId, ChartSelectionChange } from '../../public/interactio
 import type { Viewport, ViewportValue } from '../interaction/viewport.js';
 import { prepareSelection, replaceSelection, toggleSelection, selectionChanged, datumKey, type Selection } from '../interaction/selection.js';
 import { selectionScene, crosshairScene } from '../interaction/decoration.js';
+import { sameSelectionInput } from '../interaction/selection-frame.js';
 
 import type { FamilySpec, FamilyDescription, FamilySnapshot, FamilyController, FamilyOptions, FamilyPolicy, FamilyComputed, FamilyIdentity, FamilyViewportChange } from './family.js';
 type Input<S, State, Id extends ChartDatumId> = Readonly<{ spec: S; state: State; viewport: Viewport | null; selection: Selection<Id> | null; known: ReadonlyMap<string, Id> | null }>;
@@ -123,10 +124,11 @@ function mount<S extends FamilySpec<State>, State, P, Target, D extends FamilyDe
   function select(value: readonly FamilyIdentity<Activation>[], source: 'api' | 'pointer' | 'touch' | 'keyboard'): ChartResult<number> {
     if (destroyed) return invalid('LIFECYCLE_ERROR', 'DESTROYED', 'controller');
     if (phase !== 'active' || !accepted || !committed?.selection || !committed.known) return invalid('LIFECYCLE_ERROR', 'SELECTION_UNAVAILABLE', 'selection');
-    if (main?.getSnapshot().pending) return invalid('LIFECYCLE_ERROR', 'UPDATE_PENDING', 'selection');
+    const pending = !!main?.getSnapshot().pending;
+    if (pending && (source === 'api' || !sameSelectionInput(accepted, committed))) return invalid('LIFECYCLE_ERROR', 'UPDATE_PENDING', 'selection');
     const checked = replaceSelection(committed.selection, committed.known, value); if (checked.status === 'invalid') return checked; if (!selectionChanged(committed.selection, checked.value)) return ok(committedRevision);
     const event: ChartSelectionChange<FamilyIdentity<Activation>> = Object.freeze({ selection: checked.value.value, effect: checked.value.mode === 'controlled' ? 'proposal' : 'accepted', source, revision: committedRevision });
-    if (checked.value.mode === 'internal') { accepted = { ...accepted, selection: checked.value }; committed = { ...committed, selection: checked.value }; try { table?.updateSelection(checked.value.value); sequence++; semanticUpdate(); detailJob(); } catch { const diagnostic = invalid('INTERNAL_INVARIANT', 'DOM_WRITE_FAILED', 'selection').diagnostic; fault(diagnostic); return { status: 'invalid', diagnostic }; } }
+    if (checked.value.mode === 'internal') { accepted = { ...accepted, selection: checked.value }; committed = { ...committed, selection: checked.value }; if (pending) { const submitted = submit('paint'); if (submitted.status === 'invalid') { fault(submitted.diagnostic); return submitted; } } try { table?.updateSelection(checked.value.value); sequence++; semanticUpdate(); detailJob(); } catch { const diagnostic = invalid('INTERNAL_INVARIANT', 'DOM_WRITE_FAILED', 'selection').diagnostic; fault(diagnostic); return { status: 'invalid', diagnostic }; } }
     invoke(onSelectionChange, event); return ok(event.revision);
   }
   function detailFocused(): boolean { return !!shell && shell.detail.contains(shell.root.ownerDocument.activeElement); }
@@ -230,7 +232,7 @@ function mount<S extends FamilySpec<State>, State, P, Target, D extends FamilyDe
     if (mode === 'internal' && changed(previous.state, next)) invoke(onState, Object.freeze({ state: next, effect: 'accepted', source: 'update', revision: result.value }));
     if (previous.selection?.mode === 'internal' && selected.value?.mode !== 'controlled' && selectionChanged(previous.selection, selected.value)) invoke(onSelectionChange, Object.freeze({ selection: selected.value?.value ?? Object.freeze([]), effect: 'accepted', source: 'update', revision: result.value })); return result;
   }
-  function activate(target: Target, source: 'pointer' | 'touch' | 'keyboard'): void { if (committed?.selection && !main?.getSnapshot().pending) { const proposed = toggleSelection(committed.selection, policy.datumId(target)), result = proposed.status === 'invalid' ? proposed : select(proposed.value, source); if (result.status === 'invalid') invoke(onDiagnostic, result.diagnostic); } if (!destroyed) invoke(onActivate, policy.activate(target, source, committedRevision)); }
+  function activate(target: Target, source: 'pointer' | 'touch' | 'keyboard'): void { if (committed?.selection && (!main?.getSnapshot().pending || sameSelectionInput(accepted, committed))) { const proposed = toggleSelection(committed.selection, policy.datumId(target)), result = proposed.status === 'invalid' ? proposed : select(proposed.value, source); if (result.status === 'invalid') invoke(onDiagnostic, result.diagnostic); } if (!destroyed) invoke(onActivate, policy.activate(target, source, committedRevision)); }
   try {
     const ports = createBrowserPorts(ownedHost!); if (ports.status === 'invalid') return ports;
     motion = createBrowserMotion(ports.value.clock, ownedHost!.ownerDocument.defaultView!, report);

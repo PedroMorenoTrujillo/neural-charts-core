@@ -42,6 +42,7 @@ import { prepareSelection, replaceSelection, toggleSelection, selectionChanged, 
 import { seriesIdentities } from '../internal/interaction/identities.js';
 import { selectionScene, crosshairScene } from '../internal/interaction/decoration.js';
 import { columnKey } from './normalize.js';
+import { sameSelectionInput } from '../internal/interaction/selection-frame.js';
 
 type Input<T> = Readonly<{ data: NormalizedColumn<T>; state: ChartState; domain: Domain | null; viewport: Viewport | null; selection: Selection<SeriesPointId> | null; known: ReadonlyMap<string, SeriesPointId> | null }>;
 type Computed<T> = Readonly<{ shell: ShellFrame; palette: Palette; font: ResolvedFont; axes: AxesPlan | null; projection: ColumnProjection<T> | null; layers: Layers; view: NonNullable<ColumnSnapshot['view']>; status: string; legend: readonly LegendItem[]; tooltipSeries: readonly TooltipSeries[]; table: TableSource }>;
@@ -168,10 +169,10 @@ function mount<T,S>(host:HTMLElement|null, initial:Input<T>|null, options:Column
   function select(value:readonly SeriesPointId[],source:'api'|'pointer'|'touch'|'keyboard'):ChartResult<number> {
     if(destroyed)return invalid('LIFECYCLE_ERROR','DESTROYED','controller');
     if(phase!=='active'||!accepted||!committed?.selection||!committed.known)return invalid('LIFECYCLE_ERROR','SELECTION_UNAVAILABLE','selection');
-    if(main?.getSnapshot().pending)return invalid('LIFECYCLE_ERROR','UPDATE_PENDING','selection');
+    const pending=!!main?.getSnapshot().pending;if(pending&&(source==='api'||!sameSelectionInput(accepted,committed)))return invalid('LIFECYCLE_ERROR','UPDATE_PENDING','selection');
     const checked=replaceSelection(committed.selection,committed.known,value);if(checked.status==='invalid')return checked;if(!selectionChanged(committed.selection,checked.value))return ok(committedRevision);
     const event:ChartSelectionChange<SeriesPointId>=Object.freeze({selection:checked.value.value,effect:checked.value.mode==='controlled'?'proposal':'accepted',source,revision:committedRevision});
-    if(checked.value.mode==='internal'){accepted={...accepted,selection:checked.value};committed={...committed,selection:checked.value};try{table?.updateSelection(checked.value.value);sequence++;semanticUpdate();detailJob();}catch{const diagnostic=invalid('INTERNAL_INVARIANT','DOM_WRITE_FAILED','selection').diagnostic;fault(diagnostic);return{status:'invalid',diagnostic};}}
+    if(checked.value.mode==='internal'){accepted={...accepted,selection:checked.value};committed={...committed,selection:checked.value};if(pending){const submitted=submit('paint');if(submitted.status==='invalid'){fault(submitted.diagnostic);return submitted;}}try{table?.updateSelection(checked.value.value);sequence++;semanticUpdate();detailJob();}catch{const diagnostic=invalid('INTERNAL_INVARIANT','DOM_WRITE_FAILED','selection').diagnostic;fault(diagnostic);return{status:'invalid',diagnostic};}}
     invoke(onSelectionChange,event);return ok(event.revision);
   }
   function detailFocused():boolean { return !!shell&&shell.detail.contains(shell.root.ownerDocument.activeElement); }
@@ -272,7 +273,7 @@ function mount<T,S>(host:HTMLElement|null, initial:Input<T>|null, options:Column
     if(mode==='internal'&&membershipChanged(previous.state,state))invoke(onState,Object.freeze({state,effect:'accepted',source:'update',revision:result.value}));
     if(previous.selection?.mode==='internal'&&accepted?.selection?.mode!=='controlled'&&selectionChanged(previous.selection,accepted?.selection??null))invoke(onSelectionChange,Object.freeze({selection:accepted?.selection?.value??Object.freeze([]),effect:'accepted',source:'update',revision:result.value}));return result;
   }
-  function activate(target:ColumnRect<T>,source:'pointer'|'touch'|'keyboard'):void { if(committed?.selection&&!main?.getSnapshot().pending){const proposed=toggleSelection(committed.selection,{seriesId:target.series.spec.id,pointId:target.point.id}),result=proposed.status==='invalid'?proposed:select(proposed.value,source);if(result.status==='invalid')invoke(onDiagnostic,result.diagnostic);}if(!destroyed)invoke(onActivate,Object.freeze({seriesId:target.series.spec.id,point:target.point,xKind:'category',source,revision:committedRevision})); }
+  function activate(target:ColumnRect<T>,source:'pointer'|'touch'|'keyboard'):void { if(committed?.selection&&(!main?.getSnapshot().pending||sameSelectionInput(accepted,committed))){const proposed=toggleSelection(committed.selection,{seriesId:target.series.spec.id,pointId:target.point.id}),result=proposed.status==='invalid'?proposed:select(proposed.value,source);if(result.status==='invalid')invoke(onDiagnostic,result.diagnostic);}if(!destroyed)invoke(onActivate,Object.freeze({seriesId:target.series.spec.id,point:target.point,xKind:'category',source,revision:committedRevision})); }
   try {
     const ports=createBrowserPorts(ownedHost!);if(ports.status==='invalid')return ports;motion=createBrowserMotion(ports.value.clock,ownedHost!.ownerDocument.defaultView!,report);for(const id of Object.values(shellIds(instanceId)))if(ownedHost!.ownerDocument.getElementById(id))return invalid('INVALID_CONFIG','ID_COLLISION','options.instanceId');
     const text=createTextMeasurer(ownedHost!.ownerDocument);if(text.status==='invalid')return text;measurer=text.value;
