@@ -6,7 +6,7 @@ import { invalid, ok } from '../diagnostics.js';
 import { record, number, text, choice, color, fail, ValidationFailure } from '../data/validation.js';
 import type { SvgOptions, SvgImage } from '../../public/export-types.js';
 import { utf8Size } from './utf8.js';
-import { isolateNumericLabels, NUMERIC_LABEL_CLASS } from '../chart/data-label-direction.js';
+import { isolateNumericLabels, NUMERIC_LABEL_CLASS, NUMERIC_AXIS_CLASS } from '../chart/data-label-direction.js';
 const NS = 'http://www.w3.org/2000/svg';
 /** XML 1.0 cannot losslessly carry arbitrary JS control/surrogate strings. */
 function xmlText(value: string): string {
@@ -48,7 +48,7 @@ export function snapshotSvg(source: ExportSnapshot, options: SvgOptions = {}): C
       host = doc.createElement('div'); writer = createSvgWriter(host, prefix + '-geometry'); if (writer.status === 'invalid') return writer;
       const prepared = writer.value.prepare({ ...source.frame, layers: { ...source.frame.layers, interaction: [] } }, new Map()); if (prepared.status === 'invalid') return prepared; const applied = writer.value.apply(prepared.value); if (applied.status === 'invalid') return applied;
       const geometry = host.querySelector('svg'); if (!geometry) fail('export.geometry', 'MISSING_EXPORT_GEOMETRY'); attrs(geometry, { x: layout.body.x, y: layout.body.y, width: layout.body.width, height: layout.body.height, direction: source.direction });
-      if (source.frame.layers.labels.some(command => command.classes?.includes(NUMERIC_LABEL_CLASS))) isolateNumericLabels(geometry);
+      if (source.frame.layers.labels.some(command => command.classes?.some(value => value === NUMERIC_LABEL_CLASS || value === NUMERIC_AXIS_CLASS))) isolateNumericLabels(geometry);
       for (const element of [geometry, ...geometry.querySelectorAll('*')]) for (const attribute of [...element.attributes]) if (attribute.name.startsWith('data-')) element.removeAttribute(attribute.name);
       svg.append(geometry);
       if (source.status) { const cover = doc.createElementNS(NS, 'rect'); attrs(cover, { x: layout.body.x, y: layout.body.y, width: layout.body.width, height: layout.body.height, fill: source.palette.surface }); svg.append(cover); label(source.status, layout.body.x + layout.body.width / 2, layout.body.y + layout.body.height / 2, Math.max(0, layout.body.width - 40), 13, 400, source.palette.muted, 'middle'); }

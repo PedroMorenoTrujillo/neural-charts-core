@@ -2,6 +2,7 @@ import type { SceneCommand, SceneFrame, Layer, Presentation } from '../scene/mod
 import type { AxesPlan, AxisInput, TickLabel } from './plan.js';
 import type { Palette, Dash } from '../chart/presentation.js';
 import { dashPattern } from '../chart/presentation.js';
+import { NUMERIC_AXIS_CLASS } from '../chart/data-label-direction.js';
 
 export type Layers = Record<Layer, SceneCommand[]>;
 export function emptyLayers(): Layers { return { background: [], grid: [], 'reference-bands': [], marks: [], 'reference-lines': [], axes: [], labels: [], interaction: [] }; }
@@ -27,7 +28,7 @@ export function axesScene(plan: AxesPlan, x: AxisInput, y: AxisInput, palette: P
     const t = ticks[i]!, prefix = `${horizontal ? 'x' : 'y'}-tick-${i}`;
     layers.axes.push(horizontal ? { kind: 'line', key: prefix, x1: t.position, y1: bottom, x2: t.position, y2: bottom + 4, presentation: axis } : { kind: 'line', key: prefix, x1: plot.x - 4, y1: t.position, x2: plot.x, y2: t.position, presentation: axis });
     if ((input.grid ?? !horizontal) && (horizontal ? t.position !== plot.x : t.position !== bottom)) layers.grid.push(horizontal ? { kind: 'line', key: prefix + '-grid', x1: t.position, y1: plot.y, x2: t.position, y2: bottom, clipKey: 'plot', presentation: { stroke: { kind: 'solid', value: palette.grid }, strokeWidth: 1 } } : { kind: 'line', key: prefix + '-grid', x1: plot.x, y1: t.position, x2: right, y2: t.position, clipKey: 'plot', presentation: { stroke: { kind: 'solid', value: palette.grid }, strokeWidth: 1 } });
-    if (t.text && (!horizontal || shown.has(t))) layers.labels.push({ kind: 'text', key: prefix + '-label', x: horizontal ? t.position : plot.x - 8, y: t.box.y + t.baseline, text: t.text, anchor: horizontal ? 'middle' : plan.direction === 'rtl' ? 'start' : 'end', baseline: 'alphabetic', presentation: textStyle, ...font });
+    if (t.text && (!horizontal || shown.has(t))) layers.labels.push({ kind: 'text', key: prefix + '-label', ...(input.kind === 'category' ? {} : { classes: [NUMERIC_AXIS_CLASS] }), x: horizontal ? t.position : plot.x - 8, y: t.box.y + t.baseline, text: t.text, anchor: horizontal ? 'middle' : input.kind !== 'category' || plan.direction !== 'rtl' ? 'end' : 'start', baseline: 'alphabetic', presentation: textStyle, ...font });
   }
   if (plan.xTitle) layers.labels.push({ kind: 'text', key: 'x-title', x: plot.x + plot.width / 2, y: bottom + 8 + 1.25 * plan.font.size + (compact ? 12 : 10), text: plan.xTitle, anchor: 'middle', baseline: 'middle', presentation: textStyle, ...font, fontWeight: 500 });
   if (plan.yTitle) layers.labels.push({ kind: 'text', key: 'y-title', x: plot.x, y: compact ? 10 : 18, text: plan.yTitle, anchor: plan.direction === 'rtl' ? 'end' : 'start', baseline: 'middle', presentation: textStyle, ...font, fontWeight: 500 });
