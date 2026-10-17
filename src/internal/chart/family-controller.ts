@@ -8,7 +8,8 @@ import { createSvgWriter, type SceneWriter, type PreparedScene } from '../scene/
 import { createTextMeasurer, type TextMeasurer } from '../layout/text.js';
 import { shellFrame, type ShellFrame } from '../layout/frame.js';
 import type { ViewportView, ViewportViewState } from '../interaction/viewport-view.js';
-import { emptyLayers, frame, type Layers } from '../axes/scene.js';
+import { emptyLayers, type Layers } from '../axes/scene.js';
+import { familyFrame } from './frame.js';
 import { createShell, shellIds, applyShell, type Shell } from '../chart/shell.js';
 import { cleanup, removeOwnedNode } from '../chart/cleanup.js';
 import { resolvePalette, type Palette, type ResolvedFont } from '../chart/presentation.js';
@@ -145,7 +146,7 @@ function mount<S extends FamilySpec<State>, State, P, Target, D extends FamilyDe
     let target = job.target; const m = matrix();
     if (job.sample) { if (gridFocused || pinned || detailFocused()) return ok(null); const local = m ? mapped(m.inverse(), job.sample.x, job.sample.y) : null; target = local ? policy.pick(computed.projection, local.x, local.y) : null; }
     const layers = emptyLayers(); paintSelection(layers, computed, committed!); if (target) { if (computed.axes) crosshairScene(layers, committed!.spec.crosshair, computed.axes.plot, policy.anchor(computed.projection, target), computed.palette); policy.focus(computed.projection, target, computed.palette, layers); }
-    const scene = overlay!.prepare(frame(token.revision, computed.shell.body.width, computed.shell.body.height, layers, computed.axes), new Map()); if (scene.status === 'invalid') return scene;
+    const scene = overlay!.prepare(familyFrame(token.revision, computed.shell.body.width, computed.shell.body.height, layers, computed), new Map()); if (scene.status === 'invalid') return scene;
     const model = target && job.detail && committed!.spec.tooltip?.mode !== 'off' ? policy.tooltip(computed, target, committedRevision) : null, bounds = allowedRect(committed!.viewport ? shell!.body : ownedHost); let placement: PlacementResult | null = null;
     if (job.stage === 'measure' && model && target) {
       const measured = tooltip?.measure(), anchor = policy.anchor(computed.projection, target), point = m ? mapped(m, anchor.x, anchor.y) : null, shape = policy.detailAnchor?.(computed.projection, target);
@@ -170,7 +171,7 @@ function mount<S extends FamilySpec<State>, State, P, Target, D extends FamilyDe
   function closeDetail(): void { invalidate(); gridFocused = !!shell && shell.root.ownerDocument.activeElement === shell.grid; detailJob(); }
   function prepareMain(input: Input<S, State, FamilyIdentity<Activation>>, token: RevisionToken, reasons: ReadonlySet<DirtyReason>): ChartResult<MainCandidate<S, State, P, D, FamilyIdentity<Activation>>> {
     const result = compute(input); if (result.status === 'invalid') return result; let scene: PreparedScene | null = null;
-    if (result.value.shell.body.width > 0 && result.value.shell.body.height > 0) { const prepared = base!.prepare(frame(token.revision, result.value.shell.body.width, result.value.shell.body.height, result.value.layers, result.value.axes), new Map()); if (prepared.status === 'invalid') return prepared; scene = prepared.value; }
+    if (result.value.shell.body.width > 0 && result.value.shell.body.height > 0) { const prepared = base!.prepare(familyFrame(token.revision, result.value.shell.body.width, result.value.shell.body.height, result.value.layers, result.value), new Map()); if (prepared.status === 'invalid') return prepared; scene = prepared.value; }
     return ok({ input, computed: result.value, scene, animate: reasons.has('data') ? true : reasons.has('size') ? false : 'continue' });
   }
   function commitMain(candidate: MainCandidate<S, State, P, D, FamilyIdentity<Activation>>, token: RevisionToken): ChartResult<void> {
@@ -248,7 +249,7 @@ function mount<S extends FamilySpec<State>, State, P, Target, D extends FamilyDe
     if (policy.viewport) viewportView = policy.viewport.createView({ shell, clock: ports.value.clock, current: viewportViewState, request: (value, source) => viewportRequest(value as V, source), begin() { events?.cancelGesture(); motion?.cancel(); invalidate(); } });
     shell.help.textContent = policy.help;
     for (const [element, prefix] of [[shell.base, instanceId + '-v'], [shell.overlay, instanceId + '-i']] as const) { const reservation = reserveInstance(element, prefix); if (reservation.status === 'invalid') { dispose(); return reservation; } reservations.push(reservation.value); const writer = createSvgWriter(element, prefix); if (writer.status === 'invalid') { dispose(); return writer; } if (element === shell.base) base = writer.value; else overlay = writer.value; }
-    legend = createLegendView(shell.legend, legendToggle); semantic = createSemanticView(shell); tooltip = createTooltipView(shell); table = policy.table(shell, closeDetail);
+    legend = createLegendView(shell.legend, legendToggle); semantic = createSemanticView(shell, policy.semanticProfile); tooltip = createTooltipView(shell); table = policy.table(shell, closeDetail);
     main = createRevisionScheduler({ clock: ports.value.clock, prepare: prepareMain, commit: commitMain, onDiagnostic: report }); interaction = createRevisionScheduler({ clock: ports.value.clock, prepare: prepareDetail, commit: commitDetail, onDiagnostic: report });
     events = attachCartesianInteraction(shell.body, shell.grid, shell.detail, {
       revision: () => committedRevision, enabled: () => !!computed && policy.enabled(computed) && phase === 'active' && !table?.isOpen(),
@@ -284,7 +285,7 @@ function mount<S extends FamilySpec<State>, State, P, Target, D extends FamilyDe
       if (phase !== 'active' || !computed || !committed || !shell) return invalid('LIFECYCLE_ERROR', 'EXPORT_UNAVAILABLE', 'controller');
       const c = computed, input = committed, spec = input.spec;
       const selected = emptyLayers(); paintSelection(selected, c, input); const layers = selected.interaction.length ? { ...c.layers, labels: [...c.layers.labels, ...selected.interaction] } : c.layers;
-      return ok({ document: shell.root.ownerDocument, instanceId, revision: committedRevision, frame: frame(committedRevision, c.shell.body.width, c.shell.body.height, layers, c.axes), layout: c.shell, palette: c.palette, font: c.font, direction: spec.direction ?? 'ltr', title: spec.title, description: spec.description ?? '', context: c.description.context, status: c.status, legend: c.legend, hiddenLegendIds: policy.hidden(input.state), records: () => policy.exportRecords(spec, input.state, c, input.selection?.value) });
+      return ok({ document: shell.root.ownerDocument, instanceId, revision: committedRevision, frame: familyFrame(committedRevision, c.shell.body.width, c.shell.body.height, layers, c), layout: c.shell, palette: c.palette, font: c.font, direction: spec.direction ?? 'ltr', title: spec.title, description: spec.description ?? '', context: c.description.context, status: c.status, legend: c.legend, hiddenLegendIds: policy.hidden(input.state), records: () => policy.exportRecords(spec, input.state, c, input.selection?.value) });
     });
     return ok(controller);
   } catch { dispose(); return invalid('LIFECYCLE_ERROR', 'PLATFORM_UNAVAILABLE', 'host'); }

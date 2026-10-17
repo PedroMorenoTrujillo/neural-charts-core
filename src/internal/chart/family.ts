@@ -1,5 +1,7 @@
 import type { ChartDiagnostic, ChartResult, ChartTheme, ChartStatus, ChartDataTable } from '../../public/chart-types.js';
 import type { ShellFrame } from '../layout/frame.js';
+import type { Plot } from '../layout/frame.js';
+import type { ClipDef } from '../scene/model.js';
 import type { TextMeasurer } from '../layout/text.js';
 import type { Palette, ResolvedFont } from './presentation.js';
 import type { AxesPlan } from '../axes/plan.js';
@@ -42,7 +44,7 @@ export type FamilyViewportPolicy<S, State, V extends ViewportValue> = Readonly<{
   createView(options: ViewportViewOptions): ViewportView;
   viewState(spec: S, viewport: Viewport, axes: AxesPlan): ViewportViewState;
 }>;
-export type FamilyComputed<P, D extends FamilyDescription> = Readonly<{ shell: ShellFrame; palette: Palette; font: ResolvedFont; projection: P; description: D; layers: Layers; legend: readonly LegendItem[]; status: string; axes?: AxesPlan }>;
+export type FamilyComputed<P, D extends FamilyDescription> = Readonly<{ shell: ShellFrame; palette: Palette; font: ResolvedFont; projection: P; description: D; layers: Layers; legend: readonly LegendItem[]; status: string; axes?: AxesPlan; plot?: Plot; clips?: readonly ClipDef[] }>;
 export type FamilyTableSource<D> = D & Readonly<{ references: readonly string[] }>;
 export type FamilyPolicy<S extends FamilySpec<State>, State, P, Target, D extends FamilyDescription, Activation, V extends ViewportValue = never> = Readonly<{
   parse(input: unknown): ChartResult<S>;
@@ -75,5 +77,6 @@ export type FamilyPolicy<S extends FamilySpec<State>, State, P, Target, D extend
   detailBounds(value: FamilyComputed<P, D>): Readonly<{ plot: Rect; body: Rect }>;
   activate(target: Target, source: 'pointer' | 'touch' | 'keyboard', revision: number): Activation;
   table(shell: Shell, onOpen: () => void): DataTableView<FamilyTableSource<D>>;
+  semanticProfile?: 'grid' | 'hierarchy';
   help: string;
 }> & ([V] extends [never] ? Readonly<{ viewport?: never }> : Readonly<{ viewport: FamilyViewportPolicy<S, State, V> }>);
