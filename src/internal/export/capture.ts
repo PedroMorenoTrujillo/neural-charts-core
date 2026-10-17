@@ -8,6 +8,13 @@ import { invalid, ok } from '../diagnostics.js';
 export type ExportSnapshot = Readonly<{ document: Document; instanceId: string; revision: number; frame: SceneFrame; layout: ShellFrame; palette: Palette; font: ResolvedFont; direction: 'ltr' | 'rtl'; title: string; description: string; context: string; status: string; legend: readonly LegendItem[]; hiddenLegendIds: readonly string[]; records(): ExportRecords }>;
 type Entry = { source: (() => ChartResult<ExportSnapshot>) | null; jobs: Set<AbortController> };
 const entries = new WeakMap<object, Entry>();
+/** A thin read-only public facade shares the existing owner and cancellation
+ * jobs. It does not copy a snapshot, create a renderer or extend its lifetime. */
+export function aliasExport(target: object, owner: object): () => void {
+  const entry = entries.get(owner); if (!entry || entries.has(target)) throw Error('Invalid private export alias');
+  entries.set(target, entry); let active = true;
+  return () => { if (!active) return; active = false; entries.delete(target); };
+}
 export type ExportLease = Readonly<{ snapshot: ExportSnapshot; signal: AbortSignal; release(): void }>;
 /** Private capability table: no chart family import, registration by factory
  * name, strong controller key or hidden eager renderer loading. */

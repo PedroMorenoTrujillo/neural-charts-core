@@ -3,12 +3,24 @@ import { box, hiddenText } from '../chart/shell.js';
 import type { Plot } from '../layout/frame.js';
 import type { SemanticModel } from './model.js';
 export interface SemanticView { update(model: SemanticModel, plot: Plot, actualNavigation: boolean): void; destroy(): void; }
-export function createSemanticView(shell: Shell, profile: 'grid' | 'hierarchy' = 'grid'): SemanticView {
+export function createSemanticView(shell: Shell, profile: 'grid' | 'hierarchy' | 'meter' = 'grid'): SemanticView {
   let owned: Shell | null = shell, row: HTMLDivElement | null = null, cell: HTMLDivElement | null = null, alternate = false;
   let previousSelected: boolean | undefined;
   return {
     update(model, plot, actualNavigation) {
       if (!owned) return; const grid = owned.grid; box(grid, plot);
+      if (profile === 'meter') {
+        const reading = model.current?.meter;
+        for (const attribute of ['aria-readonly', 'aria-rowcount', 'aria-colcount', 'aria-activedescendant', 'aria-multiselectable', 'aria-valuemin', 'aria-valuemax', 'aria-valuenow', 'aria-valuetext']) grid.removeAttribute(attribute);
+        grid.replaceChildren(); row = null; cell = null;
+        grid.setAttribute('role', reading && reading.value !== null ? 'meter' : 'group'); grid.setAttribute('aria-label', reading?.label ?? model.summary);
+        grid.setAttribute('aria-describedby', `${owned.ids.help} ${owned.ids.detail}`);
+        if (reading && reading.value !== null) {
+          grid.setAttribute('aria-valuemin', String(reading.minimum)); grid.setAttribute('aria-valuemax', String(reading.maximum));
+          grid.setAttribute('aria-valuenow', String(Math.max(reading.minimum, Math.min(reading.maximum, reading.value)))); grid.setAttribute('aria-valuetext', reading.text);
+        }
+        owned.semanticDetail.textContent = model.current?.detail ?? model.summary; return;
+      }
       if (model.multiselectable === undefined) grid.removeAttribute('aria-multiselectable'); else grid.setAttribute('aria-multiselectable', String(model.multiselectable));
       if (!model.current || !model.columnCount) {
         grid.removeAttribute('aria-multiselectable');

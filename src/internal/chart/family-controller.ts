@@ -264,6 +264,11 @@ function mount<S extends FamilySpec<State>, State, P, Target, D extends FamilyDe
       blur(next) { gridFocused = false; if (next && shell?.detail.contains(next as Node)) return; if (!pinned) { sequence++; wanted = false; tooltip?.close(); detailJob(); } },
       key(key, control) {
         if (key === 'Escape') { closeDetail(); return true; } if (!computed || !current || computed.description.view !== 'ready') return false;
+        if (policy.semanticProfile === 'meter') {
+          // Reading a scalar never consumes value-changing/Cartesian shortcuts.
+          if (key !== 'Enter' && key !== ' ' && key !== 'Spacebar') return false;
+          hover = null; sequence++; wanted = true; semanticUpdate(); detailJob(); return true;
+        }
         if (key === 'Enter' || key === ' ' || key === 'Spacebar') { const handled = key !== 'Enter' || !!onActivate || !!committed?.selection; activate(current, 'keyboard'); return handled; }
         if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(key)) return false;
         const next = policy.navigate(computed.projection, current, key, control);

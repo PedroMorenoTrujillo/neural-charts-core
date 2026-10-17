@@ -12,6 +12,7 @@ import type { Rect } from '../tooltip/place.js';
 import type { Shell } from './shell.js';
 import type { DataTableView } from '../accessibility/table-frame.js';
 import type { ExportRecords } from '../../public/export-types.js';
+import type { SemanticPoint } from '../accessibility/model.js';
 import type { ChartDatumId, SeriesPointId, SlicePointId, ChartSelectionBinding, ChartSelectionChange, ChartCrosshair, ChartMotion } from '../../public/interaction-types.js';
 import type { ChartViewportChange } from '../../public/viewport-types.js';
 import type { ViewportViewOptions, ViewportView, ViewportViewState } from '../interaction/viewport-view.js';
@@ -68,7 +69,7 @@ export type FamilyPolicy<S extends FamilySpec<State>, State, P, Target, D extend
   pick(projection: P, x: number, y: number): Target | null;
   navigate(projection: P, target: Target, key: string, control: boolean): Target | null;
   tooltip(value: FamilyComputed<P, D>, target: Target, revision: number): TooltipModel;
-  semantic(value: FamilyComputed<P, D>, target: Target): Readonly<{ seriesName: string; row: number; column: number; text: string; detail: string }>;
+  semantic(value: FamilyComputed<P, D>, target: Target): SemanticPoint;
   dimensions(projection: P): Readonly<{ rows: number; columns: number }>;
   focus(projection: P, target: Target, palette: Palette, layers: Layers): void;
   anchor(projection: P, target: Target): Readonly<{ x: number; y: number }>;
@@ -77,6 +78,6 @@ export type FamilyPolicy<S extends FamilySpec<State>, State, P, Target, D extend
   detailBounds(value: FamilyComputed<P, D>): Readonly<{ plot: Rect; body: Rect }>;
   activate(target: Target, source: 'pointer' | 'touch' | 'keyboard', revision: number): Activation;
   table(shell: Shell, onOpen: () => void): DataTableView<FamilyTableSource<D>>;
-  semanticProfile?: 'grid' | 'hierarchy';
+  semanticProfile?: 'grid' | 'hierarchy' | 'meter';
   help: string;
 }> & ([V] extends [never] ? Readonly<{ viewport?: never }> : Readonly<{ viewport: FamilyViewportPolicy<S, State, V> }>);
