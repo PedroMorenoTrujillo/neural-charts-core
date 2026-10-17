@@ -11,6 +11,7 @@ export type ColumnReference = Readonly<{ id: string; axis: 'y'; value: number; l
 export type ColumnChartSpec<T = unknown> = Readonly<{
   family: 'column'; title: string; description?: string;
   selection?: ChartSelectionBinding<SeriesPointId>; crosshair?: ChartCrosshair; motion?: ChartMotion;
+  labels?: 'auto' | 'off';
   viewport?: ChartViewportBinding<ChartCategoryWindow>;
   orientation?: 'vertical' | 'horizontal'; groupGap?: number; barGap?: number; maxBarWidth?: number;
   theme?: ChartTheme; direction?: 'ltr' | 'rtl';

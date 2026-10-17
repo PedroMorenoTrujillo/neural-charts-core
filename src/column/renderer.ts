@@ -19,5 +19,6 @@ export type ColumnPolicy<T> = Readonly<{
   context(data: NormalizedColumn<T>): string;
   emptyStatus(projection: ColumnProjection<T>): string | null;
   tooltip(target: ColumnRect<T>, model: TooltipModel, projection: ColumnProjection<T>): TooltipModel;
+  dataLabel?(target: ColumnRect<T>, projection: ColumnProjection<T>): string | null;
 }>;
 export type ColumnEngineController<T, S> = Omit<ColumnController<T>, 'update'> & { update(spec: S): ChartResult<number> };

@@ -1,6 +1,7 @@
 import type { ChartDiagnostic, ChartResult, ChartState, ChartStateChange } from '../public/chart-types.js';
 import type { LineChartSpec, LineMountOptions, LinePointActivation, LineSnapshot } from '../public/line-types.js';
 import type { LinePolicy, LineEngineController } from './renderer.js';
+import { lineDataLabels } from './labels.js';
 import type { ChartViewportValue, ChartViewportChange } from '../public/viewport-types.js';
 import { fullViewportBounds } from '../internal/interaction/viewport-bounds.js';
 import { viewportShell, createViewportView, type ViewportView, type ViewportViewState } from '../internal/interaction/viewport-view.js';
@@ -47,7 +48,7 @@ import { attachLineInteraction } from '../internal/interaction/line.js';
 import { validateLine, validateOptions, validateState } from './validate.js';
 import { normalizeLine, lineDomains } from './normalize.js';
 import type { Domains, NormalizedLine } from './normalize.js';
-import { projectLine } from './geometry.js';
+import { projectLine, type LineProjection } from './geometry.js';
 import { lineScene } from './scene.js';
 import { buildHitIndex, firstTarget, navigate, reconcileTarget, pickPoint } from './hit-index.js';
 import type { HitIndex, HitTarget } from './hit-index.js';
@@ -159,7 +160,7 @@ function mount<T, S>(host: HTMLElement | null, initial: Accepted<T> | null, opti
     const palette = resolvePalette(ownedHost, spec.theme ?? 'light', prefersDark), layout = viewportShell(shellFrame(size, !!spec.description, data.series.map(s => s.spec.name), spec.legend?.position ?? 'bottom', font, direction, measurer), input.viewport), hidden = new Set(input.state.hiddenSeriesIds);
     const visible = data.series.filter(s => !hidden.has(s.spec.id)), view = derivedView(spec.status?.kind ?? 'ready', data.nonnullCount, visible.reduce((n, s) => n + s.valid.length, 0), data.series.length, hidden.size), layers = emptyLayers();
     const dashes = resolveDashes(data.series, hidden, palette);
-    let axes: AxesPlan | null = null, index: HitIndex<T> | null = null;
+    let axes: AxesPlan | null = null, index: HitIndex<T> | null = null, labelProjection: LineProjection<T> | null = null;
     if (view === 'ready') {
       const scoped = withViewportAxes(spec.axes, input.viewport); if (scoped.status === 'invalid') return scoped;
       const plan = planAxes({ x: scoped.value.x, y: scoped.value.y, domains: withViewportDomains(input.domains, input.viewport), width: layout.body.width, height: layout.body.height, font, direction, labels: data.labels, measurer, compact: layout.compact }); if (plan.status === 'invalid') return plan;
@@ -169,9 +170,11 @@ function mount<T, S>(host: HTMLElement | null, initial: Accepted<T> | null, opti
         index = buildHitIndex(projection.value, x => typeof x === 'string' ? data.ranks.get(x)! : x); axesScene(axes, spec.axes.x, spec.axes.y, palette, layers, layout.compact);
         if (policy) { const rendered = policy.render(projection.value, palette, layers, dashes); if (rendered.status === 'invalid') return rendered; }
         else lineScene(projection.value, palette, layers, dashes);
+        if (spec.labels === 'auto') labelProjection = projection.value;
       }
     }
     const referenceInfo = axes ? referenceScene(spec.references ?? [], axes, palette, layers, text => { const rendered = ellipsis(text, Math.max(0, axes!.plot.width - 8), s => measurer!.measure(s, font, direction)), m = measurer!.measure(rendered ?? '', font, direction); return { text: rendered, width: m.width, height: m.height }; }, data.ranks) : [];
+    if (labelProjection) { const labeled = lineDataLabels(labelProjection, palette, font, layers, text => measurer!.measure(text, font, direction), direction === 'rtl'); if (labeled.status === 'invalid') return labeled; }
     const context = [spec.axes.x.title ? `X: ${spec.axes.x.title}.` : '', spec.axes.y.title ? `Y: ${spec.axes.y.title}.` : '', axes?.x.domain ? `Displayed X domain ${fullX(axes.x.domain[0], spec.axes.x.kind, data.labels)} to ${fullX(axes.x.domain[1], spec.axes.x.kind, data.labels)}.` : '', axes?.y.domain ? `Displayed Y domain ${axes.y.domain[0]} to ${axes.y.domain[1]}.` : ''].filter(Boolean).join(' ');
     const references = (spec.references ?? []).map(r => `${r.label ?? r.id}. ${r.axis.toUpperCase()} ${r.axis === 'x' ? fullX(r.value, spec.axes.x.kind, data.labels) : String(r.value)}.${(referenceInfo.find(info => info.id === r.id)?.outside ?? referenceOutside(r, input.domains, data.ranks)) ? ' Outside displayed domain.' : ''}`);
     const tableSource: TableSource = { title: spec.title, kind: spec.axes.x.kind, labels: data.labels, series: spec.series, hidden, context, references };

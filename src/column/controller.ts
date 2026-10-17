@@ -1,5 +1,6 @@
 import type { ColumnChartSpec, ColumnMountOptions, ColumnSnapshot } from '../public/column-types.js';
 import type { ColumnPolicy, ColumnEngineController } from './renderer.js';
+import { columnDataLabels } from './labels.js';
 import type { ChartCategoryWindow, ChartViewportValue, ChartViewportChange } from '../public/viewport-types.js';
 import { fullViewportBounds } from '../internal/interaction/viewport-bounds.js';
 import { prepareViewport, requestViewport as proposeViewport, sameViewport, viewportCategoryWindow, type Viewport } from '../internal/interaction/viewport.js';
@@ -147,6 +148,7 @@ function mount<T,S>(host:HTMLElement|null, initial:Input<T>|null, options:Column
     const references=refs.map(r=>`${r.label??r.id}. Y ${r.value}.${(referenceInfo.find(i=>i.id===r.id)?.outside??(!!shownDomain&&(r.value<shownDomain[0]||r.value>shownDomain[1])))?' Outside displayed domain.':''}`);
     const referenceCaption=referenceCaptionHeight?ellipsis((refs.length===1?'Reference: ':'References: ')+refs.map(r=>(r.label??r.id+' · '+r.value)+(referenceInfo.find(i=>i.id===r.id)?.outside?' (outside domain)':'')).join(' | '),layout.body.width-24,text=>measurer!.measure(text,font,direction)):null;
     columnReferenceCaption(layers,referenceCaption,palette,font,direction,layout.body.width,layout.body.height);
+    if(projection&&spec.labels==='auto'){const projected=projection,label=policy?.dataLabel,labeled=columnDataLabels(projected,palette,font,layers,text=>measurer!.measure(text,font,direction),direction==='rtl',label?target=>label(target,projected):undefined);if(labeled.status==='invalid')return labeled;}
     const tableLabels=new Map([...data.labels].map(([id,label])=>[id,data.duplicateLabels.has(label)?`${label} · ${id}`:label]));
     const status=view==='ready'?axes?.tooSmall?'Chart is too small to display bars. Enlarge the chart or view the data table.':projection&&!projection.rects.length?policy?.emptyStatus(projection)??'No bars intersect the displayed domain. View the data table for all observations.':'':spec.status&&'message'in spec.status?spec.status.message??(view==='loading'?'Loading chart data.':'No observations.'):view==='no-visible-series'?'No visible series. Use the legend to show a series.':view==='loading'?'Loading chart data.':view==='error'?'Chart data unavailable.':'No visible observations.';
     return ok({shell:layout,palette,font,axes,projection,layers,view,status,legend:data.series.map((s,i)=>({id:s.spec.id,name:s.spec.name,color:s.spec.color??palette.series[s.colorIndex]!,dash:dashes.get(s.spec.id)!,width:layout.legendPosition==='end'?160:layout.buttonWidths[i]!})),tooltipSeries:visible.map(s=>({id:s.spec.id,name:s.spec.name,color:s.spec.color??palette.series[s.colorIndex]!,dash:dashes.get(s.spec.id)!,byX:s.byX})),table:{title:spec.title,kind:'category',labels:tableLabels,series:spec.series,hidden,context,references}});

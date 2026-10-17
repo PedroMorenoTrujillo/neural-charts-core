@@ -13,6 +13,12 @@ export function stackEmptyStatus<T>(projection: ColumnProjection<T>): string | n
   const stack = (projection as StackedProjection<T>).stack;
   return stack.mode === 'percent' && !stack.drawableCount ? 'Percentages are undefined for zero totals or incomplete categories. View the data table for the original observations.' : null;
 }
+export function stackedDataLabel<T>(target: ColumnRect<T>, projection: ColumnProjection<T>): string | null {
+  const stack = (projection as StackedProjection<T>).stack;
+  if (stack.mode !== 'percent') return String(target.point.y === 0 ? 0 : target.point.y);
+  const segment = stack.categories.get(target.point.x)?.segments.find(segment => segment.seriesId === target.series.spec.id && segment.point.id === target.point.id);
+  return segment?.percentage === null || segment?.percentage === undefined ? null : Number(segment.percentage.toPrecision(6)) + '%';
+}
 export function stackedTooltip<T>(target: ColumnRect<T>, model: TooltipModel, projection: ColumnProjection<T>): TooltipModel {
   const stack = (projection as StackedProjection<T>).stack, category = stack.categories.get(target.point.x)!;
   let context: string;

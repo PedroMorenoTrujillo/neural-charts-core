@@ -1,4 +1,6 @@
 import type { ChartResult } from '../public/chart-types.js';
+import { NUMERIC_LABEL_CLASS } from '../internal/chart/data-label-direction.js';
+import { pointLabelPositions } from '../internal/layout/data-labels.js';
 import type { ScatterChartSpec, ScatterMarkerShape, ScatterSeries } from '../public/scatter-types.js';
 import type { ScatterProjection, ScatterTarget, ScatterBounds } from './geometry.js';
 import type { Layers } from '../internal/axes/scene.js';
@@ -37,12 +39,16 @@ export function scatterScene<T>(projection: ScatterProjection<T>, spec: ScatterC
   for (let index = 0; index < projection.targets.length; index += step) {
     const target = projection.targets[index]!, text = String(target.point.y), m = measure(text);
     if (![m.width, m.height, m.baseline].every(Number.isFinite) || m.width < 0 || m.height < 0) return invalid('INVALID_NUMBER', 'BAD_TEXT_MEASUREMENT', 'scatter.labels');
-    const box = { x: target.x - m.width / 2, y: target.y - target.radius - m.height - 5, width: m.width, height: m.height };
-    if (box.x < plot.x || box.y < plot.y || box.x + box.width > plot.x + plot.width || box.y + box.height > plot.y + plot.height || boxes.some(other => overlaps(box, other))) continue;
-    // Expand by the maximum permitted marker radius and reject any competing
-    // point, even when the label's own point is its closest neighbour.
-    if (projection.spatial.intersects({ minX: box.x - 12, minY: box.y - 12, maxX: box.x + box.width + 12, maxY: box.y + box.height + 12 }, target)) continue;
-    boxes.push(box); layers.labels.push({ kind: 'text', key: 'scatter-label-' + target.series.index + '-' + target.index, clipKey: 'plot', x: target.x, y: box.y + m.baseline, text, anchor: 'middle', baseline: 'alphabetic', fontFamily: font.family, fontSize: font.size, fontWeight: font.weight, presentation: { fill: { kind: 'solid', value: palette.text } } });
+    let box: ScatterBounds | null = null, labelX = target.x;
+    for (const [slot, position] of pointLabelPositions(target.x, target.y, plot, m, palette.text, target.radius + 5).entries()) {
+      const candidate = { x: position.x, y: position.y, width: m.width, height: m.height };
+      if (candidate.x < plot.x || candidate.y < plot.y || candidate.x + candidate.width > plot.x + plot.width || candidate.y + candidate.height > plot.y + plot.height || boxes.some(other => overlaps(candidate, other))) continue;
+      // Preserve exact glyph avoidance through the existing spatial index.
+      if (projection.spatial.intersects({ minX: candidate.x - 12, minY: candidate.y - 12, maxX: candidate.x + candidate.width + 12, maxY: candidate.y + candidate.height + 12 }, target)) continue;
+      box = candidate; labelX = slot < 2 ? target.x : candidate.x + m.width / 2; break;
+    }
+    if (!box) continue;
+    boxes.push(box); layers.labels.push({ kind: 'text', key: 'scatter-label-' + target.series.index + '-' + target.index, classes: [NUMERIC_LABEL_CLASS], clipKey: 'plot', x: labelX, y: box.y + m.baseline, text, anchor: 'middle', baseline: 'alphabetic', fontFamily: font.family, fontSize: font.size, fontWeight: font.weight, presentation: { fill: { kind: 'solid', value: palette.text } } });
   }
   return ok(undefined);
 }

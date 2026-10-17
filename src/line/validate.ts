@@ -103,7 +103,7 @@ export function validateState(value: unknown, ids: ReadonlySet<string>, path = '
 }
 export function validateLine<T>(value: unknown): ChartResult<LineChartSpec<T>> {
   try {
-    const s = object(value, ['family', 'title', 'description', 'axes', 'series', 'references', 'theme', 'direction', 'font', 'legend', 'tooltip', 'state', 'status', 'selection', 'crosshair', 'motion', 'viewport'], ['family', 'title', 'axes', 'series'], '');
+    const s = object(value, ['family', 'title', 'description', 'axes', 'series', 'references', 'theme', 'direction', 'font', 'legend', 'tooltip', 'state', 'status', 'selection', 'crosshair', 'motion', 'viewport', 'labels'], ['family', 'title', 'axes', 'series'], '');
     choice(s.family, ['line'], 'family'); text(s.title, 'title');
     const axes = object(s.axes, ['x', 'y'], ['x', 'y'], 'axes'), x = axis(axes.x, true, 'axes.x'), y = axis(axes.y, false, 'axes.y');
     const ranks = new Map<string, number>();
@@ -200,6 +200,7 @@ export function validateLine<T>(value: unknown): ChartResult<LineChartSpec<T>> {
     if (Object.hasOwn(s, 'selection')) s.selection = selectionBinding(s.selection);
     if (Object.hasOwn(s, 'crosshair')) choice(s.crosshair, [false, 'x', 'y', 'xy'], 'crosshair');
     if (Object.hasOwn(s, 'motion')) choice(s.motion, ['none', 'subtle'], 'motion');
+    if (Object.hasOwn(s, 'labels')) choice(s.labels, ['auto', 'off'], 'labels');
     if (Object.hasOwn(s, 'viewport')) s.viewport = viewportBinding(s.viewport);
     return ok(Object.freeze(s) as unknown as LineChartSpec<T>);
   } catch (e) { return e instanceof Rejected || e instanceof ValidationFailure ? { status: 'invalid', diagnostic: e.diagnostic } : invalid('INVALID_CONFIG', 'BAD_LINE_SPEC', ''); }

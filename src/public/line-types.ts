@@ -44,6 +44,7 @@ export type LineFont = Readonly<{
 type LineCommon = Readonly<{
   family: 'line'; title: string; description?: string;
   selection?: ChartSelectionBinding<SeriesPointId>; crosshair?: ChartCrosshair; motion?: ChartMotion;
+  labels?: 'auto' | 'off';
   theme?: ChartTheme; direction?: 'ltr' | 'rtl'; font?: LineFont;
   legend?: LineLegendSpec; tooltip?: LineTooltipSpec;
   state?: ChartStateBinding; status?: ChartStatus;
