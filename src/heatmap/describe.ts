@@ -1,4 +1,6 @@
 import type { ChartResult } from '../public/chart-types.js';
+import { referenceBandContext } from '../internal/axes/reference-band-view.js';
+import { heatmapReferenceContext } from './references.js';
 import type { HeatmapDescription } from '../public/heatmap-types.js';
 import type { Viewport } from '../internal/interaction/viewport.js';
 import { ok } from '../internal/diagnostics.js';
@@ -19,7 +21,7 @@ export function describeHeatmapData<T>(data: HeatmapData<T>, viewport: Viewport 
   const spec = data.spec, view = spec.status && spec.status.kind !== 'ready' ? spec.status.kind : data.observedCount ? 'ready' : 'empty';
   const status = spec.status && 'message' in spec.status && spec.status.message ? spec.status.message : view === 'ready' ? '' : view === 'loading' ? 'Loading chart data.' : view === 'error' ? 'Chart data unavailable.' : 'No numeric observations. Missing and absent cells have no value; view the data table for supplied records.';
   const windows = viewport ? (['x', 'y'] as const).flatMap(axis => { const value = viewport.value[axis]; return value && !Array.isArray(value) && 'firstId' in value ? ['Applied ' + axis.toUpperCase() + ' viewport ' + value.firstId + ' through ' + value.lastId + '.'] : []; }) : [];
-  const context = ['Cells encode original values by color; zero is an observation. Hatched coordinates are missing or absent, never the minimum numeric color. Keyboard navigation includes missing coordinates. The table and CSV contain supplied records only.', colorScaleContext(data), ...windows].join(' ');
+  const context = ['Cells encode original values by color; zero is an observation. Hatched coordinates are missing or absent, never the minimum numeric color. Keyboard navigation includes missing coordinates. The table and CSV contain supplied records only.', colorScaleContext(data), ...windows].join(' ') + (spec.referenceBands?.length ? ' ' + referenceBandContext(spec.referenceBands, spec.axes) : '') + (spec.references?.length ? ' ' + heatmapReferenceContext(spec.references, spec.axes) : '');
   const rows = spec.data.map(cell => Object.freeze({ key: cell.id, cells: Object.freeze([data.rowLabels.get(cell.rowId)!, data.columnLabels.get(cell.columnId)!, cell.value === null ? 'Missing observation' : String(cell.value === 0 ? 0 : cell.value)]) }));
   return Object.freeze({ title: spec.title, description: spec.description ?? '', direction: spec.direction ?? 'ltr', view, status, context, table: Object.freeze({ columns: Object.freeze(['Row', 'Column', 'Value']), rows: Object.freeze(rows) }) });
 }

@@ -24,6 +24,7 @@ import type { ShellFrame } from '../internal/layout/frame.js';
 import { planAxes } from '../internal/axes/plan.js';
 import type { AxesPlan } from '../internal/axes/plan.js';
 import { emptyLayers, axesScene, referenceScene, referenceOutside, frame } from '../internal/axes/scene.js';
+import { drawReferenceBands, referenceBandContext } from '../internal/axes/reference-band-view.js';
 import type { Layers } from '../internal/axes/scene.js';
 import { createShell, shellIds, applyShell } from '../internal/chart/shell.js';
 import { cleanup, removeOwnedNode } from '../internal/chart/cleanup.js';
@@ -175,8 +176,9 @@ function mount<T, S>(host: HTMLElement | null, initial: Accepted<T> | null, opti
       }
     }
     const referenceInfo = axes ? referenceScene(spec.references ?? [], axes, palette, layers, text => { const rendered = ellipsis(text, Math.max(0, axes!.plot.width - 8), s => measurer!.measure(s, font, direction)), m = measurer!.measure(rendered ?? '', font, direction); return { text: rendered, width: m.width, height: m.height }; }, data.ranks) : [];
+    if (axes && spec.referenceBands?.length) { const scoped = withViewportAxes(spec.axes, input.viewport); if (scoped.status === 'invalid') return scoped; const bands = drawReferenceBands(spec.referenceBands, axes, scoped.value, spec.axes, palette, layers, measurer); if (bands.status === 'invalid') return bands; }
     if (labelProjection) { const labeled = lineDataLabels(labelProjection, palette, font, layers, text => measurer!.measure(text, font, direction), direction === 'rtl'); if (labeled.status === 'invalid') return labeled; }
-    const context = [spec.axes.x.title ? `X: ${spec.axes.x.title}.` : '', spec.axes.y.title ? `Y: ${spec.axes.y.title}.` : '', axes?.x.domain ? `Displayed X domain ${fullX(axes.x.domain[0], spec.axes.x.kind, data.labels)} to ${fullX(axes.x.domain[1], spec.axes.x.kind, data.labels)}.` : '', axes?.y.domain ? `Displayed Y domain ${axes.y.domain[0]} to ${axes.y.domain[1]}.` : ''].filter(Boolean).join(' ');
+    const context = [spec.axes.x.title ? `X: ${spec.axes.x.title}.` : '', spec.axes.y.title ? `Y: ${spec.axes.y.title}.` : '', axes?.x.domain ? `Displayed X domain ${fullX(axes.x.domain[0], spec.axes.x.kind, data.labels)} to ${fullX(axes.x.domain[1], spec.axes.x.kind, data.labels)}.` : '', axes?.y.domain ? `Displayed Y domain ${axes.y.domain[0]} to ${axes.y.domain[1]}.` : '', referenceBandContext(spec.referenceBands, spec.axes)].filter(Boolean).join(' ');
     const references = (spec.references ?? []).map(r => `${r.label ?? r.id}. ${r.axis.toUpperCase()} ${r.axis === 'x' ? fullX(r.value, spec.axes.x.kind, data.labels) : String(r.value)}.${(referenceInfo.find(info => info.id === r.id)?.outside ?? referenceOutside(r, input.domains, data.ranks)) ? ' Outside displayed domain.' : ''}`);
     const tableSource: TableSource = { title: spec.title, kind: spec.axes.x.kind, labels: data.labels, series: spec.series, hidden, context, references };
     const statusText = view === 'ready' ? axes?.tooSmall ? 'Chart is too small to display points. Enlarge the chart or view the data table.' : '' : spec.status && 'message' in spec.status ? spec.status.message ?? (view === 'loading' ? 'Loading chart data.' : 'No observations.') : view === 'no-visible-series' ? 'No visible series. Use the legend to show a series.' : view === 'loading' ? 'Loading chart data.' : view === 'error' ? 'Chart data unavailable.' : 'No visible observations.';

@@ -3,7 +3,9 @@ import type { ChartSelectionBinding, ChartSelectionChange, ChartMotion, ChartCro
 import type { ChartViewportBinding, ChartViewportValue, ChartViewportChange, ChartCategoryWindow } from './viewport-types.js';
 import type { LineCategoryAxis, LineFont, LineLegendSpec } from './line-types.js';
 import type { ChartColorScale } from './color-types.js';
+import type { ChartReferenceBand } from './reference-types.js';
 export type HeatmapAxis = Omit<LineCategoryAxis, 'edgeSpacing'> & Readonly<{ reversed?: boolean }>;
+export type HeatmapReference = Readonly<{ id: string; axis: 'x' | 'y'; value: string; label?: string; color?: string; dash?: 'solid' | 'dashed' | 'dotted' }>;
 export type HeatmapCell<T = unknown> = Readonly<{ id: string; rowId: string; columnId: string; value: number | null; datum?: T }>;
 export type HeatmapCellId = Readonly<{ pointId: string; seriesId?: never }>;
 export type HeatmapViewportValue = ChartViewportValue<ChartCategoryWindow, ChartCategoryWindow>;
@@ -11,6 +13,8 @@ export type HeatmapViewportChange = ChartViewportChange<ChartCategoryWindow, Cha
 export type HeatmapChartSpec<T = unknown> = Readonly<{
   family: 'heatmap'; title: string; description?: string; axes: Readonly<{ x: HeatmapAxis; y: HeatmapAxis }>;
   data: readonly HeatmapCell<T>[]; colorScale?: ChartColorScale; gapRatio?: number; labels?: 'auto' | 'off';
+  referenceBands?: readonly ChartReferenceBand<string, string>[];
+  references?: readonly HeatmapReference[];
   theme?: ChartTheme; direction?: 'ltr' | 'rtl'; font?: LineFont; legend?: LineLegendSpec;
   tooltip?: Readonly<{ mode?: 'point' | 'off'; placement?: 'top' | 'bottom' | 'start' | 'end' }>;
   status?: ChartStatus; selection?: ChartSelectionBinding<HeatmapCellId>; crosshair?: ChartCrosshair; motion?: ChartMotion;

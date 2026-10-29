@@ -2,12 +2,14 @@ import type { ChartResult } from '../public/chart-types.js';
 import type { HeatmapChartSpec, HeatmapCell, HeatmapAxis, HeatmapCellId, HeatmapMountOptions } from '../public/heatmap-types.js';
 import type { ChartSelectionBinding } from '../public/interaction-types.js';
 import { invalid, ok } from '../internal/diagnostics.js';
+import { parseReferenceBands } from '../internal/axes/reference-band-view.js';
 import { record, array, text, number, choice, optional, fail, ValidationFailure } from '../internal/data/validation.js';
 import { infoConfig } from '../internal/data/info-config.js';
 import { selectionBinding, prepareSelection } from '../internal/interaction/selection.js';
 import { sliceIdentities } from '../internal/interaction/identities.js';
 import { viewportBinding } from '../internal/interaction/viewport.js';
 import { parseColorScale } from '../internal/color/scale.js';
+import { parseHeatmapReferences } from './references.js';
 import { normalizeHeatmap, coordinateKey, type HeatmapData } from './data.js';
 export const HEATMAP_AXIS_LIMIT = 10000, HEATMAP_CELL_LIMIT = 10000;
 function categoryAxis(input: unknown, path: string): HeatmapAxis {
@@ -21,8 +23,10 @@ function categoryAxis(input: unknown, path: string): HeatmapAxis {
 }
 export function validateHeatmap<T>(input: unknown): ChartResult<HeatmapData<T>> {
   try {
-    const value = record(input, ['family', 'title', 'description', 'axes', 'data', 'colorScale', 'gapRatio', 'labels', 'theme', 'direction', 'font', 'legend', 'tooltip', 'status', 'selection', 'crosshair', 'motion', 'viewport'], ['family', 'title', 'axes', 'data'], 'spec'); choice(value.family, ['heatmap'], 'family'); infoConfig(value);
+    const value = record(input, ['family', 'title', 'description', 'axes', 'data', 'colorScale', 'referenceBands', 'references', 'gapRatio', 'labels', 'theme', 'direction', 'font', 'legend', 'tooltip', 'status', 'selection', 'crosshair', 'motion', 'viewport'], ['family', 'title', 'axes', 'data'], 'spec'); choice(value.family, ['heatmap'], 'family'); infoConfig(value);
     const axes = record(value.axes, ['x', 'y'], ['x', 'y'], 'axes'), x = categoryAxis(axes.x, 'axes.x'), y = categoryAxis(axes.y, 'axes.y'); value.axes = Object.freeze({ x, y });
+    if (Object.hasOwn(value, 'referenceBands')) { const ranges = parseReferenceBands(value.referenceBands, { x, y }); if (ranges.status === 'invalid') return ranges; value.referenceBands = ranges.value; }
+    if (Object.hasOwn(value, 'references')) value.references = parseHeatmapReferences(value.references, { x, y });
     const columns = new Set(x.values.map(value => value.id)), rows = new Set(y.values.map(value => value.id)), ids = new Set<string>(), coordinates = new Set<string>();
     value.data = Object.freeze(array(value.data, HEATMAP_CELL_LIMIT, 'data').map((raw, i): HeatmapCell<T> => {
       const at = 'data[' + i + ']', cell = record(raw, ['id', 'rowId', 'columnId', 'value', 'datum'], ['id', 'rowId', 'columnId', 'value'], at, ['datum']), id = text(cell.id, at + '.id', 128), rowId = text(cell.rowId, at + '.rowId', 128), columnId = text(cell.columnId, at + '.columnId', 128);

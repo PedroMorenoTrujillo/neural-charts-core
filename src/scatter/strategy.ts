@@ -6,6 +6,7 @@ import { createDataTableFrame } from '../internal/accessibility/table-frame.js';
 import { assignment } from '../internal/chart/presentation.js';
 import { planAxes } from '../internal/axes/plan.js';
 import { emptyLayers, axesScene, referenceScene } from '../internal/axes/scene.js';
+import { drawReferenceBands } from '../internal/axes/reference-band-view.js';
 import { ellipsis } from '../internal/layout/text.js';
 import { detailText } from '../internal/tooltip/model.js';
 import { ok } from '../internal/diagnostics.js';
@@ -62,6 +63,7 @@ export function scatterPolicy<T>(): Policy<T> {
       if (description.view === 'ready') {
         axesScene(axes, spec.axes.x, spec.axes.y, palette, layers, shell.body.width < 480);
         referenceScene(spec.references ?? [], axes, palette, layers, (text, cap) => { const fitted = ellipsis(text, cap, text => measurer.measure(text, font, spec.direction ?? 'ltr')), metrics = measurer.measure(fitted ?? '', font, spec.direction ?? 'ltr'); return { text: fitted, width: metrics.width, height: metrics.height }; });
+        const bands = drawReferenceBands(spec.referenceBands, axes, scoped.value, spec.axes, palette, layers, measurer); if (bands.status === 'invalid') return bands;
         const painted = scatterScene(projection, spec, palette, font, text => measurer.measure(text, font, spec.direction ?? 'ltr'), layers); if (painted.status === 'invalid') return painted;
       }
       return ok({ shell, palette, font, projection, description, layers, axes, legend: spec.series.map((series, index) => ({ id: series.id, name: series.name, color: series.color ?? palette.series[assignment(series.id).colorIndex]!, dash: 'solid' as const, swatch: scatterMarkerShape(series), width: shell.legendPosition === 'end' ? 160 : shell.buttonWidths[index]! })), status: description.view !== 'ready' ? description.status : axes.tooSmall ? 'Chart is too small to display points. Enlarge the chart or view the data table.' : !projection.targets.length ? 'No observations in the displayed domains. View the data table.' : '' });

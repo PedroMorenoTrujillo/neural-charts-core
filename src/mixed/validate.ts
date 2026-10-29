@@ -8,7 +8,7 @@ import { ok, invalid } from '../internal/diagnostics.js';
  * not its public controller. Mixed owns the discriminants and column limits. */
 export function validateMixed<T>(input: unknown): ChartResult<MixedChartSpec<T>> {
   try {
-    const source = record(input, ['family', 'title', 'description', 'series', 'axes', 'groupGap', 'barGap', 'maxBarWidth', 'theme', 'direction', 'font', 'status', 'state', 'legend', 'tooltip', 'references', 'selection', 'crosshair', 'motion', 'labels', 'viewport'], ['family', 'title', 'series', 'axes'], 'spec');
+    const source = record(input, ['family', 'title', 'description', 'series', 'axes', 'groupGap', 'barGap', 'maxBarWidth', 'theme', 'direction', 'font', 'status', 'state', 'legend', 'tooltip', 'references', 'referenceBands', 'selection', 'crosshair', 'motion', 'labels', 'viewport'], ['family', 'title', 'series', 'axes'], 'spec');
     choice(source.family, ['mixed'], 'family');
     const axes = record(source.axes, ['x', 'y'], ['x', 'y'], 'axes'), x = record(axes.x, ['kind', 'values', 'title', 'grid', 'ticks', 'labels'], ['kind', 'values'], 'axes.x'); choice(x.kind, ['category'], 'axes.x.kind'); array(x.values, 10000, 'axes.x.values');
     const kinds: MixedSeries<T>['kind'][] = []; let points = 0;

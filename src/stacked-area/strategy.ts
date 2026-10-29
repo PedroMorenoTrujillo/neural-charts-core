@@ -6,6 +6,7 @@ import { createDataTableFrame } from '../internal/accessibility/table-frame.js';
 import { assignment, resolveDashes } from '../internal/chart/presentation.js';
 import { planAxes } from '../internal/axes/plan.js';
 import { emptyLayers, axesScene, referenceScene } from '../internal/axes/scene.js';
+import { drawReferenceBands } from '../internal/axes/reference-band-view.js';
 import { ellipsis } from '../internal/layout/text.js';
 import { detailText, fullX, tooltipModel } from '../internal/tooltip/model.js';
 import { ok } from '../internal/diagnostics.js';
@@ -77,6 +78,7 @@ export function stackedAreaPolicy<T>(): Policy<T> {
         axesScene(axes, spec.axes.x, spec.axes.y, palette, layers, shell.body.width < 480);
         if (!axes.tooSmall) stackedAreaScene(projection, palette, layers, dashes);
         referenceScene(spec.references ?? [], axes, palette, layers, (text, cap) => { const fitted = ellipsis(text, cap, text => measurer.measure(text, font, spec.direction ?? 'ltr')), metrics = measurer.measure(fitted ?? '', font, spec.direction ?? 'ltr'); return { text: fitted, width: metrics.width, height: metrics.height }; }, data.line.ranks);
+        const bands = drawReferenceBands(spec.referenceBands, axes, scoped.value, spec.axes, palette, layers, measurer); if (bands.status === 'invalid') return bands;
         if (!axes.tooSmall && spec.labels === 'auto') {
           const labelled = lineDataLabels(projection, palette, font, layers, text => measurer.measure(text, font, spec.direction ?? 'ltr'), spec.direction === 'rtl', (id, point) => stack.value.mode === 'sum' ? String(point.y) : Number(projection.segments.get(pointKey(id, point.id))!.percentage!.toPrecision(6)) + '%');
           if (labelled.status === 'invalid') return labelled;

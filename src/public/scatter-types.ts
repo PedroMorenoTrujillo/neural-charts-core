@@ -1,6 +1,7 @@
 import type { ChartDiagnostic, ChartResult, ChartState, ChartStateBinding, ChartStateChange, ChartStatus, ChartTheme, ChartDataTable } from './chart-types.js';
 import type { SeriesPointId, ChartSelectionBinding, ChartSelectionChange, ChartCrosshair, ChartMotion } from './interaction-types.js';
 import type { ChartViewportBinding, ChartViewportValue, ChartViewportChange, ChartNumericWindow } from './viewport-types.js';
+import type { ChartReferenceBand } from './reference-types.js';
 export type ScatterPoint<T = unknown> = Readonly<{ id: string; x: number | null; y: number | null; datum?: T }>;
 export type ScatterMarkerShape = 'circle' | 'square' | 'diamond';
 export type ScatterSeries<T = unknown> = Readonly<{ id: string; name: string; data: readonly ScatterPoint<T>[]; color?: string; marker?: Readonly<{ shape?: ScatterMarkerShape; size?: number }> }>;
@@ -12,7 +13,7 @@ export type ScatterChartSpec<T = unknown> = Readonly<{
   viewport?: ChartViewportBinding<ChartNumericWindow>;
   theme?: ChartTheme; direction?: 'ltr' | 'rtl'; font?: Readonly<{ family?: 'sans-serif' | 'serif' | 'monospace'; size?: number; weight?: 400 | 500 | 600 | 700 }>;
   legend?: Readonly<{ position?: 'bottom' | 'end' | 'none' }>; tooltip?: Readonly<{ mode?: 'point' | 'off'; placement?: 'top' | 'bottom' | 'start' | 'end' }>;
-  labels?: 'auto' | 'off'; references?: readonly ScatterReferenceLine[]; state?: ChartStateBinding; status?: ChartStatus;
+  labels?: 'auto' | 'off'; references?: readonly ScatterReferenceLine[]; referenceBands?: readonly ChartReferenceBand<number>[]; state?: ChartStateBinding; status?: ChartStatus;
 }>;
 export type ScatterPointActivation<T = unknown> = Readonly<{ seriesId: string; point: ScatterPoint<T>; source: 'pointer' | 'touch' | 'keyboard'; revision: number }>;
 export type ScatterMountOptions<T = unknown> = Readonly<{ instanceId: string; initialState?: ChartState; onPointActivate?: (event: ScatterPointActivation<T>) => void; onStateChange?: (event: ChartStateChange) => void; onSelectionChange?: (event: ChartSelectionChange<SeriesPointId>) => void; onViewportChange?: (event: ChartViewportChange<ChartNumericWindow>) => void; onDiagnostic?: (diagnostic: ChartDiagnostic) => void }>;

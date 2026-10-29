@@ -1,4 +1,5 @@
 import type { ChartTheme, ChartStateBinding, ChartStatus, ChartState, ChartStateChange, ChartDiagnostic, ChartResult } from './chart-types.js';
+import type { ChartReferenceBand } from './reference-types.js';
 import type { SeriesPointId, ChartSelectionBinding, ChartSelectionChange, ChartCrosshair, ChartMotion } from './interaction-types.js';
 import type { ChartViewportBinding, ChartViewportValue, ChartViewportChange, ChartCategoryWindow } from './viewport-types.js';
 
@@ -17,7 +18,7 @@ export type ColumnChartSpec<T = unknown> = Readonly<{
   theme?: ChartTheme; direction?: 'ltr' | 'rtl';
   font?: Readonly<{ family?: 'sans-serif' | 'serif' | 'monospace'; size?: number; weight?: 400 | 500 | 600 | 700 }>;
   axes: Readonly<{ x: ColumnCategoryAxis; y: ColumnValueAxis }>;
-  series: readonly ColumnSeries<T>[]; references?: readonly ColumnReference[];
+  series: readonly ColumnSeries<T>[]; references?: readonly ColumnReference[]; referenceBands?: readonly ChartReferenceBand<string>[];
   legend?: Readonly<{ position?: 'bottom' | 'end' | 'none' }>;
   tooltip?: Readonly<{ mode?: 'point' | 'shared' | 'off'; placement?: 'top' | 'bottom' | 'start' | 'end' }>;
   state?: ChartStateBinding; status?: ChartStatus;

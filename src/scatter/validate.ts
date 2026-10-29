@@ -1,6 +1,7 @@
 import type { ChartResult, ChartState, ChartStatus } from '../public/chart-types.js';
 import type { ScatterChartSpec, ScatterMountOptions, ScatterPoint, ScatterSeries, NumericAxis } from '../public/scatter-types.js';
 import { invalid, ok } from '../internal/diagnostics.js';
+import { parseReferenceBands } from '../internal/axes/reference-band-view.js';
 import { selectionBinding } from '../internal/interaction/selection.js';
 import { viewportBinding } from '../internal/interaction/viewport.js';
 import { record, array, text, number, choice, color, optional, fail, ValidationFailure } from '../internal/data/validation.js';
@@ -24,7 +25,7 @@ function axis(value: unknown, path: string): NumericAxis {
 }
 export function validateScatter<T>(value: unknown): ChartResult<ScatterChartSpec<T>> {
   try {
-    const spec = record(value, ['family', 'title', 'description', 'axes', 'series', 'theme', 'direction', 'font', 'legend', 'tooltip', 'labels', 'references', 'state', 'status', 'selection', 'crosshair', 'motion', 'viewport'], ['family', 'title', 'axes', 'series'], 'spec');
+    const spec = record(value, ['family', 'title', 'description', 'axes', 'series', 'theme', 'direction', 'font', 'legend', 'tooltip', 'labels', 'references', 'referenceBands', 'state', 'status', 'selection', 'crosshair', 'motion', 'viewport'], ['family', 'title', 'axes', 'series'], 'spec');
     choice(spec.family, ['scatter'], 'family'); spec.title = text(spec.title, 'title');
     optional(spec, 'description', (value, path) => text(value, path, 4096, true), 'spec');
     optional(spec, 'theme', (value, path) => choice(value, ['light', 'dark', 'auto'], path), 'spec'); optional(spec, 'direction', (value, path) => choice(value, ['ltr', 'rtl'], path), 'spec');
@@ -49,6 +50,7 @@ export function validateScatter<T>(value: unknown): ChartResult<ScatterChartSpec
     }));
     optional(spec, 'state', (value, path) => { const state = record(value, ['mode', 'value'], ['mode'], path), mode = choice(state.mode, ['internal', 'controlled'], path + '.mode'); if (mode === 'internal') { if (Object.hasOwn(state, 'value')) fail(path, 'BAD_STATE'); return Object.freeze({ mode }); } return Object.freeze({ mode, value: scatterState(state.value, ids, path + '.value') }); }, 'spec');
     optional(spec, 'status', (value, path): ChartStatus => { const status = record(value, ['kind', 'message'], ['kind'], path), kind = choice(status.kind, ['ready', 'loading', 'empty', 'error'], path + '.kind'); if (kind === 'ready') { if (Object.hasOwn(status, 'message')) fail(path); return Object.freeze({ kind }); } const message = Object.hasOwn(status, 'message') ? text(status.message, path + '.message', 2048) : undefined; if (kind === 'error' && message === undefined) fail(path + '.message'); return Object.freeze({ kind, ...(message === undefined ? {} : { message }) }) as ChartStatus; }, 'spec');
+    if (Object.hasOwn(spec, 'referenceBands')) { const ranges = parseReferenceBands(spec.referenceBands, spec.axes as ScatterChartSpec<T>['axes']); if (ranges.status === 'invalid') return ranges; spec.referenceBands = ranges.value; }
     optional(spec, 'references', (value, path) => { const seen = new Set<string>(); return Object.freeze(array(value, 32, path).map((value, i) => { const at = path + '[' + i + ']', reference = record(value, ['id', 'axis', 'value', 'label', 'color', 'dash'], ['id', 'axis', 'value'], at); reference.id = text(reference.id, at + '.id', 128); if (seen.has(reference.id as string)) fail(at + '.id', 'DUPLICATE_REFERENCE_ID'); seen.add(reference.id as string); reference.axis = choice(reference.axis, ['x', 'y'], at + '.axis'); reference.value = number(reference.value, at + '.value'); optional(reference, 'label', (value, path) => text(value, path, 1024), at); optional(reference, 'color', color, at); optional(reference, 'dash', (value, path) => choice(value, ['solid', 'dashed', 'dotted'], path), at); return Object.freeze(reference); })); }, 'spec');
     optional(spec, 'motion', (value, path) => choice(value, ['none', 'subtle'], path), 'spec');
     optional(spec, 'viewport', viewportBinding, 'spec');

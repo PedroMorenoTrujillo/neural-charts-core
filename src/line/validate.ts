@@ -1,6 +1,7 @@
 import type { ChartDiagnostic, ChartResult, ChartState } from '../public/chart-types.js';
 import type { LineChartSpec, LineMountOptions } from '../public/line-types.js';
 import { invalid, ok } from '../internal/diagnostics.js';
+import { parseReferenceBands } from '../internal/axes/reference-band-view.js';
 import { selectionBinding } from '../internal/interaction/selection.js';
 import { viewportBinding } from '../internal/interaction/viewport.js';
 import { ValidationFailure } from '../internal/data/validation.js';
@@ -103,7 +104,7 @@ export function validateState(value: unknown, ids: ReadonlySet<string>, path = '
 }
 export function validateLine<T>(value: unknown): ChartResult<LineChartSpec<T>> {
   try {
-    const s = object(value, ['family', 'title', 'description', 'axes', 'series', 'references', 'theme', 'direction', 'font', 'legend', 'tooltip', 'state', 'status', 'selection', 'crosshair', 'motion', 'viewport', 'labels'], ['family', 'title', 'axes', 'series'], '');
+    const s = object(value, ['family', 'title', 'description', 'axes', 'series', 'references', 'referenceBands', 'theme', 'direction', 'font', 'legend', 'tooltip', 'state', 'status', 'selection', 'crosshair', 'motion', 'viewport', 'labels'], ['family', 'title', 'axes', 'series'], '');
     choice(s.family, ['line'], 'family'); text(s.title, 'title');
     const axes = object(s.axes, ['x', 'y'], ['x', 'y'], 'axes'), x = axis(axes.x, true, 'axes.x'), y = axis(axes.y, false, 'axes.y');
     const ranks = new Map<string, number>();
@@ -169,6 +170,7 @@ export function validateLine<T>(value: unknown): ChartResult<LineChartSpec<T>> {
         return Object.freeze(r);
       }));
     }
+    if (Object.hasOwn(s, 'referenceBands')) { const ranges = parseReferenceBands(s.referenceBands, s.axes as LineChartSpec<T>['axes']); if (ranges.status === 'invalid') return ranges; s.referenceBands = ranges.value; }
     if (Object.hasOwn(s, 'state')) {
       const st = object(s.state, ['mode', 'value'], ['mode'], 'state'); choice(st.mode, ['internal', 'controlled'], 'state.mode', 'BAD_STATE');
       if (st.mode === 'controlled') st.value = hidden(st.value, ids, 'state.value');

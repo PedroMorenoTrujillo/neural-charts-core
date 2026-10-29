@@ -9,6 +9,8 @@ import { viewportShell, createViewportView } from '../internal/interaction/viewp
 import { withViewportAxes } from '../internal/interaction/viewport-axes.js';
 import { planAxes } from '../internal/axes/plan.js';
 import { axesScene, emptyLayers } from '../internal/axes/scene.js';
+import { drawReferenceBands } from '../internal/axes/reference-band-view.js';
+import { heatmapReferencesScene } from './references.js';
 import { detailText } from '../internal/tooltip/model.js';
 import { validateHeatmap, validateHeatmapOptions } from './validate.js';
 import { describeHeatmapData } from './describe.js';
@@ -60,6 +62,8 @@ export function heatmapPolicy<T>(): Policy<T> {
         axesScene(axes, spec.axes.x, spec.axes.y, palette, layers, shell.body.width < 480);
         const drawn = heatmapScene(result.value, colors.value, palette, font, layers, text => measurer.measure(text, font, 'ltr')); if (drawn.status === 'invalid') return drawn;
         heatmapLegendScene(layout, colors.value, palette, font, layers, measurer);
+        heatmapReferencesScene(spec.references, axes, scoped.value, palette, layers, measurer);
+        const bands = drawReferenceBands(spec.referenceBands, axes, scoped.value, spec.axes, palette, layers, measurer, false, true); if (bands.status === 'invalid') return bands;
       }
       return ok({ shell, palette, font, projection: result.value, description, layers, axes, legend: [], status: description.view !== 'ready' ? description.status : axes.tooSmall ? 'Chart is too small. Enlarge it or view the data table.' : '' });
     },

@@ -1,4 +1,5 @@
 import type { ChartTheme, ChartStateBinding, ChartStatus, ChartState, ChartStateChange, ChartDiagnostic, ChartResult } from './chart-types.js';
+import type { ChartReferenceBand } from './reference-types.js';
 import type { SeriesPointId, ChartSelectionBinding, ChartSelectionChange, ChartCrosshair, ChartMotion } from './interaction-types.js';
 import type { ChartViewportBinding, ChartViewportValue, ChartViewportChange, ChartCategoryWindow, ChartNumericWindow } from './viewport-types.js';
 
@@ -52,15 +53,15 @@ type LineCommon = Readonly<{
 export type LineChartSpec<T = unknown> = LineCommon & (
   | Readonly<{ axes: Readonly<{ x: LineCategoryAxis; y: LineYAxis }>; viewport?: ChartViewportBinding<ChartCategoryWindow>;
       series: readonly LineSeries<T, string>[];
-      references?: readonly LineReference<string>[] }>
+      references?: readonly LineReference<string>[]; referenceBands?: readonly ChartReferenceBand<string>[] }>
   | Readonly<{ axes: Readonly<{ x: LineContinuousXAxis & { readonly kind: 'linear' };
       y: LineYAxis }>; viewport?: ChartViewportBinding<ChartNumericWindow>;
       series: readonly LineSeries<T, number>[];
-      references?: readonly LineReference<number>[] }>
+      references?: readonly LineReference<number>[]; referenceBands?: readonly ChartReferenceBand<number>[] }>
   | Readonly<{ axes: Readonly<{ x: LineContinuousXAxis & { readonly kind: 'time' };
       y: LineYAxis }>; viewport?: ChartViewportBinding<ChartNumericWindow>;
       series: readonly LineSeries<T, number>[];
-      references?: readonly LineReference<number>[] }>
+      references?: readonly LineReference<number>[]; referenceBands?: readonly ChartReferenceBand<number>[] }>
 );
 export type LinePointActivation<T = unknown> = Readonly<{
   seriesId: string; source: 'pointer' | 'touch' | 'keyboard'; revision: number;

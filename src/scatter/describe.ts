@@ -1,4 +1,5 @@
 import type { ChartResult, ChartState } from '../public/chart-types.js';
+import { referenceBandContext } from '../internal/axes/reference-band-view.js';
 import type { ScatterChartSpec, ScatterDescription } from '../public/scatter-types.js';
 import { invalid, ok } from '../internal/diagnostics.js';
 import { ValidationFailure, record, fail } from '../internal/data/validation.js';
@@ -12,7 +13,7 @@ export function describeScatterData<T>(data: NormalizedScatter<T, ScatterChartSp
   for (const series of data.series) if (!hidden.has(series.spec.id)) visible += series.paired.length;
   const view = spec.status && spec.status.kind !== 'ready' ? spec.status.kind : spec.series.length && hidden.size === spec.series.length ? 'no-visible-series' : visible ? 'ready' : 'empty';
   const status = spec.status && 'message' in spec.status && spec.status.message ? spec.status.message : view === 'ready' ? '' : view === 'loading' ? 'Loading chart data.' : view === 'error' ? 'Chart data unavailable.' : view === 'no-visible-series' ? 'No visible series. Use the legend to show a series.' : 'No complete visible XY pairs. View the data table for provided observations.';
-  let context = 'Scatter observations retain input order and true numeric X/Y coordinates. Missing coordinates are not plotted. Identical coordinates remain separate observations available by keyboard and data table. Points outside explicit domains are clipped; the data table retains all original records.';
+  let context = 'Scatter observations retain input order and true numeric X/Y coordinates. Missing coordinates are not plotted. Identical coordinates remain separate observations available by keyboard and data table. Points outside explicit domains are clipped; the data table retains all original records.' + (spec.referenceBands?.length ? ' ' + referenceBandContext(spec.referenceBands, spec.axes) : '');
   if (spec.references?.length) context += ' References: ' + spec.references.map(reference => (reference.label ?? reference.id) + ', ' + reference.axis.toUpperCase() + ' ' + reference.value).join('; ') + '.';
   return Object.freeze({ title: spec.title, description: spec.description ?? '', direction: spec.direction ?? 'ltr', view, status, context, table: Object.freeze({ columns: Object.freeze(['Series', 'Observation', 'X', 'Y', 'Visibility']), rows: Object.freeze(data.series.flatMap(series => series.spec.data.map(point => Object.freeze({ key: targetKey(series.spec.id, point.id), cells: Object.freeze([series.spec.name, point.id, point.x === null ? 'Missing observation' : String(point.x), point.y === null ? 'Missing observation' : String(point.y), hidden.has(series.spec.id) ? 'Series hidden' : 'Series visible']) })))) }) });
 }

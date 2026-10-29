@@ -1,4 +1,5 @@
 import type { ChartResult, ChartState } from '../public/chart-types.js';
+import { referenceBandContext } from '../internal/axes/reference-band-view.js';
 import type { StackedAreaDescription } from '../public/stacked-area-types.js';
 import { invalid, ok } from '../internal/diagnostics.js';
 import { ValidationFailure, record, fail } from '../internal/data/validation.js';
@@ -15,7 +16,7 @@ export function describeStackedAreaData<T>(data: StackedAreaData<T>, state: Char
   const drawable = [...stack.categories.values()].some(row => row.complete && row.segments.length && (stack.mode === 'sum' || row.percentageDefined));
   const view = spec.status && spec.status.kind !== 'ready' ? spec.status.kind : spec.series.length && hidden.size === spec.series.length ? 'no-visible-series' : drawable ? 'ready' : 'empty';
   const status = spec.status && 'message' in spec.status && spec.status.message ? spec.status.message : view === 'ready' ? '' : view === 'loading' ? 'Loading chart data.' : view === 'error' ? 'Chart data unavailable.' : view === 'no-visible-series' ? 'No visible series. Use the legend to show a series.' : 'No complete visible stack. View the data table for original observations.';
-  const context = (stack.mode === 'sum' ? 'Stacked Area uses separate positive and negative accumulators in visible series order. ' : 'Percentage Stacked Area shows shares of the complete visible total; a zero total has no defined share. ') + 'A missing component breaks the whole stack at that X coordinate. Tooltip, table and CSV retain original observations; synthetic sign-crossing vertices are not data. Explicit domains clip geometry.' + (spec.references?.length ? ' References: ' + spec.references.map(reference => (reference.label ?? reference.id) + ', ' + reference.axis.toUpperCase() + ' ' + reference.value).join('; ') + '.' : '');
+  const context = (stack.mode === 'sum' ? 'Stacked Area uses separate positive and negative accumulators in visible series order. ' : 'Percentage Stacked Area shows shares of the complete visible total; a zero total has no defined share. ') + 'A missing component breaks the whole stack at that X coordinate. Tooltip, table and CSV retain original observations; synthetic sign-crossing vertices are not data. Explicit domains clip geometry.' + (spec.references?.length ? ' References: ' + spec.references.map(reference => (reference.label ?? reference.id) + ', ' + reference.axis.toUpperCase() + ' ' + reference.value).join('; ') + '.' : '') + (spec.referenceBands?.length ? ' ' + referenceBandContext(spec.referenceBands, spec.axes) : '');
   const bySeries = new Map(stack.series.map(series => [series.id, new Map(series.segments.map(segment => [segment.point.id, segment]))]));
   const rows = spec.series.flatMap(series => series.data.map(point => {
     const row = stack.categories.get(data.coordinateIds[data.coordinateIndex.get(point.x)!]!)!, segment = bySeries.get(series.id)?.get(point.id);

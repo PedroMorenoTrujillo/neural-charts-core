@@ -1,4 +1,5 @@
 import type { ChartResult, ChartState } from '../public/chart-types.js';
+import { referenceBandContext } from '../internal/axes/reference-band-view.js';
 import type { MixedChartSpec, MixedDescription } from '../public/mixed-types.js';
 import { validateMixed } from './validate.js';
 import { normalizeMixed, mixedDomains, type MixedData } from './data.js';
@@ -14,7 +15,7 @@ export function describeMixedData<T>(data: MixedData<T>, state: ChartState): Mix
   const { spec, line } = data, hidden = new Set(state.hiddenSeriesIds), status = spec.status?.kind ?? 'ready';
   const visible = spec.series.filter(series => !hidden.has(series.id));
   const view = status !== 'ready' ? status : !line.nonnullCount ? 'empty' : !visible.length ? 'no-visible-series' : !visible.some(series => series.data.some(point => point.y !== null)) ? 'empty' : 'ready';
-  const context = 'Mixed Line, Area and Column share one category frame and one value axis. Area and Column use a zero baseline, clipped by an explicit domain. Missing observations are not zero. All original observations remain in the data table and CSV.';
+  const context = 'Mixed Line, Area and Column share one category frame and one value axis. Area and Column use a zero baseline, clipped by an explicit domain. Missing observations are not zero. All original observations remain in the data table and CSV.' + (spec.referenceBands?.length ? ' ' + referenceBandContext(spec.referenceBands, spec.axes) : '');
   return Object.freeze({ title: spec.title, description: spec.description ?? '', direction: spec.direction ?? 'ltr', view, status: view === 'ready' ? '' : spec.status?.kind === 'error' ? spec.status.message : spec.status && 'message' in spec.status && spec.status.message ? spec.status.message : view === 'loading' ? 'Loading data.' : view === 'no-visible-series' ? 'All series are hidden.' : 'No data available.', context, table: Object.freeze({ columns: mixedColumns, rows: Object.freeze(spec.series.flatMap(series => series.data.map(point => Object.freeze({ key: pointKey(series.id, point.id), cells: Object.freeze([series.name, series.kind, point.id, point.x, fullX(point.x, 'category', line.labels), point.y === null ? 'No data' : String(point.y), hidden.has(series.id) ? 'Hidden' : 'Visible']) })))) }) });
 }
 export function describeMixed<T = unknown>(input: MixedChartSpec<T>): ChartResult<MixedDescription> {

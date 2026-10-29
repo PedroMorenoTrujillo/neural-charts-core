@@ -17,6 +17,7 @@ import { createSvgWriter, type SceneWriter, type PreparedScene } from '../intern
 import { createTextMeasurer, ellipsis, type TextMeasurer } from '../internal/layout/text.js';
 import { shellFrame, type ShellFrame } from '../internal/layout/frame.js';
 import { emptyLayers, axesScene, referenceScene, frame, type Layers } from '../internal/axes/scene.js';
+import { drawReferenceBands, referenceBandContext } from '../internal/axes/reference-band-view.js';
 import type { AxesPlan } from '../internal/axes/plan.js';
 import { createShell, shellIds, applyShell, type Shell } from '../internal/chart/shell.js';
 import { cleanup, removeOwnedNode } from '../internal/chart/cleanup.js';
@@ -144,8 +145,9 @@ function mount<T,S>(host:HTMLElement|null, initial:Input<T>|null, options:Column
       }
     }
     const horizontal=spec.orientation==='horizontal',refs=spec.references??[],referenceInfo=axes?referenceScene(refs.map(r=>horizontal?{...r,axis:'x' as const}:r),axes,palette,layers,()=>({text:null,width:0,height:0})):[];
+    if (axes && spec.referenceBands?.length) { const scoped = withViewportAxes(spec.axes, input.viewport); if (scoped.status === 'invalid') return scoped; const bands = drawReferenceBands(spec.referenceBands, axes, scoped.value, spec.axes, palette, layers, measurer, horizontal); if (bands.status === 'invalid') return bands; }
     const shownDomain=axes?(horizontal?axes.x.domain:axes.y.domain):input.domain;
-    const context=[spec.axes.x.title?`Category: ${spec.axes.x.title}.`:'',spec.axes.y.title?`Value: ${spec.axes.y.title}.`:'',shownDomain?`Displayed value domain ${shownDomain[0]} to ${shownDomain[1]}. Baseline zero; rectangles are clipped to this domain.`:'','Categories follow the supplied category order.',policy?.context(data)??''].filter(Boolean).join(' ');
+    const context=[spec.axes.x.title?`Category: ${spec.axes.x.title}.`:'',spec.axes.y.title?`Value: ${spec.axes.y.title}.`:'',shownDomain?`Displayed value domain ${shownDomain[0]} to ${shownDomain[1]}. Baseline zero; rectangles are clipped to this domain.`:'','Categories follow the supplied category order.',policy?.context(data)??'',referenceBandContext(spec.referenceBands,spec.axes)].filter(Boolean).join(' ');
     const references=refs.map(r=>`${r.label??r.id}. Y ${r.value}.${(referenceInfo.find(i=>i.id===r.id)?.outside??(!!shownDomain&&(r.value<shownDomain[0]||r.value>shownDomain[1])))?' Outside displayed domain.':''}`);
     const referenceCaption=referenceCaptionHeight?ellipsis((refs.length===1?'Reference: ':'References: ')+refs.map(r=>(r.label??r.id+' · '+r.value)+(referenceInfo.find(i=>i.id===r.id)?.outside?' (outside domain)':'')).join(' | '),layout.body.width-24,text=>measurer!.measure(text,font,direction)):null;
     columnReferenceCaption(layers,referenceCaption,palette,font,direction,layout.body.width,layout.body.height);

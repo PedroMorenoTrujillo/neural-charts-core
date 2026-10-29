@@ -6,6 +6,7 @@ import { createDataTableFrame } from '../internal/accessibility/table-frame.js';
 import { assignment, resolveDashes } from '../internal/chart/presentation.js';
 import { planAxes } from '../internal/axes/plan.js';
 import { emptyLayers, axesScene, referenceScene } from '../internal/axes/scene.js';
+import { drawReferenceBands } from '../internal/axes/reference-band-view.js';
 import { ellipsis } from '../internal/layout/text.js';
 import { detailText, fullX, tooltipModel } from '../internal/tooltip/model.js';
 import { ok } from '../internal/diagnostics.js';
@@ -62,6 +63,7 @@ export function mixedPolicy<T>(): Policy<T> {
         axesScene(axes, spec.axes.x, spec.axes.y, palette, layers, shell.body.width < 480);
         if (!axes.tooSmall) { const marks = mixedScene(projection, palette, layers, dashes); if (marks.status === 'invalid') return marks; }
         referenceScene(spec.references ?? [], axes, palette, layers, (text, cap) => { const fitted = ellipsis(text, cap, text => measurer.measure(text, font, spec.direction ?? 'ltr')), metrics = measurer.measure(fitted ?? '', font, spec.direction ?? 'ltr'); return { text: fitted, width: metrics.width, height: metrics.height }; }, data.line.ranks);
+        const bands = drawReferenceBands(spec.referenceBands, axes, scoped.value, spec.axes, palette, layers, measurer); if (bands.status === 'invalid') return bands;
         if (!axes.tooSmall && spec.labels === 'auto') { const labels = lineDataLabels(projection.index.projection, palette, font, layers, text => measurer.measure(text, font, spec.direction ?? 'ltr'), spec.direction === 'rtl'); if (labels.status === 'invalid') return labels; }
       }
       return ok({ shell, palette, font, projection, description, layers, axes, legend: spec.series.map((series, i) => ({ id: series.id, name: series.name, color: series.color ?? palette.series[assignment(series.id).colorIndex]!, dash: dashes.get(series.id) ?? 'solid', width: shell.legendPosition === 'end' ? 160 : shell.buttonWidths[i]! })), status: description.view !== 'ready' ? description.status : axes.tooSmall ? 'Chart is too small. Enlarge it or view the data table.' : '' });

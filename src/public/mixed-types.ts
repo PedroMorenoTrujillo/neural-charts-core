@@ -3,6 +3,7 @@ import type { ChartSelectionBinding, ChartSelectionChange, SeriesPointId, ChartC
 import type { ChartViewportBinding, ChartViewportValue, ChartViewportChange, ChartCategoryWindow } from './viewport-types.js';
 import type { LinePoint, LineSeries, LineFont, LineYAxis, LineReference, LineTooltipSpec, LineLegendSpec, LineSnapshot } from './line-types.js';
 import type { ColumnCategoryAxis, ColumnSeries } from './column-types.js';
+import type { ChartReferenceBand } from './reference-types.js';
 export type MixedPoint<T = unknown> = LinePoint<T, string>;
 export type MixedSeries<T = unknown> =
   | (LineSeries<T, string> & Readonly<{ kind: 'line' | 'area' }>)
@@ -12,7 +13,7 @@ export type MixedChartSpec<T = unknown> = Readonly<{
   axes: Readonly<{ x: ColumnCategoryAxis; y: LineYAxis }>;
   groupGap?: number; barGap?: number; maxBarWidth?: number;
   theme?: ChartTheme; direction?: 'ltr' | 'rtl'; font?: LineFont; status?: ChartStatus; state?: ChartStateBinding;
-  legend?: LineLegendSpec; tooltip?: LineTooltipSpec; references?: readonly LineReference<string>[];
+  legend?: LineLegendSpec; tooltip?: LineTooltipSpec; references?: readonly LineReference<string>[]; referenceBands?: readonly ChartReferenceBand<string>[];
   selection?: ChartSelectionBinding<SeriesPointId>; crosshair?: ChartCrosshair; motion?: ChartMotion; labels?: 'auto' | 'off';
   viewport?: ChartViewportBinding<ChartCategoryWindow>;
 }>;

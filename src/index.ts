@@ -1,6 +1,6 @@
 export type {
   ChartDiagnosticCode, ChartDiagnostic, ChartResult, ChartStatus, ChartState,
-  ChartStateBinding, ChartStateChange, ChartTheme, ChartDataTable,
+  ChartStateBinding, ChartStateChange, ChartTheme, ChartDataTable, ChartReferenceBand,
   SeriesPointId, SlicePointId, ChartDatumId, ChartSelectionBinding, ChartSelectionChange, ChartCrosshair, ChartMotion,
   ChartNumericWindow, ChartCategoryWindow, ChartAxisWindow, ChartViewportValue, ChartViewportBinding, ChartViewportChange,
 } from './public/chart-types.js';
