@@ -5,6 +5,7 @@ import { selectNumericTicks } from '../math/numeric-ticks.js';
 import { createLinearScale } from '../math/linear.js';
 import { selectTimeTicks, createTimeScale } from '../math/time.js';
 import { createCategoryFrame, createPointScale } from '../math/category.js';
+import type { PointScale } from '../math/category.js';
 import type { UtcInterval } from '../math/utc.js';
 import type { ResolvedFont } from '../chart/presentation.js';
 import type { Plot } from '../layout/frame.js';
@@ -36,13 +37,15 @@ function select(axis: AxisInput, domain: Domain | null, count: number, isY: bool
   if (result.status === 'invalid') return result;
   return ok({ domain: result.value.domain, ticks: result.value.ticks, interval: 'interval' in result.value ? result.value.interval : null });
 }
-function scales(x: AxisInput, y: AxisInput, sx: TickSelection, sy: TickSelection, plot: Plot): Result<Readonly<{ mapX(value: string | number): number | null; mapY(value: number): number | null }>> {
+type CategoryMapping = (plot: Plot) => Result<PointScale>;
+function scales(x: AxisInput, y: AxisInput, sx: TickSelection, sy: TickSelection, plot: Plot, categoryX?: CategoryMapping): Result<Readonly<{ mapX(value: string | number): number | null; mapY(value: number): number | null }>> {
   const categoryY = y.kind === 'category' ? createCategoryFrame((y.values ?? []).map(value => value.id), y.reversed ? [plot.y + plot.height, plot.y] : [plot.y, plot.y + plot.height], .5) : null;
   if (categoryY?.status === 'invalid') return categoryY;
   const ys = y.kind !== 'category' && sy.domain ? createLinearScale(sy.domain, y.reversed ? [plot.y, plot.y + plot.height] : [plot.y + plot.height, plot.y], false) : null;
   if (ys?.status === 'invalid') return ys;
   const mapY = categoryY?.status === 'ok' ? categoryY.value.centerAt : ys?.status === 'ok' ? ys.value.map : () => null;
   if (x.kind === 'category') {
+    if (categoryX) { const prepared = categoryX(plot); return prepared.status === 'invalid' ? prepared : ok({ mapX: v => typeof v === 'string' ? prepared.value.center(v) : null, mapY }); }
     const frame = createCategoryFrame((x.values ?? []).map(c => c.id), x.reversed ? [plot.x + plot.width, plot.x] : [plot.x, plot.x + plot.width], x.edgeSpacing ?? .5);
     if (frame.status === 'invalid') return frame;
     const scale = createPointScale(frame.value); return ok({ mapX: v => typeof v === 'string' ? scale.center(v) : null, mapY });
@@ -57,7 +60,7 @@ export function filterLabels(labels: readonly TickLabel[], gap=4): readonly Tick
   for (const i of indices) { const label = labels[i]; if (label?.text && !accepted.some(other => overlap(label.box, other.box,gap))) accepted.push(label); }
   const set = new Set(accepted); return Object.freeze(labels.map(label => set.has(label) ? label : { ...label, text: null }));
 }
-export function planAxes(input: Readonly<{ x: AxisInput; y: AxisInput; domains: Readonly<{ x: Domain | null; y: Domain | null }>; width: number; height: number; font: ResolvedFont; direction: 'ltr' | 'rtl'; labels: ReadonlyMap<string, string>; yLabels?: ReadonlyMap<string, string>; measurer: TextMeasurer; compact?: boolean }>): Result<AxesPlan> {
+export function planAxes(input: Readonly<{ x: AxisInput; y: AxisInput; domains: Readonly<{ x: Domain | null; y: Domain | null }>; width: number; height: number; font: ResolvedFont; direction: 'ltr' | 'rtl'; labels: ReadonlyMap<string, string>; yLabels?: ReadonlyMap<string, string>; measurer: TextMeasurer; compact?: boolean; categoryX?: CategoryMapping }>): Result<AxesPlan> {
   const { x, y, width, height, font, direction, labels, measurer } = input, top = input.compact ? 4 + (y.title ? 16 : 0) : 8 + (y.title ? 20 : 0), provisional: Plot = { x: 56, y: top, width: Math.max(0, width - 64), height: Math.max(0, height - top - 32) };
   const xCount = x.ticks?.targetCount ?? target(provisional.width / 80), yCount = y.ticks?.targetCount ?? target(provisional.height / 48);
   let sx = select(x, input.domains.x, xCount, false), sy = select(y, input.domains.y, yCount, true);
@@ -83,12 +86,12 @@ export function planAxes(input: Readonly<{ x: AxisInput; y: AxisInput; domains: 
     });
   };
   if (plot.width < 48 || plot.height < 32 || y.kind !== 'category' && !sy.value.domain || y.kind === 'category' && !y.values?.length || x.kind !== 'category' && !sx.value.domain) return ok({ plot, tooSmall: true, x: { ...sx.value, labels: [], target: xCount }, y: { ...sy.value, labels: [], target: yCount }, mapX: () => null, mapY: () => null, xTitle: null, yTitle: null, font, direction });
-  let maps = scales(x, y, sx.value, sy.value, plot); if (maps.status === 'invalid') return maps;
+  let maps = scales(x, y, sx.value, sy.value, plot, input.categoryX); if (maps.status === 'invalid') return maps;
   let xl = makeLabels(sx.value, x, true, maps.value), yl = makeLabels(sy.value, y, false, maps.value);
   const collides = (ls: readonly TickLabel[]) => ls.some((a, i) => a.text && ls.slice(i + 1).some(b => b.text && overlap(a.box, b.box)));
   if (xCount > 2 && collides(xl)) { sx = select(x, input.domains.x, xCount - 1, false); if (sx.status === 'invalid') return sx; }
   if (yCount > 2 && collides(yl)) { sy = select(y, input.domains.y, yCount - 1, true); if (sy.status === 'invalid') return sy; }
-  maps = scales(x, y, sx.value, sy.value, plot); if (maps.status === 'invalid') return maps;
+  maps = scales(x, y, sx.value, sy.value, plot, input.categoryX); if (maps.status === 'invalid') return maps;
   xl = makeLabels(sx.value, x, true, maps.value); yl = makeLabels(sy.value, y, false, maps.value);
   if (![plot.x, plot.y, plot.width, plot.height].every(Number.isFinite)) return invalid('INVALID_DOMAIN', 'UNREPRESENTABLE_GEOMETRY', 'axes');
   return ok(Object.freeze({ plot, tooSmall: false, x: { ...sx.value, labels: filterLabels(xl), target: xCount }, y: { ...sy.value, labels: filterLabels(yl), target: yCount }, ...maps.value, xTitle: x.title ? ellipsis(x.title, plot.width, measure) : null, yTitle: y.title ? ellipsis(y.title, width - plot.x - 8, measure) : null, font, direction }));

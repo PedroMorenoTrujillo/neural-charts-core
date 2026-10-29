@@ -13,16 +13,16 @@ import { viewportBand } from '../internal/interaction/viewport-band.js';
 
 export type ColumnRect<T> = Readonly<{ key: string; point: ColumnPoint<T>; series: NormalizedColumnSeries<T>; seriesIndex: number; categoryIndex: number; eligibleIndex: number; x: number; y: number; width: number; height: number; anchor: Readonly<{ x: number; y: number }> }>;
 export type ColumnProjection<T> = Readonly<{ plot: Plot; horizontal: boolean; bands: BandScale; categoryOffset: number; ranks: ReadonlyMap<string,number>; rects: readonly ColumnRect<T>[]; rows: readonly (readonly ColumnRect<T>[])[]; byId: ReadonlyMap<string, ColumnRect<T>>; byCategory: readonly ReadonlyMap<number, ColumnRect<T>>[]; slotWidth: number; slotGap: number; groupWidth: number; mapValue(value: number): number | null }>;
-export function projectColumn<T>(data: NormalizedColumn<T>, state: ChartState, plot: Plot, domain: Domain, window?: ChartCategoryWindow): ChartResult<ColumnProjection<T>> {
+export function projectColumn<T>(data: NormalizedColumn<T>, state: ChartState, plot: Plot, domain: Domain, window?: ChartCategoryWindow, prepared?: Readonly<{ bands: BandScale; mapValue(value: number): number | null }>): ChartResult<ColumnProjection<T>> {
   if (![plot.x,plot.y,plot.width,plot.height].every(Number.isFinite) || plot.width <= 0 || plot.height <= 0) return invalid('INVALID_CONFIG','BAD_PLOT','plot');
   const horizontal = data.spec.orientation === 'horizontal', hidden = new Set(state.hiddenSeriesIds), visible = data.series.filter(s => !hidden.has(s.spec.id));
   const categoryStart = horizontal ? plot.y : plot.x, categorySize = horizontal ? plot.height : plot.width;
   const scoped = viewportBand(data.spec.axes.x.values.map(c => c.id), data.ranks, window); if (scoped.status === 'invalid') return scoped;
-  const frame = createCategoryFrame(scoped.value.ids, [categoryStart, categoryStart + categorySize], .5); if (frame.status === 'invalid') return frame;
-  const bands = createBandScale(frame.value, data.spec.groupGap ?? .2); if (bands.status === 'invalid') return bands;
+  const frame = prepared ? null : createCategoryFrame(scoped.value.ids, [categoryStart, categoryStart + categorySize], .5); if (frame?.status === 'invalid') return frame;
+  const bands = prepared ? ok(prepared.bands) : frame?.status === 'ok' ? createBandScale(frame.value, data.spec.groupGap ?? .2) : invalid('INTERNAL_INVARIANT', 'MISSING_CATEGORY_FRAME', 'plot'); if (bands.status === 'invalid') return bands;
   let range: readonly [number,number] = horizontal ? [plot.x,plot.x+plot.width] : [plot.y+plot.height,plot.y];
   if (data.spec.axes.y.reversed) range = [range[1],range[0]];
-  const scale = createLinearScale(domain,range,true); if (scale.status === 'invalid') return scale;
+  const scale = prepared ? ok({ map: prepared.mapValue }) : createLinearScale(domain,range,true); if (scale.status === 'invalid') return scale;
   const baseline = scale.value.map(0); if (baseline === null) return invalid('INVALID_DOMAIN','UNREPRESENTABLE_GEOMETRY','baseline');
   const m = visible.length, q = data.spec.barGap ?? .2, slotWidth = m ? Math.min(bands.value.width/(m+(m-1)*q), data.spec.maxBarWidth ?? Infinity) : 0, slotGap = q*slotWidth, groupWidth = m ? m*slotWidth+(m-1)*slotGap : 0;
   const rects: ColumnRect<T>[] = [], rows: ColumnRect<T>[][] = visible.map(()=>[]), byId = new Map<string,ColumnRect<T>>(), byCategory: Map<number,ColumnRect<T>>[] = data.spec.axes.x.values.map(()=>new Map());
