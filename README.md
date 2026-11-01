@@ -2,14 +2,14 @@
 
 Renderer-independent chart planning and geometry in strict TypeScript. The Core converts source data and a viewport size into a read-only frame that a renderer can paint.
 
-**Version 0.0.18 is experimental.** Public contracts can change before 1.0. Pin the version while integrating a renderer.
+**Version 0.0.19 is experimental.** Public contracts can change before 1.0. Pin the version while integrating a renderer.
 
 Version 0.0.5 reduces repeated work in defensive input copying while preserving validation, ownership and chart geometry. Public data and planning contracts are unchanged.
 
 ## Install
 
 ```sh
-npm install @neural-charts/core@0.0.18
+npm install @neural-charts/core@0.0.19
 ```
 
 The package ships ESM JavaScript and TypeScript declarations. It has no runtime dependencies, framework peer dependencies, browser globals, native bridges or module initialization side effects. Its declarations compile with `lib: ["ES2022"]`, without DOM types. Development and package verification use Node.js 22 or newer.
@@ -166,7 +166,7 @@ A reference has a stable ID, an axis and a value. X accepts a category ID or num
 
 ## Supported planning families
 
-The current contract produces 58 frame families. These are planning capabilities; inclusion does not certify a renderer's feature parity or device performance.
+The current contract produces 60 frame families. These are planning capabilities; inclusion does not certify a renderer's feature parity or device performance.
 
 | Family | Input | Notes |
 | --- | --- | --- |
@@ -215,6 +215,8 @@ The current contract produces 58 frame families. These are planning capabilities
 | Wind rose | `PlanWindRoseSpec` | Ordered directions and truly stacked frequency bands, by sum or percentage. |
 | Radial bar | `PlanRadialBarSpec` | Concentric progress bands with a common angle scale and exact annular hits. |
 | Parallel coordinates | `PlanParallelSpec` | Independent linear dimensions, in Cartesian or polar coordinates; per-axis domains and units. |
+| Flame | `PlanFlameSpec` | Original single-thread call intervals, derived stack depth and exclusive duration. |
+| Violin | `PlanViolinSpec` | Raw sample groups, compact-kernel density and explicitly derived statistical summaries. |
 | Dendrogram | `PlanDendrogramSpec` | Ordered clustering tree with aligned leaves and source merge heights, or explicitly derived topology levels. |
 | Funnel | `PlanFunnelSpec` | Stages with width proportional to value. |
 | Pyramid | `PlanPyramidSpec` | Ordered stage geometry. |
@@ -844,4 +846,44 @@ const clusters = {
   ]}
 } satisfies PlanDendrogramSpec;
 const clustered = planChart(clusters,{width:390,height:300});
+```
+
+
+### Flame: original single-thread trace
+
+`PlanFlameSpec` contains `axes.x` (numeric coordinates with an optional unit, or UTC time), and up to2048 original spans in `data`. Each span declares a unique `id`, `label`, finite `start` and `end`, and optional `parentId`. A parent may appear later in the input. Children must be contained by their parent; positive-duration siblings and roots must not overlap. Cycles, unknown parents, reversed/nonfinite intervals and depth above31 are rejected. This represents one synchronous call stack, not concurrent threads or scheduling dependencies.
+
+Source endpoints and inclusive durations remain unchanged. Depth and exclusive duration (inclusive duration minus direct-child durations) are identified in each observation's `flame` role. A zero-duration event remains zero and is selectable; it is not widened into a positive measured duration. `frame.intervals` retains the original source summaries, including spans outside a zoom window. `frame.flame` records maximum depth and root/node counts. Input order determines observation navigation, not cumulative X placement.
+
+`rowPadding` controls depth-row separation from0 to0.9 (default0.08). Numeric/UTC X viewport and compatible X references reuse the interval planner. Visibility legends, stacking and numeric Y zoom are unsupported. Empty traces return an explicit empty state.
+
+```ts
+import {planChart} from '@neural-charts/core/plan';
+import type {PlanFlameSpec} from '@neural-charts/core/plan';
+const trace = {family:'flame',title:'Call trace',axes:{x:{kind:'linear',unit:'ms'}},data:[
+  {id:'main',label:'Main',start:0,end:100},
+  {id:'load',label:'Load',parentId:'main',start:10,end:50},
+  {id:'parse',label:'Parse',parentId:'load',start:20,end:40}
+]} as const satisfies PlanFlameSpec;
+const tracePlan = planChart(trace,{width:390,height:300,viewport:{axes:'x'}});
+```
+
+### Violin: raw measurements and an explicit density estimate
+
+`PlanViolinSpec` accepts up to16 ordered `groups` and4096 total original samples. A group has a stable `id`, `label`, optional Core colour, and `samples` containing unique IDs and finite signed values or `null`. Unknown measurements do not become zero. A group with no known sample has no numeric observation or density. The caller retains the original sample IDs; generated observations are explicitly derived group summaries identified by the group ID and `pointId:'summary'`.
+
+The compact Epanechnikov kernel has support one bandwidth either side of a sample. `bandwidth` is an optional positive finite measurement-space width. For nonconstant samples, the automatic rule uses sample standard deviation, the smaller positive IQR/1.34 where available, and the factor2.34×n^-0.2. Constants without an explicit bandwidth remain a zero-spread line/median marker; the planner does not invent a bell curve. Explicit bandwidth can smooth a constant sample as an identified estimate.
+
+`resolution` is32–128 intervals (default64). The polygon has at most256 vertices. Density evaluation skips sorted samples outside the compact support. `normalization` is `width` (equal peak width), `area` (equal probability area), or `count` (area proportional to known sample count); default `width`. Hidden groups retain their source scale/slots and normalization. `gapRatio` is0–0.8, default0.2.
+
+`axes.y` optionally supplies a linear domain, reversal, nice ticks and measurement unit. Explicit domains must contain the complete density support. The existing numeric/category scale owners produce projection and ticks. Unsupported numeric precision/overflow returns a diagnostic, never a corrupted path. `frame.violin` records kernel, normalization, resolution, original group IDs/counts, derived summaries and sampled densities. Tooltip summaries report median/quartiles/extrema/mean, known/missing counts and bandwidth; sampled density coordinates are not original measurements. Numeric viewport, reference lines and stacking are not exposed on this owner.
+
+```ts
+import {planChart} from '@neural-charts/core/plan';
+import type {PlanViolinSpec} from '@neural-charts/core/plan';
+const distributions = {family:'violin',title:'Response time',axes:{y:{kind:'linear',unit:'ms'}},groups:[
+  {id:'first',label:'First group',samples:[{id:'a',value:10},{id:'b',value:12},{id:'c',value:18}]},
+  {id:'second',label:'Second group',samples:[{id:'d',value:8},{id:'e',value:14},{id:'f',value:null}]}
+]} as const satisfies PlanViolinSpec;
+const violinPlan = planChart(distributions,{width:390,height:300});
 ```

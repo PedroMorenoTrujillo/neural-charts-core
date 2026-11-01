@@ -30,6 +30,9 @@ function describe(samples:readonly number[]):PlanDistributionSummary{
   return {derived:true,sampleCount,mean,sampleStandardDeviation};
 }
 
+/** Shared within planning owners; not a separate public package API. */
+export {describe as describeNumericSamples};
+
 function integer(value:unknown,path:string,minimum:number,maximum:number):number{
   const checked=number(value,path,minimum,maximum);
   if(!Number.isInteger(checked))fail(path,'EXPECTED_INTEGER');

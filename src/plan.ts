@@ -20,6 +20,8 @@ export type {PlanReference,PlanProjectedReference} from './public/plan-types.js'
 export type {PlanMixedSpec,PlanAreaSpec,PlanSplineSpec,PlanScatterSpec} from './public/plan-types.js';
 export type {PlanTreemapSpec,PlanTreemapNode} from './public/plan-types.js';
 export type {PlanWaterfallSpec,PlanWaterfallPoint,PlanWaterfallSeries} from './public/plan-types.js';
+export type {PlanViolinSpec,PlanViolinSample,PlanViolinGroup,PlanViolinValue,PlanViolinDensity,PlanViolinGroupFrame,PlanViolinLayout} from './public/violin-plan-types.js';
+export type {PlanFlameSpec,PlanFlameSpan,PlanFlameValue,PlanFlameLayout} from './public/flame-plan-types.js';
 export type {PlanDendrogramSpec,PlanDendrogramNode,PlanDendrogramValue,PlanDendrogramLayout} from './public/dendrogram-plan-types.js';
 export type {PlanParallelSpec,PlanParallelAxis,PlanParallelPoint,PlanParallelSeries,PlanParallelValue,PlanParallelAxisFrame,PlanParallelLayout} from './public/parallel-plan-types.js';
 export type {PlanWindRoseSpec,PlanRadialBarSpec} from './public/circular-bar-plan-types.js';
