@@ -11,6 +11,35 @@ function spec(): PlanBulletSpec {
 function frame(result: PlanBulletResult) {if (result.status === 'invalid') throw new Error(JSON.stringify(result.diagnostic)); return result.frame;}
 
 describe('bullet values, independent targets and decorative bands', () => {
+  it.each([
+    ['horizontal', false], ['horizontal', true], ['vertical', false], ['vertical', true],
+  ] as const)('keeps a common category coordinate for grouped %s values, reversed=%s', (orientation, reversed) => {
+    const base = spec();
+    const source: PlanBulletSpec = {...base, orientation, axes: {...base.axes, x: {...base.axes.x, reversed}},
+      series: [...base.series, {id: 'secondary', name: 'Secondary', data: [
+        {id: 'second-one', x: 'one', y: null, target: 0},
+        {id: 'second-two', x: 'two', y: 5, target: 7},
+      ]}]};
+    const grouped = frame(planBullet(source, size));
+    const hidden = frame(planBullet(source, {...size, hiddenSeriesIds: ['secondary']}));
+    for (const category of source.axes.x.values) {
+      const points = grouped.observations.filter(point => point.group?.key === category.id);
+      const axisCenter = orientation === 'horizontal'
+        ? grouped.yLabels?.find(label => label.id === category.id)?.y
+        : grouped.labels.find(label => label.label === category.label)?.x;
+      expect(axisCenter).toBeTypeOf('number');
+      expect(points).toHaveLength(2);
+      expect(new Set(points.map(point => point.group!.coordinate)).size).toBe(1);
+      expect(points.every(point => point.group!.coordinate === axisCenter)).toBe(true);
+      // Actual bar/target anchors stay in separate lanes; only group metadata is common.
+      expect(orientation === 'horizontal' ? points[0]!.y : points[0]!.x)
+        .not.toBe(orientation === 'horizontal' ? points[1]!.y : points[1]!.x);
+      expect(hidden.observations.find(point => point.group?.key === category.id)?.group?.coordinate).toBe(axisCenter);
+    }
+    expect(grouped.observations.find(point => point.id.pointId === 'second-one')?.bullet)
+      .toEqual({kind: 'target', measure: null, target: 0});
+  });
+
   it('returns genuine measurements and separate target lines in the same frame', () => {
     const result = frame(planBullet(spec(), size));
     expect(result.bulletOrientation).toBe('horizontal');

@@ -2,14 +2,14 @@
 
 Renderer-independent chart planning and geometry in strict TypeScript. The Core converts source data and a viewport size into a read-only frame that a renderer can paint.
 
-**Version 0.0.8 is experimental.** Public contracts can change before 1.0. Pin the version while integrating a renderer.
+**Version 0.0.9 is experimental.** Public contracts can change before 1.0. Pin the version while integrating a renderer.
 
 Version 0.0.5 reduces repeated work in defensive input copying while preserving validation, ownership and chart geometry. Public data and planning contracts are unchanged.
 
 ## Install
 
 ```sh
-npm install @neural-charts/core@0.0.8
+npm install @neural-charts/core@0.0.9
 ```
 
 The package ships ESM JavaScript and TypeScript declarations. It has no runtime dependencies, framework peer dependencies, browser globals, native bridges or module initialization side effects. Its declarations compile with `lib: ["ES2022"]`, without DOM types. Development and package verification use Node.js 22 or newer.
@@ -343,6 +343,8 @@ These three families accept up to 64 nodes, 256 links and 15 explicit groups plu
 Dependency Wheel preserves direction; Chord and Arc Diagram expose undirected incident totals. Optional groups control visibility from source data and recalculate visible quantities. Unknown or duplicate hidden group IDs are rejected. `startAngle` is measured clockwise from twelve o'clock; sector hit regions use the same bearing convention as the visible geometry. Arc Diagram preserves the supplied node order; `reversed` changes the side on which arcs are drawn. Its `nodeRadius` is a requested maximum (2–24 logical pixels), reduced when necessary to avoid overlapping nodes. Source identities are retained when dense labels or subpixel glyphs cannot be individually read. Axes, Cartesian references, viewport transforms and stacking are unsupported for these initial relationship contracts.
 
 ### Bullet measures and targets
+
+Grouped observations share the category's axis coordinate in `group`, while their individual anchors retain the separate bar or target positions. This also holds after hiding a series, reversing the category axis or changing orientation.
 
 ```ts
 import {planChart, type PlanBulletSpec} from '@neural-charts/core';

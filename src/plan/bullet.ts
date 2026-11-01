@@ -101,7 +101,7 @@ export function planBullet(input: PlanBulletSpec, inputOptions: PlanOptions): Pl
         const right = Math.max(rect.x + rect.width, horizontal && targetVisible ? targetPosition! : rect.x + rect.width), bottom = Math.max(rect.y + rect.height, !horizontal && targetVisible ? targetPosition! : rect.y + rect.height);
         observations.push({id, label: labels.get(point.x)!, seriesName: row.name, color: row.color,
           value: measure ? point.y! : target!, x: horizontal ? valuePosition : center, y: horizontal ? center : valuePosition,
-          group: {key: point.x, label: labels.get(point.x)!, coordinate: center},
+          group: {key: point.x, label: labels.get(point.x)!, coordinate: categoryScale.value.center(point.x)!},
           bullet: {kind: measure ? 'measure' : 'target', measure: point.y, ...(target === undefined ? {} : {target})},
           hit: comparisonHit(left, top, right, bottom, plot)});
       }
