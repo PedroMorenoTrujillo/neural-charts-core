@@ -2,14 +2,14 @@
 
 Renderer-independent chart planning and geometry in strict TypeScript. The Core converts source data and a viewport size into a read-only frame that a renderer can paint.
 
-**Version 0.0.14 is experimental.** Public contracts can change before 1.0. Pin the version while integrating a renderer.
+**Version 0.0.15 is experimental.** Public contracts can change before 1.0. Pin the version while integrating a renderer.
 
 Version 0.0.5 reduces repeated work in defensive input copying while preserving validation, ownership and chart geometry. Public data and planning contracts are unchanged.
 
 ## Install
 
 ```sh
-npm install @neural-charts/core@0.0.14
+npm install @neural-charts/core@0.0.15
 ```
 
 The package ships ESM JavaScript and TypeScript declarations. It has no runtime dependencies, framework peer dependencies, browser globals, native bridges or module initialization side effects. Its declarations compile with `lib: ["ES2022"]`, without DOM types. Development and package verification use Node.js 22 or newer.
@@ -673,6 +673,48 @@ if (result.status !== 'invalid') {
 Singleton circle areas remain proportional to original set measures. Two-set overlap uses exact arc integration and bounded inverse search. For three sets, not every valid set relation is exactly representable by circles: the bounded fit reports `vennLayout.status`, individual area errors and `maxErrorRatio`, relative to the largest visible set. An approximate fit never changes source counts. Negative exclusive memberships and intersections larger than their known parent sets are rejected, including contradictions detectable in otherwise incomplete data.
 
 Unknown visible relations produce no guessed circles. Known counts, zeros, hidden measurements and omitted anchors remain distinguishable in `vennData`, observations and `vennLayout`. Disjoint and contained arrangements also support Euler relations. Adapters select exact circle memberships using the layout's stable `bit` values and each observation's `venn.mask`; they should not replace intersections with a polygon approximation. An omitted label anchor does not erase its original measurement. Font fitting, visual transparency, touches, accessible navigation, legends and tooltips belong to the renderer.
+
+## Sparse heatmaps
+
+Heatmaps reuse the category-band geometry and sparse normalization already owned by the Core. They do not create a dense matrix for coordinates that are absent from the source. The public planning entry supports up to 64 categories per axis and 4,096 original cells. Exceeding these limits returns a diagnostic rather than sampling or dropping source data.
+
+```ts
+import {planChart, type PlanHeatmapSpec} from '@neural-charts/core/plan';
+
+const matrix = {
+  family: 'heatmap',
+  title: 'Measurements',
+  axes: {
+    x: {kind: 'category', values: [{id: 'mon', label: 'Monday'}, {id: 'tue', label: 'Tuesday'}]},
+    y: {kind: 'category', values: [{id: 'morning', label: 'Morning'}, {id: 'evening', label: 'Evening'}]},
+  },
+  data: [
+    {id: 'first', rowId: 'morning', columnId: 'mon', value: 0},
+    {id: 'second', rowId: 'morning', columnId: 'tue', value: -4},
+    {id: 'unknown', rowId: 'evening', columnId: 'tue', value: null},
+  ],
+  gapRatio: 0.04,
+  colorAxis: {
+    kind: 'continuous',
+    stops: [{at: 0, color: '#E8F0FE'}, {at: 1, color: '#245DC1'}],
+    missingColor: '#CBD5E1',
+  },
+} as const satisfies PlanHeatmapSpec;
+
+const result = planChart(matrix, {width: 390, height: 300});
+if (result.status !== 'invalid') {
+  const originalCells = result.frame.heatmapData;
+  const density = result.frame.heatmapLayout;
+  const quantitativeLegend = result.frame.colorAxis;
+  void {originalCells, density, quantitativeLegend};
+}
+```
+
+Zero and negative values remain selectable observations. An explicit `null` cell uses the missing-value colour but has no invented numeric observation; an absent coordinate creates neither paint nor an observation. `heatmapLayout` reports both counts. Sparse inputs keep their original IDs and positions. Duplicate cell coordinates, duplicate IDs and unknown row/column IDs are rejected.
+
+Each cell has exact rectangular polygon geometry. Category order can be reversed independently on either axis. The colour domain defaults to the original known source extent, including zero, and stays separate from coordinate categories. Explicit continuous domains clamp only the colour, never the original numeric value. Ordered colour classes retain each original value and class identity. The quantitative colour axis replaces a series visibility legend.
+
+`gapRatio` accepts 0–0.5 and `opacity` accepts 0–1. A transparent matrix retains its source summary with a `noInk` status. Labels are optional rendering roles, limited to 64 sufficiently large cells. Font measurement and final label fit belong to the renderer. This first matrix planning contract does not support numeric axes, stacking, series visibility, viewport zoom/pan or reference lines. Its independent legacy entry remains unchanged.
 
 ## License
 
