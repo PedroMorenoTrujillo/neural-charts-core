@@ -1,0 +1,6 @@
+{"schemaVersion":1,"cases":[
+  {"id":"bands","subsystem":"category","input":{"ids":["a","b","c"],"range":[0,300],"edgeSpacing":0.5,"gap":0.2},"expected":{"centers":[50,150,250],"bands":[[10,90],[110,190],[210,290]],"step":100,"width":80},"comparison":"exact","reason":"shared frame"},
+  {"id":"reversed","subsystem":"category","input":{"ids":["a","b","c"],"range":[300,0],"edgeSpacing":0.5,"gap":0.2},"expected":{"centers":[250,150,50],"bands":[[290,210],[190,110],[90,10]],"step":100,"width":80},"comparison":"exact","reason":"directed geometry"},
+  {"id":"single","subsystem":"category","input":{"ids":["a"],"range":[0,300],"edgeSpacing":0.5,"gap":0.2},"expected":{"centers":[150],"bands":[[30,270]],"step":300,"width":240},"comparison":"exact","reason":"one category"},
+  {"id":"empty","subsystem":"category","input":{"ids":[],"range":[0,300],"edgeSpacing":0.5,"gap":0.2},"expected":{"centers":[],"bands":[],"step":0,"width":0},"comparison":"exact","reason":"empty"}
+]}

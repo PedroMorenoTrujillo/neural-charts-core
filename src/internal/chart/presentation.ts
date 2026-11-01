@@ -27,8 +27,3 @@ export function resolveDashes(series: readonly Readonly<{ spec: Readonly<{ id: s
   return result;
 }
 export function defaultPalette(theme: ChartTheme, prefersDark: boolean): Palette { return theme === 'dark' || theme === 'auto' && prefersDark ? dark : light; }
-export function resolvePalette(host: HTMLElement, theme: ChartTheme, prefersDark: boolean): Palette {
-  const base = defaultPalette(theme, prefersDark), style = host.ownerDocument.defaultView?.getComputedStyle(host);
-  const read = (name: string, fallback: string): string => { const v = style?.getPropertyValue(name).trim(); return v && /^#(?:[\da-f]{3}|[\da-f]{4}|[\da-f]{6}|[\da-f]{8})$/i.test(v) ? v.toLowerCase() : fallback; };
-  return Object.freeze({ surface: read('--nc-surface', base.surface), text: read('--nc-text', base.text), muted: read('--nc-muted', base.muted), grid: read('--nc-grid', base.grid), axis: read('--nc-axis', base.axis), focus: read('--nc-focus', base.focus), tooltipSurface: read('--nc-tooltip-surface', base.tooltipSurface), tooltipText: read('--nc-tooltip-text', base.tooltipText), reference: read('--nc-reference', base.reference), series: Object.freeze(base.series.map((v, i) => read(`--nc-series-${i}`, v))) });
-}

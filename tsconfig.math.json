@@ -1,5 +1,0 @@
-{
-  "extends": "./tsconfig.json",
-  "compilerOptions": { "lib": ["ES2022"] },
-  "include": ["src/internal/diagnostics.ts", "src/internal/math/**/*.ts", "src/internal/geometry/**/*.ts"]
-}

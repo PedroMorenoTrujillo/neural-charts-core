@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {"id":"six","subsystem":"ticks","input":{"domain":[0,10],"targetCount":6,"nice":true},"expected":{"domain":[0,10],"step":2,"ticks":[0,2,4,6,8,10]},"comparison":"exact","reason":"six ticks"},
+    {"id":"quarter","subsystem":"ticks","input":{"domain":[0,1],"targetCount":5,"nice":true},"expected":{"domain":[0,1],"step":0.25,"ticks":[0,0.25,0.5,0.75,1]},"comparison":"exact","reason":"2.5 mantissa"},
+    {"id":"negative","subsystem":"ticks","input":{"domain":[-3,7],"targetCount":6,"nice":true},"expected":{"domain":[-5,7.5],"step":2.5,"ticks":[-5,-2.5,0,2.5,5,7.5]},"comparison":"exact","reason":"count priority"},
+    {"id":"nano","subsystem":"ticks","input":{"domain":[-1e-9,1e-9],"targetCount":5,"nice":true},"expected":{"domain":[-1e-9,1e-9],"step":5e-10,"ticks":[-1e-9,-5e-10,0,5e-10,1e-9]},"comparison":"exact","reason":"zero crossing"},
+    {"id":"offset","subsystem":"ticks","input":{"domain":[1000000000000,1000000000001],"targetCount":5,"nice":true},"expected":{"domain":[1000000000000,1000000000001],"step":0.25,"ticks":[1000000000000,1000000000000.25,1000000000000.5,1000000000000.75,1000000000001]},"comparison":"exact","reason":"large offset"},
+    {"id":"zero","subsystem":"ticks","input":{"domain":[-1,1],"targetCount":5,"nice":true},"expected":{"domain":[-1,1],"step":0.5,"ticks":[-1,-0.5,0,0.5,1]},"comparison":"exact","reason":"constant normalization"},
+    {"id":"positive-constant","subsystem":"ticks","input":{"domain":[95,105],"targetCount":5,"nice":true},"expected":{"domain":[95,105],"step":2.5,"ticks":[95,97.5,100,102.5,105]},"comparison":"exact","reason":"positive"},
+    {"id":"negative-constant","subsystem":"ticks","input":{"domain":[-105,-95],"targetCount":5,"nice":true},"expected":{"domain":[-105,-95],"step":2.5,"ticks":[-105,-102.5,-100,-97.5,-95]},"comparison":"exact","reason":"negative"},
+    {"id":"small","subsystem":"ticks","input":{"domain":[0.002,0.004],"targetCount":5,"nice":true},"expected":{"domain":[0.002,0.004],"step":0.0005,"ticks":[0.002,0.0025,0.003,0.0035,0.004]},"comparison":"exact","reason":"positive only"},
+    {"id":"large-negative","subsystem":"ticks","input":{"domain":[-1000000000000,-600000000000],"targetCount":5,"nice":true},"expected":{"domain":[-1000000000000,-600000000000],"step":100000000000,"ticks":[-1000000000000,-900000000000,-800000000000,-700000000000,-600000000000]},"comparison":"exact","reason":"negative only"},
+    {"id":"explicit","subsystem":"ticks","input":{"domain":[-3,7],"targetCount":6,"nice":false},"expected":{"domain":[-3,7],"step":2,"ticks":[-2,0,2,4,6]},"comparison":"exact","reason":"manual domain"},
+    {"id":"include-zero","subsystem":"ticks","input":{"domain":[0,8],"targetCount":5,"nice":true},"expected":{"domain":[0,8],"step":2,"ticks":[0,2,4,6,8]},"comparison":"exact","reason":"includeZero before nice"},
+    {"id":"without-zero","subsystem":"ticks","input":{"domain":[2,8],"targetCount":5,"nice":true},"expected":{"domain":[0,10],"step":2.5,"ticks":[0,2.5,5,7.5,10]},"comparison":"exact","reason":"nice can reach zero"},
+    {"id":"not-nice","subsystem":"ticks","input":{"domain":[2,8],"targetCount":5,"nice":false},"expected":{"domain":[2,8],"step":2,"ticks":[2,4,6,8]},"comparison":"exact","reason":"no expansion"}
+  ]
+}

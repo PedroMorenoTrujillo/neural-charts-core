@@ -2,7 +2,7 @@ import { it, expect } from 'vitest';
 import { tooltipModel, detailText, fullX, duplicateCategoryLabels } from '../../src/internal/tooltip/model.js';
 import { categoryEllipsis, type TextMeasurer } from '../../src/internal/layout/text.js';
 import { planAxes } from '../../src/internal/axes/plan.js';
-import { reviewFixture } from '../../../../apps/core-lab/review-fixtures.js';
+import { reviewFixture } from '../fixtures/review-fixtures.js';
 
 it('V01 display identity is separate from canonical semantics and exact shared matching', () => {
   const labels = new Map([['c0', 'Mon'], ['c1', 'Sun'], ['a', '同じ😀'], ['b', '同じ😀'], ['u', '週末🌅']]);

@@ -1,0 +1,14 @@
+{"schemaVersion":1,"cases":[
+  {"id":"hour","subsystem":"time","input":{"targetCount":5},"expected":{"ticks":[1704067200000,1704068100000,1704069000000,1704069900000,1704070800000],"interval":{"unit":"minute","step":15}},"comparison":"exact","reason":"hour"},
+  {"id":"days","subsystem":"time","input":{"targetCount":5},"expected":{"ticks":[1704067200000,1704153600000,1704240000000,1704326400000,1704412800000],"interval":{"unit":"day","step":1}},"comparison":"exact","reason":"days"},
+  {"id":"cross-month","subsystem":"time","input":{"targetCount":5},"expected":{"ticks":[1706572800000,1706659200000,1706745600000,1706832000000,1706918400000],"interval":{"unit":"day","step":1}},"comparison":"exact","reason":"month boundary"},
+  {"id":"months","subsystem":"time","input":{"targetCount":5},"expected":{"ticks":[1704067200000,1706745600000,1709251200000,1711929600000,1714521600000],"interval":{"unit":"month","step":1}},"comparison":"exact","reason":"leap months"},
+  {"id":"leap","subsystem":"time","input":{"targetCount":3},"expected":{"ticks":[1709078400000,1709164800000,1709251200000],"interval":{"unit":"day","step":1}},"comparison":"exact","reason":"2024 February"},
+  {"id":"year-cross","subsystem":"time","input":{"targetCount":3},"expected":{"ticks":[1703980800000,1704067200000,1704153600000],"interval":{"unit":"day","step":1}},"comparison":"exact","reason":"year boundary"},
+  {"id":"weeks","subsystem":"time","input":{"targetCount":4},"expected":{"ticks":[1736121600000,1736726400000,1737331200000,1737936000000],"interval":{"unit":"week","step":1}},"comparison":"exact","reason":"Monday"},
+  {"id":"pre-epoch","subsystem":"time","input":{"targetCount":5},"expected":{"ticks":[-3600000,-2700000,-1800000,-900000,0],"interval":{"unit":"minute","step":15}},"comparison":"exact","reason":"negative epoch"},
+  {"id":"1900","subsystem":"time","input":{"intervalOnly":true},"expected":{"ticks":[-2203977600000,-2203891200000],"interval":{"unit":"day","step":1}},"comparison":"exact","reason":"not leap"},
+  {"id":"2000","subsystem":"time","input":{"targetCount":3},"expected":{"ticks":[951696000000,951782400000,951868800000],"interval":{"unit":"day","step":1}},"comparison":"exact","reason":"leap century"},
+  {"id":"2100","subsystem":"time","input":{"intervalOnly":true},"expected":{"ticks":[4107456000000,4107542400000],"interval":{"unit":"day","step":1}},"comparison":"exact","reason":"not leap century"},
+  {"id":"year-zero","subsystem":"time","input":{"targetCount":3},"expected":{"ticks":[-62167219200000,-62167132800000,-62167046400000],"interval":{"unit":"day","step":1}},"comparison":"exact","reason":"year 0"}
+]}

@@ -1,4 +1,0 @@
-{
-  "extends": "./tsconfig.build.json",
-  "compilerOptions": { "declaration": true, "emitDeclarationOnly": true, "outDir": "../../dist/core-types-audit", "declarationMap": false }
-}

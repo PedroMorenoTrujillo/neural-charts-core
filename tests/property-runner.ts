@@ -12,12 +12,12 @@ export function assertProperty<T extends unknown[]>(property:fc.IProperty<T>,par
   const replayParameters={...(process.env.NC_PROPERTY_SEED?{seed:Number(process.env.NC_PROPERTY_SEED)}:{}),...(process.env.NC_PROPERTY_PATH?{path:process.env.NC_PROPERTY_PATH}:{})};
   const details=fc.check(property,{...parameters,...replayParameters,numRuns:extended?10000:1000,interruptAfterTimeLimit:10000,markInterruptAsFailure:true,verbose:1});
   if(!details.failed){
-    const dir=path.resolve('artifacts/nc-01a/property-success',extended?'extended':'ordinary');fs.mkdirSync(dir,{recursive:true});
+    const dir=path.resolve('work/property/property-success',extended?'extended':'ordinary');fs.mkdirSync(dir,{recursive:true});
     const label=expect.getState().currentTestName??'property';
     fs.writeFileSync(path.join(dir,label.replace(/[^a-z0-9]/gi,'_')+'.json'),JSON.stringify({test:label,seed:details.seed,successfulRuns:details.numRuns,interrupted:details.interrupted,mode:extended?'extended':'ordinary',timestamp:new Date().toISOString()},null,2));return;
   }
   const replay={seed:details.seed,path:details.counterexamplePath,minimalInput:details.counterexample,failingInputs:details.failures,interrupted:details.interrupted,error:String(details.errorInstance),successfulRuns:details.numRuns,numShrinks:details.numShrinks};
-  const dir=path.resolve('artifacts/nc-01a/property-replays');fs.mkdirSync(dir,{recursive:true});
+  const dir=path.resolve('work/property/property-replays');fs.mkdirSync(dir,{recursive:true});
   const file=path.join(dir,`${process.pid}-${Date.now()}.json`);fs.writeFileSync(file,JSON.stringify(replay,encode,2));
   throw Error(`Property failed: seed=${details.seed} path=${details.counterexamplePath}; replay=${file}; ${String(details.errorInstance)}`);
 }

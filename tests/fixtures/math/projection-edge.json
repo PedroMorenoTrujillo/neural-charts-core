@@ -1,0 +1,8 @@
+{"schemaVersion":1,"cases":[
+  {"id":"zero","subsystem":"constant","input":0,"expected":[-1,1],"comparison":"exact","reason":"constant"},
+  {"id":"positive","subsystem":"constant","input":100,"expected":[95,105],"comparison":"exact","reason":"5 percent"},
+  {"id":"negative","subsystem":"constant","input":-100,"expected":[-105,-95],"comparison":"exact","reason":"5 percent"},
+  {"id":"subnormal","subsystem":"constant","input":{"special":"MIN_VALUE"},"expected":[0,1e-323],"comparison":"exact","reason":"adjacent float"},
+  {"id":"nan","subsystem":"invalid","input":{"special":"NaN"},"expected":"INVALID_NUMBER","comparison":"code","reason":"finite only"},
+  {"id":"infinity","subsystem":"invalid","input":{"special":"Infinity"},"expected":"INVALID_NUMBER","comparison":"code","reason":"finite only"}
+]}

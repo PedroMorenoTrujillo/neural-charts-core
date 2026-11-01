@@ -1,5 +1,0 @@
-{
-  "extends": "../../tsconfig.base.json",
-  "compilerOptions": { "lib": ["ES2022"], "types": [], "noEmit": true },
-  "include": ["src/scatter/data.ts", "src/scatter/geometry.ts", "src/scatter/spatial.ts", "src/scatter/validate.ts", "src/scatter/describe.ts"]
-}

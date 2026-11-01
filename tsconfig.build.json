@@ -1,4 +1,4 @@
 {
   "extends": "./tsconfig.json",
-  "compilerOptions": { "noEmit": false, "declaration": false, "outDir": "../../dist/core-audit", "sourceMap": false }
+  "compilerOptions": { "noEmit": false }
 }
