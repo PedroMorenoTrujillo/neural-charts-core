@@ -12,10 +12,13 @@ export interface PlanHeatmapSpec {
 }
 export interface PlanHeatmapValue {readonly rowId:string;readonly columnId:string;readonly rowLabel:string;readonly columnLabel:string;readonly color:Exclude<PlanValueColor,{kind:'missing'}>;}
 export interface PlanHeatmapSummary extends PlanHeatmapCell {readonly row:number;readonly column:number;readonly rowLabel:string;readonly columnLabel:string;readonly color:PlanValueColor;readonly painted:boolean;}
+/** Exact painted band extents, in original category order even on reversed axes. */
+export interface PlanHeatmapBand {readonly id:string;readonly index:number;readonly from:number;readonly to:number;}
 export interface PlanHeatmapLayout {
   readonly status:'ready'|'noSource'|'allMissing'|'noInk';readonly rowCount:number;readonly columnCount:number;
   readonly sourceCount:number;readonly knownCount:number;readonly missingCount:number;readonly absentCount:number;readonly paintedCellCount:number;
   readonly gapRatio:number;readonly opacity:number;
+  readonly rows:readonly PlanHeatmapBand[];readonly columns:readonly PlanHeatmapBand[];
 }
 export interface PlanHeatmapFrame extends Omit<PlanFrame,'family'> {readonly family:'heatmap';readonly heatmapData:readonly PlanHeatmapSummary[];readonly heatmapLayout:PlanHeatmapLayout;readonly colorAxis:PlanColorAxisFrame;}
 export interface PlanHeatmapObservation extends PlanObservation {readonly heatmap:PlanHeatmapValue;}

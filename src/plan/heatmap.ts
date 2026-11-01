@@ -8,6 +8,8 @@ import type {PlanHeatmapAxis,PlanHeatmapSpec,PlanHeatmapCell,PlanHeatmapSummary,
 import type {PlanCellPaint,PlanCellGeometry} from '../public/cell-types.js';
 import type {PlanAnnotation} from '../public/plan-types.js';
 import type {PlanColorAxisFrame} from '../public/color-axis-types.js';
+import type {BandScale} from '../internal/math/category.js';
+function bands(axis:PlanHeatmapAxis,scale:BandScale|null){return scale?axis.values.map((category,index)=>{const band=scale.band(category.id)!;return {id:category.id,index,from:Math.min(band.start,band.end),to:Math.max(band.start,band.end)};}):[];}
 function axis(input:unknown,path:string):PlanHeatmapAxis {
   const a=record(input,['kind','values','reversed'],['kind','values'],path);choice(a.kind,['category'],path+'.kind');
   const values=array(a.values,64,path+'.values').map((raw,i)=>{const at=path+'.values['+i+']',v=record(raw,['id','label'],['id'],at);return {id:text(v.id,at+'.id',128),...(v.label===undefined?{}:{label:text(v.label,at+'.label',256,true)})};});
@@ -50,7 +52,7 @@ export function planHeatmap(input:PlanHeatmapSpec,inputOptions:PlanHeatmapOption
       if(annotations.length<64&&target.width>=28&&target.height>=20)annotations.push({x:target.cx,y:target.cy,text:String(cell.value),role:'value',box:{width:target.width,height:target.height,seriesId:'cells'}});
     }
     const labels=x.values.map(v=>({x:projection.xScale?.band(v.id)?.center??0,label:data.columnLabels.get(v.id)!})),yLabels=y.values.map(v=>({id:v.id,y:projection.yScale?.band(v.id)?.center??0,label:data.rowLabels.get(v.id)!}));
-    const frame:PlanHeatmapFrame={schema:'nc-plan/1',family:'heatmap',title,description,unit,width,height,legend:[],series:[{id:'cells',name:title,color:'#245DC1',cells:paint}],observations,annotations,grid:[],labels,yLabels,colorAxis,heatmapData:summary,heatmapLayout:{status:!cells.length?'noSource':!known?'allMissing':!observations.length?'noInk':'ready',rowCount:y.values.length,columnCount:x.values.length,sourceCount:cells.length,knownCount:known,missingCount:cells.length-known,absentCount:x.values.length*y.values.length-cells.length,paintedCellCount:paint.length,gapRatio,opacity}};
+    const frame:PlanHeatmapFrame={schema:'nc-plan/1',family:'heatmap',title,description,unit,width,height,legend:[],series:[{id:'cells',name:title,color:'#245DC1',cells:paint}],observations,annotations,grid:[],labels,yLabels,colorAxis,heatmapData:summary,heatmapLayout:{status:!cells.length?'noSource':!known?'allMissing':!observations.length?'noInk':'ready',rowCount:y.values.length,columnCount:x.values.length,sourceCount:cells.length,knownCount:known,missingCount:cells.length-known,absentCount:x.values.length*y.values.length-cells.length,paintedCellCount:paint.length,gapRatio,opacity,rows:bands(y,projection.yScale),columns:bands(x,projection.xScale)}};
     return freezePlan({status:observations.length?'ok':'empty',frame});
   }catch(error){return error instanceof ValidationFailure?{status:'invalid',diagnostic:error.diagnostic}:{status:'invalid',diagnostic:{code:'INVALID_CONFIG',reason:'BAD_SPEC',path:'spec',message:error instanceof Error?error.message:'BAD_SPEC'}};}
 }

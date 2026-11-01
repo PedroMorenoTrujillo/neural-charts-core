@@ -15,6 +15,8 @@ test('public planner keeps zero, negative and explicit unknown cells distinct fr
 test('uses independent rectangular bands and exact cell polygons, including a real gap',()=>{
   const f=frame();for(const p of f.observations){expect(p.hit?.kind).toBe('polygon');if(p.hit?.kind!=='polygon')continue;const [a,b,c]=p.hit.vertices;expect(a!.x).toBeLessThan(p.x);expect(b!.x).toBeGreaterThan(p.x);expect(a!.y).toBeLessThan(p.y);expect(c!.y).toBeGreaterThan(p.y);expect(b!.x-a!.x).toBeGreaterThan(c!.y-a!.y);}
   const [a,b]=f.observations;expect(a!.hit?.kind).toBe('polygon');expect(a!.x).toBeLessThan(b!.x);expect(f.annotations?.length).toBe(2);
+  for(const p of f.observations){const row=f.heatmapLayout!.rows.find(b=>b.id===p.heatmap!.rowId)!,column=f.heatmapLayout!.columns.find(b=>b.id===p.heatmap!.columnId)!;expect(p.x).toBeGreaterThan(column.from);expect(p.x).toBeLessThan(column.to);expect(p.y).toBeGreaterThan(row.from);expect(p.y).toBeLessThan(row.to);}
+  expect(f.heatmapLayout!.columns[0]!.to).toBeLessThan(f.heatmapLayout!.columns[1]!.from);
 });
 test.each(['x','y'] as const)('reverses %s coordinates while retaining original categories, source order and IDs',axis=>{
   const original=frame(),reversed=frame({...source,axes:{...source.axes,[axis]:{...source.axes[axis],reversed:true}}});
