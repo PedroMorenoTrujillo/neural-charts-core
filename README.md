@@ -2,14 +2,14 @@
 
 Renderer-independent chart planning and geometry in strict TypeScript. The Core converts source data and a viewport size into a read-only frame that a renderer can paint.
 
-**Version 0.0.10 is experimental.** Public contracts can change before 1.0. Pin the version while integrating a renderer.
+**Version 0.0.11 is experimental.** Public contracts can change before 1.0. Pin the version while integrating a renderer.
 
 Version 0.0.5 reduces repeated work in defensive input copying while preserving validation, ownership and chart geometry. Public data and planning contracts are unchanged.
 
 ## Install
 
 ```sh
-npm install @neural-charts/core@0.0.10
+npm install @neural-charts/core@0.0.11
 ```
 
 The package ships ESM JavaScript and TypeScript declarations. It has no runtime dependencies, framework peer dependencies, browser globals, native bridges or module initialization side effects. Its declarations compile with `lib: ["ES2022"]`, without DOM types. Development and package verification use Node.js 22 or newer.
@@ -88,7 +88,7 @@ Planning is synchronous. Inputs are owned internally so subsequent caller mutati
 | --- | --- | --- |
 | `width`, `height` | `number` | Required logical dimensions, each finite and between 64 and 10,000 inclusive. |
 | `hiddenSeriesIds` | `readonly string[]` | Series or legend identities to hide. IDs come from the current frame's legend. |
-| `stacking` | `'sum' \| 'percent'` | Available for `area` and `column`. Horizontal columns retain bar orientation. Other families return an invalid result. |
+| `stacking` | `'sum' \| 'percent'` | Available for `area`, `column` and `pictorial`. Horizontal columns retain bar orientation. Other families return an invalid result. |
 | `viewport` | `PlanViewportConfig` | Enabled axes and optional controlled data-domain window. See viewport example below. |
 | `references` | `readonly PlanReference[]` | Named X/Y reference values, projected where supported by the family. Style and label rendering belong to the host. |
 
@@ -102,7 +102,7 @@ type PlanResult =
   | Readonly<{status: 'invalid'; diagnostic: ChartDiagnostic}>;
 ```
 
-An empty result still supplies dimensions, family and legend state. It is useful when all series are hidden or no usable observations remain. Render an explicit empty state rather than inventing values. Diagnostics include `code`, `reason`, `message` and `path`; paths identify the offending input or option.
+An empty result still supplies dimensions, family and legend state. It is useful when all series are hidden or no usable observations remain. Inspect the family-specific roles before replacing the drawing: a Tilemap with only missing measurements can still provide cells in the configured missing color. Explain the absence of measured values without inventing numeric observations. Diagnostics include `code`, `reason`, `message` and `path`; paths identify the offending input or option.
 
 The frame's `schema` is `nc-plan/1`. It contains dimensions, title, description, unit, legend, series geometry, observations, grid and category labels. Depending on the family, it can additionally provide hit regions, annotations, secondary grid, a distribution summary, viewport state or projected references. Paths are structured `PlanCommand` values. Bars, circles and other primitives retain the identities needed to relate painted geometry back to source data.
 
@@ -162,7 +162,7 @@ A reference has a stable ID, an axis and a value. X accepts a category ID or num
 
 ## Supported planning families
 
-The current contract produces 50 frame families. These are planning capabilities; inclusion does not certify a renderer's feature parity or device performance.
+The current contract produces 51 frame families. These are planning capabilities; inclusion does not certify a renderer's feature parity or device performance.
 
 | Family | Input | Notes |
 | --- | --- | --- |
@@ -202,6 +202,7 @@ The current contract produces 50 frame families. These are planning capabilities
 | Arc Diagram | `PlanArcDiagramSpec` | Original node order with weighted arcs and bounded node sizes. |
 | Word Cloud | `PlanWordCloudSpec` | Deterministic bounded packing using actual renderer-supplied text measurements. |
 | Pictorial | `PlanPictorialSpec` | Grouped or stacked height bands clipped to original vector silhouettes, including holes. |
+| Tilemap | `PlanTilemapSpec` | Integer lattice cells in four actual shapes, with continuous or class-based value colors. |
 | Radar | `PlanRadarSpec` | Values across named radial dimensions. |
 | Polar | `PlanPolarSpec` | Polar series and grid. |
 | Funnel | `PlanFunnelSpec` | Stages with width proportional to value. |
@@ -248,6 +249,10 @@ const workItems = {
 const grouped = planChart(workItems, {width: 320, height: 320});
 const absoluteStack = planChart(workItems, {width: 320, height: 320, stacking: 'sum'});
 const percentageStack = planChart(workItems, {width: 320, height: 320, stacking: 'percent'});
+
+for (const result of [grouped, absoluteStack, percentageStack]) {
+  if (result.status === 'invalid') throw new Error(result.diagnostic.reason);
+}
 ```
 
 An explicit `axes.y.domain: [0, capacity]` is the single capacity authority for grouped or absolute stacks. Without it, capacity comes from the original maximum value or category sum and stays fixed when series are hidden. Percent mode rejects an explicit raw domain. It retains original values and exposes percentages separately; unknown or absent members make the known-subset percentage incomplete. Zero has no fabricated colored area, and `null` stays unknown. Positive values too small to produce distinct geometry remain positive with a `noInk` decision. A bounded sum-only floating-point residue is exposed as `capacityRoundoff`; true excess and individual values above capacity still reject.
@@ -255,6 +260,40 @@ An explicit `axes.y.domain: [0, capacity]` is the single capacity authority for 
 Presets are `person`, `bottle` and `heart`. A custom shape is a normalized conforming triangular mesh, with at most 192 vertices and 64 non-overlapping triangles. The source accepts at most eight series, 32 categories and 64 original points. These are hard bounds, not a promise that the densest combination is readable or fast on every phone. No SVG/XML parser, external icon URL or platform clipping API is involved. The [Pictorial contract](https://github.com/PedroMorenoTrujillo/neural-charts-core/blob/main/docs/pictorial-contract.md) describes mesh validation and complete source/geometry properties.
 
 Render `pictorialGlyphs` backgrounds separately from `pictorialFills` in the real data series. Glyph identities are typed category/series objects; they are not source point IDs. `compoundPolygon` is an additional public hit-region variant: test the actual filled pieces so a hole never becomes a clickable bounding box. Renderers must handle this union member explicitly before consuming the new geometry. Original values, missing members, totals, capacity and completeness remain available in `pictorialData` and `pictorialLayout`. Initial Pictorial planning rejects viewport zoom, references, negative values and unrelated shapes per series. It does not supply shared-X groups, so hosts must keep that tooltip mode unavailable.
+
+### Tilemap: shaped lattice cells
+
+Tilemap projects original integer X/Y positions into a fitted lattice. The color represents the original measured value; cell position is not a second numeric measurement. Shapes are actual hexagons, circles, diamonds or squares.
+
+```ts
+import {planChart, type PlanTilemapSpec} from '@neural-charts/core/plan';
+
+const latency = {
+  family: 'tilemap',
+  title: 'Service latency',
+  unit: 'ms',
+  tileShape: 'hexagon',
+  series: [{id: 'services', name: 'Latency', data: [
+    {id: 'a', x: 0, y: 0, name: 'Service A', value: 0},
+    {id: 'b', x: 1, y: 0, name: 'Service B', value: 24},
+    {id: 'c', x: 2, y: 0, name: 'Service C', value: null},
+  ]}],
+  colorAxis: {
+    kind: 'continuous',
+    stops: [{at: 0, color: '#DCE8FA'}, {at: 1, color: '#2F6FD4'}],
+    missingColor: '#E5E7EB',
+  },
+} satisfies PlanTilemapSpec;
+
+const tiles = planChart(latency, {width: 390, height: 320});
+if (tiles.status === 'invalid') throw new Error(tiles.diagnostic.reason);
+const {cells} = tiles.frame.series[0]!;
+void cells;
+```
+
+The single source series accepts at most 2,048 cells. `series.cells` contains projected paint and actual polygon/circle geometry. Numeric observations preserve source IDs, lattice coordinates and values; a missing value can retain its missing-color cell but does not become a numeric observation or hit target. Known zero remains selectable. `tilemapData` records the original data and visibility decisions, and `tilemapLayout` distinguishes no source, all missing, all hidden, no visible ink and ready states.
+
+Continuous color domains derive from all original known values and remain stable when visibility changes. An explicit domain clamps color mapping without rewriting source values. A `classes` color axis uses named half-open intervals and an explicit `unclassifiedColor`; a value outside every class stays a known, selectable value. The host paints the `colorAxis` legend and supplies accessible source values. Tilemap does not support axes, references, stacking or viewport zoom. See the [Tilemap contract](https://github.com/PedroMorenoTrujillo/neural-charts-core/blob/main/docs/tilemap-contract.md) for limits, spacing and complete types.
 
 ### Word Cloud: measured text
 

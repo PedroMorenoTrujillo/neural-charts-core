@@ -77,6 +77,18 @@ if (result.status !== 'invalid') {
   void compound;
 }
 `);
+writeFileSync(path.join(consumer, 'example-tilemap-api.ts'), `
+import {planChart, type PlanTilemapSpec, type PlanColorAxisSpec, type PlanCellPaint} from '@neural-charts/core';
+const colorAxis: PlanColorAxisSpec = {kind: 'continuous', stops: [{at: 0, color: '#000000'}, {at: 1, color: '#FFFFFF'}], missingColor: '#EEEEEE'};
+const source: PlanTilemapSpec = {family: 'tilemap', title: 'Cells', series: [{id: 's', name: 'Source', data: [{id: 'zero', x: 0, y: 0, value: 0}, {id: 'unknown', x: 1, y: 0, value: null}]}], tileShape: 'hexagon', colorAxis};
+const result = planChart(source, {width: 390, height: 320});
+if (result.status !== 'invalid') {
+  const cell: PlanCellPaint | undefined = result.frame.series[0]?.cells?.[0];
+  if (cell?.geometry.kind === 'polygon') { const x: number | undefined = cell.geometry.vertices[0]?.x; void x; }
+  const missing = result.frame.tilemapData?.find(point => point.value === null);
+  void missing;
+}
+`);
 writeFileSync(path.join(consumer, 'tsconfig.json'), JSON.stringify({compilerOptions: {
   target: 'ES2022', lib: ['ES2022'], types: [], module: 'NodeNext', moduleResolution: 'NodeNext',
   strict: true, noUncheckedIndexedAccess: true, exactOptionalPropertyTypes: true, skipLibCheck: false,
@@ -124,13 +136,31 @@ assert.equal(pictorial.frame.observations[0].hit.kind, 'compoundPolygon');
 assert.equal(pictorial.frame.pictorialData[0].y, 60);
 assert.equal(pictorial.frame.series[0].pictorialFills[0].glyphId, pictorial.frame.pictorialGlyphs[0].id);
 assert(Object.isFrozen(pictorial.frame.pictorialGlyphs[0].id));
+for (const stacking of ['sum', 'percent']) {
+  const source = stacking === 'sum' ? pictorialSource : {...pictorialSource, axes: {...pictorialSource.axes, y: {kind: 'linear'}}};
+  const stacked = root.planChart(source, {width: 390, height: 320, stacking});
+  assert.equal(stacked.status, 'ok');
+  assert.equal(stacked.frame.pictorialLayout.mode, stacking);
+  assert.equal(stacked.frame.observations[0].value, 60);
+}
+assert.equal(root.planChart(pictorialSource, {width: 390, height: 320, stacking: 'percent'}).diagnostic.reason, 'PERCENT_DOMAIN_UNSUPPORTED');
 pictorialSource.series[0].data[0].y = 99;
 assert.equal(pictorial.frame.observations[0].value, 60);
+const tileSource = {family: 'tilemap', title: 'Cells', series: [{id: 's', name: 'Source', data: [{id: 'zero', x: 0, y: 0, value: 0}, {id: 'unknown', x: 1, y: 0, value: null}]}]};
+const tiles = root.planChart(tileSource, {width: 390, height: 320});
+assert.equal(tiles.status, 'ok');
+assert.equal(tiles.frame.series.length, 1);
+assert.equal(tiles.frame.series[0].cells.length, 2);
+assert.deepEqual(tiles.frame.observations.map(point => point.value), [0]);
+assert.equal(tiles.frame.tilemapData[1].value, null);
+assert.equal(tiles.frame.tilemapData[1].observed, false);
+assert.equal(tiles.frame.colorAxis.domain[0], 0);
+assert(Object.isFrozen(tiles.frame.series[0].cells[0].geometry));
 wordSource.words[0].text = 'Changed'; measurements[0].width = 1000;
 assert.equal(cloud.frame.series[0].textGlyphs[0].bounds.width, 80);
 assert.equal(cloud.frame.series[0].textGlyphs[0].text, 'Literal <text>');
-await import('./compiled/example-0.js');
-console.log('Isolated ESM runtime, public exports, owned inputs, DOM traps and README example passed.');
+for (let index = 0; index < ${examples.filter(source => source.includes('import ')).length}; index++) await import('./compiled/example-' + index + '.js');
+console.log('Isolated ESM runtime, public exports, owned inputs, DOM traps and README modules passed.');
 `);
 console.log(run(process.execPath, ['runtime.mjs'], consumer).trim());
 const receipt = {version: metadata.version, status: 'passed', runtimeModules: javascript.length,

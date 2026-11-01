@@ -1,9 +1,26 @@
 import {expect,it} from 'vitest';
 import {planChart,type PlanSpec,type PlanPictorialSpec,type PlanPictorialGlyphId,type PlanHitRegion,type PlanCommand} from '../../src/plan.js';
-import {pictorialExample} from '../fixtures/pictorial/examples.js';
+import {pictorialExample,exampleIds} from '../fixtures/pictorial/examples.js';
 import {maximumSpec} from '../fixtures/pictorial/maximum.js';
 const size={width:390,height:360};
 const serialize=(commands:readonly PlanCommand[])=>commands.map(c=>c.kind==='Z'?'Z':c.kind==='M'||c.kind==='L'?`${c.kind}${c.x} ${c.y}`:(()=>{throw Error('Pictorial must emit only M/L/Z');})()).join('');
+
+for(const locale of ['en','es'] as const)for(const id of exampleIds)it(`dispatches the complete Pictorial ${locale}/${id} example through the public entry`,()=>{
+  const {spec,options}=pictorialExample(id,locale),result=planChart(spec,options);
+  if(result.status==='invalid')throw Error(result.diagnostic.reason);
+  expect(result.frame.pictorialLayout?.mode).toBe(options.stacking??'grouped');
+  for(const series of spec.series)for(const point of series.data){
+    const original=result.frame.pictorialData?.find(row=>row.id.seriesId===series.id&&row.id.pointId===point.id);
+    expect(original?.y).toBe(point.y);
+  }
+});
+
+it('lets Pictorial report its own percent/domain incompatibility through the public entry',()=>{
+  const example=pictorialExample('percent','en'),spec:PlanPictorialSpec={...example.spec,axes:{...example.spec.axes,y:{kind:'linear',domain:[0,100]}}};
+  const result=planChart(spec,example.options);
+  expect(result.status).toBe('invalid');
+  if(result.status==='invalid')expect(result.diagnostic.reason).toBe('PERCENT_DOMAIN_UNSUPPORTED');
+});
 
 it('exposes typed background/fill/source roles and compound hit through the public entry',()=>{
   const example=pictorialExample('custom-ring','en'),source:PlanSpec=example.spec,result=planChart(source,size);
