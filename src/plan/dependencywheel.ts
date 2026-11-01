@@ -2,7 +2,7 @@ import {number,ValidationFailure} from '../internal/data/validation.js';
 import {freezePlan} from './input.js';
 import type {PlanAnnotation,PlanCircle,PlanCommand,PlanOptions,PlanSeries} from '../public/plan-types.js';
 import type {PlanChordSpec,PlanDependencyWheelSpec,PlanRelationshipObservation,PlanRelationshipResult} from '../public/relationship-types.js';
-import {coordinate,ownPolygon,polygonCommands,relationshipGraph,shortLabel,vertex,type RelationshipNode,type Vertex} from './relationships-shared.js';
+import {coordinate,ownPolygon,relationshipGraph,shortLabel,vertex,type RelationshipNode,type Vertex} from './relationships-shared.js';
 
 interface NodeArc {node:RelationshipNode;start:number;end:number;cursor:number;}
 interface Port {start:number;end:number;}
@@ -43,7 +43,17 @@ export function planRadialRelationships(spec:PlanDependencyWheelSpec|PlanChordSp
         const port=ports.get(edge.id)!,source=arc(cx,cy,inner,port.from.start,port.from.end,4),target=arc(cx,cy,inner,port.to.start,port.to.end,4);
         const shape=ownPolygon([...source,...curve(source.at(-1)!,target[0]!,center).slice(1),...target.slice(1),...curve(target.at(-1)!,source[0]!,center).slice(1)]);
         const visible=edge.value>0&&edge.weight*scale*inner>=.0002&&shape.length>0;
-        if(visible)areaCommands.push(...polygonCommands(shape));
+        // Draw the existing port arcs and quadratic connectors analytically.
+        // The bounded polygon remains an independent touch approximation; it
+        // must not turn the visible ribbon into a faceted 32-segment outline.
+        if(visible)areaCommands.push(
+          {kind:'M',...source[0]!},
+          {kind:'A',radius:inner,largeArc:port.from.end-port.from.start>Math.PI?1:0,sweep:1,...source.at(-1)!},
+          {kind:'Q',cx:center.x,cy:center.y,...target[0]!},
+          {kind:'A',radius:inner,largeArc:port.to.end-port.to.start>Math.PI?1:0,sweep:1,...target.at(-1)!},
+          {kind:'Q',cx:center.x,cy:center.y,...source[0]!},
+          {kind:'Z'},
+        );
         const from=at(cx,cy,inner,(port.from.start+port.from.end)/2),to=at(cx,cy,inner,(port.to.start+port.to.end)/2),anchor=vertex((from.x+to.x)/4+cx/2,(from.y+to.y)/4+cy/2);
         observations.push({id:{seriesId:group.id,pointId:edge.id},label:edge.from.label+(family==='chord'?' ↔ ':' → ')+edge.to.label,seriesName:group.label,value:edge.value,...anchor,color:group.color,...(visible?{hit:{kind:'polygon' as const,vertices:shape}}:{}),relationship:{kind:'link',from:edge.from.id,to:edge.to.id,fromLabel:edge.from.label,toLabel:edge.to.label,directed:family!=='chord',...(!visible?{geometryOmitted:true as const}:{})}});
       }

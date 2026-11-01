@@ -2,14 +2,14 @@
 
 Renderer-independent chart planning and geometry in strict TypeScript. The Core converts source data and a viewport size into a read-only frame that a renderer can paint.
 
-**Version 0.0.11 is experimental.** Public contracts can change before 1.0. Pin the version while integrating a renderer.
+**Version 0.0.12 is experimental.** Public contracts can change before 1.0. Pin the version while integrating a renderer.
 
 Version 0.0.5 reduces repeated work in defensive input copying while preserving validation, ownership and chart geometry. Public data and planning contracts are unchanged.
 
 ## Install
 
 ```sh
-npm install @neural-charts/core@0.0.11
+npm install @neural-charts/core@0.0.12
 ```
 
 The package ships ESM JavaScript and TypeScript declarations. It has no runtime dependencies, framework peer dependencies, browser globals, native bridges or module initialization side effects. Its declarations compile with `lib: ["ES2022"]`, without DOM types. Development and package verification use Node.js 22 or newer.
@@ -109,6 +109,10 @@ The frame's `schema` is `nc-plan/1`. It contains dimensions, title, description,
 Use the exported `PlanFrame`, `PlanSeries`, `PlanObservation`, `PlanLegendItem`, `PlanBar`, `PlanCircle`, `PlanHitRegion` and `PlanAnnotation` types in renderer code. See [the complete input and output interfaces](src/public/plan-types.ts) and [public exports](src/plan.ts) for every property and union member.
 
 For relationship diagrams, `series.areaCommands` contains link ribbons and `series.nodeCommands` contains node sectors. Paint ribbons first and solid node sectors/circles afterwards; keep both roles in the same coordinate frame. Do not recover node geometry by splitting a concatenated path. Observations retain their source identities and expose typed `relationship` metadata for node/link details.
+
+Handle every `PlanCommand` variant explicitly: `M`, `L`, `A`, `Q` and `Z`. A `Q` command has the quadratic control point `cx, cy` and endpoint `x, y`. An `A` command uses `radius` on X and optional `radiusY` on Y; when `radiusY` is absent, use `radius` on both axes. Ellipse rotation is zero. Renderers that previously handled only circular `A` commands and straight segments must support these fields before consuming the new relationship frames. Radial ribbons use circular ports and quadratic connectors; arc diagrams use exact elliptical band sides instead of drawing sampled polygon edges.
+
+Relationship hit polygons remain bounded lookup approximations with at most 34 vertices. They retain the same source identities and sampled boundaries, but are not the visible analytic curves. Do not render them as the ribbon or assume subpixel agreement at every viewport size; a broad radial port can differ visibly from its low-resolution hit polygon. Device touch acceptance and any requirement for exact curved-edge hit testing must be verified by the renderer separately. This change does not certify mobile frame time or physical-device behavior.
 
 ### `transformPlanViewport(state, intent): PlanViewportResult`
 

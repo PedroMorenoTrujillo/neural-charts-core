@@ -141,7 +141,10 @@ export type PlanViewportIntent=Readonly<{kind:'zoom';factor:number;anchor?:Reado
 export type PlanViewportResult=Readonly<{status:'ok';value:PlanViewportValue}>|Readonly<{status:'invalid';diagnostic:ChartDiagnostic}>;
 export type PlanCommand =
   | Readonly<{kind:'M'|'L';x:number;y:number}>
-  | Readonly<{kind:'A';radius:number;largeArc:0|1;sweep:0|1;x:number;y:number}>
+  /** Axis-aligned ellipse; omission of radiusY preserves the circular radius. */
+  | Readonly<{kind:'A';radius:number;radiusY?:number;largeArc:0|1;sweep:0|1;x:number;y:number}>
+  /** Quadratic Bézier in plot-local logical coordinates. */
+  | Readonly<{kind:'Q';cx:number;cy:number;x:number;y:number}>
   | Readonly<{kind:'Z'}>;
 export interface PlanBar {readonly pointId?:string;readonly x:number;readonly y:number;readonly width:number;readonly height:number;}
 export interface PlanCircle {readonly pointId?:string;readonly cx:number;readonly cy:number;readonly radius:number;}

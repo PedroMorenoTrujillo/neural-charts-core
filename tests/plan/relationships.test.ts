@@ -96,7 +96,8 @@ test('radial ribbons and solid node sectors have explicit render roles in the sa
   const f=frame(run(family)),series=f.series[0]!;
   expect(f.series.map(row=>row.id)).toEqual(['nodes']);
   expect(series.areaCommands?.filter(command=>command.kind==='M')).toHaveLength(3);
-  expect(series.areaCommands?.some(command=>command.kind==='A')).toBe(false);
+  expect(series.areaCommands?.filter(command=>command.kind==='A')).toHaveLength(6);
+  expect(series.areaCommands?.filter(command=>command.kind==='Q')).toHaveLength(6);
   expect(series.nodeCommands?.filter(command=>command.kind==='M')).toHaveLength(3);
   expect(series.nodeCommands?.filter(command=>command.kind==='A')).toHaveLength(6);
   expect(Object.isFrozen(series.nodeCommands)).toBe(true);

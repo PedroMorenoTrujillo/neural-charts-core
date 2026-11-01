@@ -2,7 +2,7 @@ import {fail,number,ValidationFailure} from '../internal/data/validation.js';
 import {freezePlan} from './input.js';
 import type {PlanAnnotation,PlanCircle,PlanCommand,PlanOptions,PlanSeries} from '../public/plan-types.js';
 import type {PlanArcDiagramSpec,PlanRelationshipObservation,PlanRelationshipResult} from '../public/relationship-types.js';
-import {ownPolygon,polygonCommands,relationshipGraph,shortLabel,vertex,type Vertex} from './relationships-shared.js';
+import {ownPolygon,relationshipGraph,shortLabel,vertex,type Vertex} from './relationships-shared.js';
 
 /** Fixed node order and bounded elliptical ribbons make updates deterministic. */
 export function planArcDiagram(spec:PlanArcDiagramSpec,options:PlanOptions):PlanRelationshipResult {
@@ -24,7 +24,14 @@ export function planArcDiagram(spec:PlanArcDiagramSpec,options:PlanOptions):Plan
         const side=(outer:boolean):Vertex[]=>Array.from({length:17},(_,i)=>{const angle=Math.PI*i/16,sine=Math.sin(angle),offset=(outer?1:-1)*thickness/2*sine;return vertex(cx-rx*Math.cos(angle),baseline+sign*(ry*sine+offset));});
         const shape=ownPolygon([...side(true),...side(false).reverse()]);
         const visible=edge.value>0&&thickness>=.0002&&shape.length>0;
-        if(visible)areaCommands.push(...polygonCommands(shape));
+        // The two tapered sides are exact axis-aligned half ellipses. Keep
+        // the bounded hit polygon, but never render its sample edges as ink.
+        if(visible)areaCommands.push(
+          {kind:'M',...vertex(left,baseline)},
+          {kind:'A',radius:rx,radiusY:ry+thickness/2,largeArc:0,sweep:reversed?0:1,...vertex(right,baseline)},
+          {kind:'A',radius:rx,radiusY:ry-thickness/2,largeArc:0,sweep:reversed?1:0,...vertex(left,baseline)},
+          {kind:'Z'},
+        );
         observations.push({id:{seriesId:group.id,pointId:edge.id},label:edge.from.label+' ↔ '+edge.to.label,seriesName:group.label,value:edge.value,...vertex(cx,baseline+sign*ry),color:group.color,...(visible?{hit:{kind:'polygon' as const,vertices:shape}}:{}),relationship:{kind:'link',from:edge.from.id,to:edge.to.id,fromLabel:edge.from.label,toLabel:edge.to.label,directed:false,...(!visible?{geometryOmitted:true as const}:{})}});
       }
       for(const node of nodes.filter(node=>node.groupId===group.id)){
