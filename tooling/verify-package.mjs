@@ -65,6 +65,18 @@ const readme = readFileSync(path.join(root, 'README.md'), 'utf8');
 const examples = [...readme.matchAll(/```ts\n([\s\S]*?)\n```/g)].map(match => match[1]);
 // The union-shape excerpt explains a return type; the other examples must compile.
 examples.filter(source => source.includes('import ')).forEach((source, index) => writeFileSync(path.join(consumer, 'example-' + index + '.ts'), source));
+writeFileSync(path.join(consumer, 'example-pictorial-api.ts'), `
+import {planChart, type PlanPictorialSpec, type PlanPictorialGlyphId, type PlanCompoundPolygonHit, type PlanHitRegion} from '@neural-charts/core';
+const source: PlanPictorialSpec = {family: 'pictorial', title: 'Capacity', axes: {x: {kind: 'category', values: [{id: 'a', label: 'A'}]}, y: {kind: 'linear', domain: [0, 100]}}, series: [{id: 's', name: 'Original', data: [{id: 'p', x: 'a', y: 60}]}]};
+const result = planChart(source, {width: 390, height: 320});
+if (result.status !== 'invalid') {
+  const id: PlanPictorialGlyphId | undefined = result.frame.pictorialGlyphs?.[0]?.id;
+  const hit: PlanHitRegion | undefined = result.frame.observations[0]?.hit;
+  const compound: PlanCompoundPolygonHit | undefined = hit?.kind === 'compoundPolygon' ? hit : undefined;
+  if (id?.kind === 'grouped') { const seriesId: string = id.seriesId; void seriesId; }
+  void compound;
+}
+`);
 writeFileSync(path.join(consumer, 'tsconfig.json'), JSON.stringify({compilerOptions: {
   target: 'ES2022', lib: ['ES2022'], types: [], module: 'NodeNext', moduleResolution: 'NodeNext',
   strict: true, noUncheckedIndexedAccess: true, exactOptionalPropertyTypes: true, skipLibCheck: false,
@@ -105,6 +117,15 @@ const cloud = root.planChart(wordSource, {width: 390, height: 300, wordcloudText
 assert.equal(cloud.status, 'ok');
 assert.equal(cloud.frame.series[0].textGlyphs[0].text, 'Literal <text>');
 assert.equal(cloud.frame.wordcloudData[0].weight, 3);
+const pictorialSource = {family: 'pictorial', title: 'Capacity', axes: {x: {kind: 'category', values: [{id: 'a', label: 'A'}]}, y: {kind: 'linear', domain: [0, 100]}}, series: [{id: 's', name: 'Original', data: [{id: 'p', x: 'a', y: 60}]}]};
+const pictorial = root.planChart(pictorialSource, {width: 390, height: 320});
+assert.equal(pictorial.status, 'ok');
+assert.equal(pictorial.frame.observations[0].hit.kind, 'compoundPolygon');
+assert.equal(pictorial.frame.pictorialData[0].y, 60);
+assert.equal(pictorial.frame.series[0].pictorialFills[0].glyphId, pictorial.frame.pictorialGlyphs[0].id);
+assert(Object.isFrozen(pictorial.frame.pictorialGlyphs[0].id));
+pictorialSource.series[0].data[0].y = 99;
+assert.equal(pictorial.frame.observations[0].value, 60);
 wordSource.words[0].text = 'Changed'; measurements[0].width = 1000;
 assert.equal(cloud.frame.series[0].textGlyphs[0].bounds.width, 80);
 assert.equal(cloud.frame.series[0].textGlyphs[0].text, 'Literal <text>');

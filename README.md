@@ -2,14 +2,14 @@
 
 Renderer-independent chart planning and geometry in strict TypeScript. The Core converts source data and a viewport size into a read-only frame that a renderer can paint.
 
-**Version 0.0.9 is experimental.** Public contracts can change before 1.0. Pin the version while integrating a renderer.
+**Version 0.0.10 is experimental.** Public contracts can change before 1.0. Pin the version while integrating a renderer.
 
 Version 0.0.5 reduces repeated work in defensive input copying while preserving validation, ownership and chart geometry. Public data and planning contracts are unchanged.
 
 ## Install
 
 ```sh
-npm install @neural-charts/core@0.0.9
+npm install @neural-charts/core@0.0.10
 ```
 
 The package ships ESM JavaScript and TypeScript declarations. It has no runtime dependencies, framework peer dependencies, browser globals, native bridges or module initialization side effects. Its declarations compile with `lib: ["ES2022"]`, without DOM types. Development and package verification use Node.js 22 or newer.
@@ -162,7 +162,7 @@ A reference has a stable ID, an axis and a value. X accepts a category ID or num
 
 ## Supported planning families
 
-The current contract produces 49 frame families. These are planning capabilities; inclusion does not certify a renderer's feature parity or device performance.
+The current contract produces 50 frame families. These are planning capabilities; inclusion does not certify a renderer's feature parity or device performance.
 
 | Family | Input | Notes |
 | --- | --- | --- |
@@ -201,6 +201,7 @@ The current contract produces 49 frame families. These are planning capabilities
 | Chord | `PlanChordSpec` | Weighted undirected relationships sharing the radial layout engine. |
 | Arc Diagram | `PlanArcDiagramSpec` | Original node order with weighted arcs and bounded node sizes. |
 | Word Cloud | `PlanWordCloudSpec` | Deterministic bounded packing using actual renderer-supplied text measurements. |
+| Pictorial | `PlanPictorialSpec` | Grouped or stacked height bands clipped to original vector silhouettes, including holes. |
 | Radar | `PlanRadarSpec` | Values across named radial dimensions. |
 | Polar | `PlanPolarSpec` | Polar series and grid. |
 | Funnel | `PlanFunnelSpec` | Stages with width proportional to value. |
@@ -213,6 +214,47 @@ The current contract produces 49 frame families. These are planning capabilities
 | Sankey | `PlanSankeySpec` | Weighted directed acyclic flows, horizontal or vertical nodes and filled links. |
 
 Each input is a strict discriminated interface. Do not build a single object containing every family's properties or use casts to force an unsupported combination. Scalar parts, measured XY series, ranges, directional values and hierarchy nodes have different data semantics.
+
+### Pictorial: filled silhouette heights
+
+Pictorial fills an original vector silhouette to the height represented by each value. Grouped series have separate silhouettes; sum and percent stacks divide one silhouette into actual contiguous bands. The filled geometry respects holes. Height proportion does not claim area proportion or the physical volume of a bottle-like shape.
+
+```ts
+import {planChart, type PlanPictorialSpec} from '@neural-charts/core/plan';
+
+const workItems = {
+  family: 'pictorial',
+  title: 'Work items',
+  axes: {
+    x: {kind: 'category', values: [
+      {id: 'design', label: 'Design'},
+      {id: 'development', label: 'Development'},
+    ]},
+    y: {kind: 'linear', unit: 'items'},
+  },
+  series: [
+    {id: 'done', name: 'Done', data: [
+      {id: 'design-done', x: 'design', y: 6},
+      {id: 'development-done', x: 'development', y: 3},
+    ]},
+    {id: 'remaining', name: 'Remaining', data: [
+      {id: 'design-remaining', x: 'design', y: 4},
+      {id: 'development-remaining', x: 'development', y: 7},
+    ]},
+  ],
+  pictorial: {shape: {kind: 'preset', name: 'person'}, gap: 8, background: true},
+} satisfies PlanPictorialSpec;
+
+const grouped = planChart(workItems, {width: 320, height: 320});
+const absoluteStack = planChart(workItems, {width: 320, height: 320, stacking: 'sum'});
+const percentageStack = planChart(workItems, {width: 320, height: 320, stacking: 'percent'});
+```
+
+An explicit `axes.y.domain: [0, capacity]` is the single capacity authority for grouped or absolute stacks. Without it, capacity comes from the original maximum value or category sum and stays fixed when series are hidden. Percent mode rejects an explicit raw domain. It retains original values and exposes percentages separately; unknown or absent members make the known-subset percentage incomplete. Zero has no fabricated colored area, and `null` stays unknown. Positive values too small to produce distinct geometry remain positive with a `noInk` decision. A bounded sum-only floating-point residue is exposed as `capacityRoundoff`; true excess and individual values above capacity still reject.
+
+Presets are `person`, `bottle` and `heart`. A custom shape is a normalized conforming triangular mesh, with at most 192 vertices and 64 non-overlapping triangles. The source accepts at most eight series, 32 categories and 64 original points. These are hard bounds, not a promise that the densest combination is readable or fast on every phone. No SVG/XML parser, external icon URL or platform clipping API is involved. The [Pictorial contract](https://github.com/PedroMorenoTrujillo/neural-charts-core/blob/main/docs/pictorial-contract.md) describes mesh validation and complete source/geometry properties.
+
+Render `pictorialGlyphs` backgrounds separately from `pictorialFills` in the real data series. Glyph identities are typed category/series objects; they are not source point IDs. `compoundPolygon` is an additional public hit-region variant: test the actual filled pieces so a hole never becomes a clickable bounding box. Renderers must handle this union member explicitly before consuming the new geometry. Original values, missing members, totals, capacity and completeness remain available in `pictorialData` and `pictorialLayout`. Initial Pictorial planning rejects viewport zoom, references, negative values and unrelated shapes per series. It does not supply shared-X groups, so hosts must keep that tooltip mode unavailable.
 
 ### Word Cloud: measured text
 
