@@ -2,6 +2,21 @@ import {expect, it} from 'vitest';
 import {planChart, transformPlanViewport} from '../../src/plan.js';
 import type {PlanSpec} from '../../src/plan.js';
 
+it('hides and restores every accepted temporal series identity up to256 characters', () => {
+  const id = 's'.repeat(256), options = {width: 390, height: 300};
+  const examples: readonly PlanSpec[] = [
+    {family: 'xrange', title: 'Source intervals', axes: {x: {kind: 'linear'}, y: {kind: 'category', values: [{id: 'row', label: 'Row'}]}}, series: [{id, name: 'Series', data: [{id: 'p', rowId: 'row', start: 0, end: 10}]}]},
+    {family: 'timeline', title: 'Source events', axes: {x: {kind: 'linear'}}, series: [{id, name: 'Series', data: [{id: 'p', x: 0, title: 'Original event'}]}]},
+  ];
+  for (const source of examples) {
+    const original = planChart(source, options);
+    expect(original.status).toBe('ok');
+    expect(planChart(source, {...options, hiddenSeriesIds: [id]})).toMatchObject({status: 'empty', frame: {observations: [], legend: [{id, visible: false}]}});
+    expect(planChart(source, {...options, hiddenSeriesIds: []})).toEqual(original);
+    expect(planChart(source, {...options, hiddenSeriesIds: ['s'.repeat(257)]})).toMatchObject({status: 'invalid', diagnostic: {reason: 'BAD_VISIBILITY'}});
+  }
+});
+
 it('dispatches strict X-range input through the public immutable planning entry', () => {
   const data = {family: 'xrange', title: 'Source intervals', axes: {x: {kind: 'linear'}, y: {kind: 'category', values: [{id: 'a', label: 'A'}]}},
     series: [{id: 's', name: 'Series', data: [{id: 'p', rowId: 'a', start: 0, end: 10, completed: .4}]}]} satisfies PlanSpec;

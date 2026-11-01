@@ -1,3 +1,4 @@
+export type {PlanRelationshipNode,PlanRelationshipLink,PlanRelationshipSource,PlanDependencyWheelSpec,PlanArcDiagramSpec,PlanChordSpec,PlanRelationshipSpec,PlanRelationshipMetadata,PlanRelationshipObservation,PlanRelationshipFrame,PlanRelationshipResult} from './public/relationship-types.js';
 export type {PlanVectorSpec,PlanWindbarbSpec,PlanVectorPoint,PlanWindbarbPoint,PlanDirectionalSeries} from './public/plan-types.js';
 import {planChart as projectPlan} from './plan/plan.js';
 export type {PlanSankeySpec,PlanSankeyNode,PlanSankeyLink} from './public/plan-types.js';

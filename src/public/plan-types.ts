@@ -1,3 +1,4 @@
+import type {PlanRelationshipSpec,PlanRelationshipMetadata} from './relationship-types.js';
 import type {PlanBulletSpec,PlanBulletValue,PlanBulletSummary,PlanBulletBandGeometry,PlanBulletTargetGeometry} from './bullet-plan-types.js';
 import type {PlanVariwideSpec,PlanVariwideValue,PlanVariwideCategoryBand,PlanVariwideSummary} from './variwide-plan-types.js';
 import type {PlanXRangeSpec,PlanIntervalValue,PlanIntervalSummary} from './xrange-plan-types.js';
@@ -99,7 +100,7 @@ export interface PlanWindbarbPoint {readonly id:string;readonly x:number|null;re
 export interface PlanDirectionalSeries<P> {readonly id:string;readonly name:string;readonly color?:string;readonly data:readonly P[];}
 export interface PlanVectorSpec {readonly family:'vector';readonly title:string;readonly description?:string;readonly unit?:string;readonly axes:Readonly<{x:NumericAxis;y:NumericAxis}>;readonly series:readonly PlanDirectionalSeries<PlanVectorPoint>[];}
 export interface PlanWindbarbSpec {readonly family:'windbarb';readonly title:string;readonly description?:string;readonly axes:Readonly<{x:NumericAxis;y:NumericAxis}>;readonly series:readonly PlanDirectionalSeries<PlanWindbarbPoint>[];}
-export type PlanSpec = PlanBulletSpec | PlanVariwideSpec | PlanXRangeSpec | PlanTimelineSpec | PlanSankeySpec | PlanVectorSpec | PlanWindbarbSpec | PlanNetworkgraphSpec | PlanPackedBubbleSpec | PlanSunburstSpec | PlanNodeGraphSpec | PlanVariablePieSpec | PlanItemSpec | PlanPolygonSpec | PlanLollipopSpec | PlanDumbbellSpec | PlanColumnPyramidSpec | PlanBoxplotSpec | PlanErrorbarSpec | PlanStreamgraphSpec | PlanRangeSpec | PlanHistogramSpec | PlanBellcurveSpec | PlanAreaSplineSpec | PlanFunnelSpec | PlanPyramidSpec | PlanParetoSpec | PlanRadarSpec | PlanPolarSpec | PlanWaterfallSpec | PlanTreemapSpec | PlanMixedSpec | PlanAreaSpec | PlanSplineSpec | PlanScatterSpec | PlanLineSpec | PlanColumnSpec | PlanPieSpec | PlanDonutSpec | PlanGaugeSpec | PlanBubbleSpec;
+export type PlanSpec = PlanRelationshipSpec | PlanBulletSpec | PlanVariwideSpec | PlanXRangeSpec | PlanTimelineSpec | PlanSankeySpec | PlanVectorSpec | PlanWindbarbSpec | PlanNetworkgraphSpec | PlanPackedBubbleSpec | PlanSunburstSpec | PlanNodeGraphSpec | PlanVariablePieSpec | PlanItemSpec | PlanPolygonSpec | PlanLollipopSpec | PlanDumbbellSpec | PlanColumnPyramidSpec | PlanBoxplotSpec | PlanErrorbarSpec | PlanStreamgraphSpec | PlanRangeSpec | PlanHistogramSpec | PlanBellcurveSpec | PlanAreaSplineSpec | PlanFunnelSpec | PlanPyramidSpec | PlanParetoSpec | PlanRadarSpec | PlanPolarSpec | PlanWaterfallSpec | PlanTreemapSpec | PlanMixedSpec | PlanAreaSpec | PlanSplineSpec | PlanScatterSpec | PlanLineSpec | PlanColumnSpec | PlanPieSpec | PlanDonutSpec | PlanGaugeSpec | PlanBubbleSpec;
 export interface PlanOptions {
   readonly width: number;
   readonly height: number;
@@ -144,6 +145,8 @@ export interface PlanSeries {
   readonly id:string; readonly name:string; readonly color:string;
   readonly commands?:readonly PlanCommand[];
   readonly areaCommands?:readonly PlanCommand[];
+  /** Solid relationship nodes, separate from translucent ribbon areas. */
+  readonly nodeCommands?:readonly PlanCommand[];
   readonly bars?:readonly PlanBar[];
   readonly circles?:readonly PlanCircle[];
   readonly fill?:boolean;
@@ -152,6 +155,7 @@ export interface PlanLegendItem {readonly id:string;readonly name:string;readonl
 export interface PlanObservation {
   readonly interval?:PlanIntervalValue;
   readonly event?:PlanTimelineEvent;
+  readonly relationship?:PlanRelationshipMetadata;
   readonly bullet?:PlanBulletValue;
   readonly variwide?:PlanVariwideValue;
   readonly sankey?:(Readonly<{kind:'node';incoming:number;outgoing:number}>|Readonly<{kind:'link';from:string;to:string;fromLabel:string;toLabel:string}>)&Readonly<{geometryOmitted?:true}>;
@@ -186,7 +190,7 @@ export interface PlanFrame {
   readonly distribution?:PlanDistributionSummary;
   readonly secondaryGrid?:readonly Readonly<{y:number;label:string}>[];
   readonly schema:'nc-plan/1';
-  readonly family:'bullet'|'variwide'|'xrange'|'timeline'|'sankey'|'vector'|'windbarb'|'networkgraph'|'packedbubble'|'sunburst'|'treegraph'|'organization'|'variablepie'|'item'|'polygon'|'lollipop'|'dumbbell'|'columnpyramid'|'boxplot'|'errorbar'|'streamgraph'|'arearange'|'areasplinerange'|'columnrange'|'histogram'|'bellcurve'|'areaspline'|'funnel'|'pyramid'|'pareto'|'radar'|'polar'|'waterfall'|'treemap'|'mixed'|'line'|'area'|'spline'|'scatter'|'column'|'bar'|'pie'|'donut'|'gauge'|'bubble';
+  readonly family:'dependencywheel'|'arcdiagram'|'chord'|'bullet'|'variwide'|'xrange'|'timeline'|'sankey'|'vector'|'windbarb'|'networkgraph'|'packedbubble'|'sunburst'|'treegraph'|'organization'|'variablepie'|'item'|'polygon'|'lollipop'|'dumbbell'|'columnpyramid'|'boxplot'|'errorbar'|'streamgraph'|'arearange'|'areasplinerange'|'columnrange'|'histogram'|'bellcurve'|'areaspline'|'funnel'|'pyramid'|'pareto'|'radar'|'polar'|'waterfall'|'treemap'|'mixed'|'line'|'area'|'spline'|'scatter'|'column'|'bar'|'pie'|'donut'|'gauge'|'bubble';
   readonly title:string;readonly description:string;readonly unit:string;
   readonly width:number;readonly height:number;
   readonly legend:readonly PlanLegendItem[];

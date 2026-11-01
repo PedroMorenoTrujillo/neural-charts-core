@@ -2,14 +2,14 @@
 
 Renderer-independent chart planning and geometry in strict TypeScript. The Core converts source data and a viewport size into a read-only frame that a renderer can paint.
 
-**Version 0.0.6 is experimental.** Public contracts can change before 1.0. Pin the version while integrating a renderer.
+**Version 0.0.7 is experimental.** Public contracts can change before 1.0. Pin the version while integrating a renderer.
 
 Version 0.0.5 reduces repeated work in defensive input copying while preserving validation, ownership and chart geometry. Public data and planning contracts are unchanged.
 
 ## Install
 
 ```sh
-npm install @neural-charts/core@0.0.6
+npm install @neural-charts/core@0.0.7
 ```
 
 The package ships ESM JavaScript and TypeScript declarations. It has no runtime dependencies, framework peer dependencies, browser globals, native bridges or module initialization side effects. Its declarations compile with `lib: ["ES2022"]`, without DOM types. Development and package verification use Node.js 22 or newer.
@@ -108,6 +108,8 @@ The frame's `schema` is `nc-plan/1`. It contains dimensions, title, description,
 
 Use the exported `PlanFrame`, `PlanSeries`, `PlanObservation`, `PlanLegendItem`, `PlanBar`, `PlanCircle`, `PlanHitRegion` and `PlanAnnotation` types in renderer code. See [the complete input and output interfaces](src/public/plan-types.ts) and [public exports](src/plan.ts) for every property and union member.
 
+For relationship diagrams, `series.areaCommands` contains link ribbons and `series.nodeCommands` contains node sectors. Paint ribbons first and solid node sectors/circles afterwards; keep both roles in the same coordinate frame. Do not recover node geometry by splitting a concatenated path. Observations retain their source identities and expose typed `relationship` metadata for node/link details.
+
 ### `transformPlanViewport(state, intent): PlanViewportResult`
 
 Transforms an existing frame's viewport state into a new controlled window. It does not detect gestures or mutate a chart. The renderer turns a pan or pinch into an intent, applies the returned value to its options, and calls `planChart` again.
@@ -160,7 +162,7 @@ A reference has a stable ID, an axis and a value. X accepts a category ID or num
 
 ## Supported planning families
 
-The current contract produces 45 frame families. These are planning capabilities; inclusion does not certify a renderer's feature parity or device performance.
+The current contract produces 48 frame families. These are planning capabilities; inclusion does not certify a renderer's feature parity or device performance.
 
 | Family | Input | Notes |
 | --- | --- | --- |
@@ -195,6 +197,9 @@ The current contract produces 45 frame families. These are planning capabilities
 | Timeline | `PlanTimelineSpec` | Numeric or UTC events with original titles/descriptions and bounded labels. |
 | Bullet | `PlanBulletSpec` | Original measures and targets, with qualitative bands as separate decorations. |
 | Variwide | `PlanVariwideSpec` | Category widths proportional to original nonnegative Z values, with independent signed Y values. |
+| Dependency Wheel | `PlanDependencyWheelSpec` | Weighted directed relationships, including cycles, on radial node ports. |
+| Chord | `PlanChordSpec` | Weighted undirected relationships sharing the radial layout engine. |
+| Arc Diagram | `PlanArcDiagramSpec` | Original node order with weighted arcs and bounded node sizes. |
 | Radar | `PlanRadarSpec` | Values across named radial dimensions. |
 | Polar | `PlanPolarSpec` | Polar series and grid. |
 | Funnel | `PlanFunnelSpec` | Stages with width proportional to value. |
@@ -207,6 +212,81 @@ The current contract produces 45 frame families. These are planning capabilities
 | Sankey | `PlanSankeySpec` | Weighted directed acyclic flows, horizontal or vertical nodes and filled links. |
 
 Each input is a strict discriminated interface. Do not build a single object containing every family's properties or use casts to force an unsupported combination. Scalar parts, measured XY series, ranges, directional values and hierarchy nodes have different data semantics.
+
+### Dependency Wheel: directed relationships
+
+```ts
+import {planChart, type PlanDependencyWheelSpec} from '@neural-charts/core';
+
+const data = {
+  family: 'dependencywheel', title: 'Measured exchanges',
+  nodes: [{id: 'a', label: 'A'}, {id: 'b', label: 'B'}, {id: 'c', label: 'C'}],
+  links: [
+    {id: 'a-b', from: 'a', to: 'b', value: 12},
+    {id: 'b-c', from: 'b', to: 'c', value: 8},
+    {id: 'c-a', from: 'c', to: 'a', value: 4},
+  ],
+  startAngle: 0, nodeWidth: 14, nodePadding: 2,
+} satisfies PlanDependencyWheelSpec;
+
+const result = planChart(data, {width: 390, height: 320});
+if (result.status !== 'invalid') {
+  const {series, observations} = result.frame;
+  // Node sectors and link ribbons can use different paint opacity.
+  void series.map(item => [item.nodeCommands, item.areaCommands]);
+  void observations.map(point => point.relationship);
+}
+```
+
+### Chord: undirected relationships
+
+```ts
+import {planChart, type PlanChordSpec} from '@neural-charts/core';
+
+const data = {
+  family: 'chord', title: 'Shared work',
+  nodes: [{id: 'design', label: 'Design'}, {id: 'product', label: 'Product'}, {id: 'support', label: 'Support'}],
+  links: [
+    {id: 'design-product', from: 'design', to: 'product', value: 18},
+    {id: 'product-support', from: 'product', to: 'support', value: 10},
+    {id: 'support-design', from: 'support', to: 'design', value: 6},
+  ],
+} satisfies PlanChordSpec;
+
+const result = planChart(data, {width: 390, height: 320});
+if (result.status !== 'invalid') {
+  // Use incident totals; these links do not imply incoming/outgoing direction.
+  const nodes = result.frame.observations.filter(point => point.relationship?.kind === 'node');
+  void nodes;
+}
+```
+
+### Arc Diagram: ordered relationships
+
+```ts
+import {planChart, type PlanArcDiagramSpec} from '@neural-charts/core';
+
+const data = {
+  family: 'arcdiagram', title: 'Connections along a process',
+  nodes: [{id: 'capture', label: 'Capture'}, {id: 'prepare', label: 'Prepare'}, {id: 'review', label: 'Review'}],
+  links: [
+    {id: 'capture-prepare', from: 'capture', to: 'prepare', value: 14},
+    {id: 'prepare-review', from: 'prepare', to: 'review', value: 9},
+    {id: 'capture-review', from: 'capture', to: 'review', value: 3},
+  ],
+  nodeRadius: 6, linkWidth: 12, reversed: false,
+} satisfies PlanArcDiagramSpec;
+
+const result = planChart(data, {width: 390, height: 260});
+if (result.status !== 'invalid') {
+  // Render the supplied effective circles; dense layouts can reduce their radii.
+  void result.frame.series.map(series => series.circles);
+}
+```
+
+These three families accept up to 64 nodes, 256 links and 15 explicit groups plus an implicit default group. Node, link and group IDs have a 128-character limit; node/link IDs must be globally unique. Links reference existing distinct nodes and supply a nonnegative value or `null`. Missing values remain unknown, and zero links do not acquire a fictitious positive ribbon. Subpixel quantities keep exact source values and `relationship.geometryOmitted` metadata for inspection and navigation.
+
+Dependency Wheel preserves direction; Chord and Arc Diagram expose undirected incident totals. Optional groups control visibility from source data and recalculate visible quantities. Unknown or duplicate hidden group IDs are rejected. `startAngle` is measured clockwise from twelve o'clock; sector hit regions use the same bearing convention as the visible geometry. Arc Diagram preserves the supplied node order; `reversed` changes the side on which arcs are drawn. Its `nodeRadius` is a requested maximum (2–24 logical pixels), reduced when necessary to avoid overlapping nodes. Source identities are retained when dense labels or subpixel glyphs cannot be individually read. Axes, Cartesian references, viewport transforms and stacking are unsupported for these initial relationship contracts.
 
 ### Bullet measures and targets
 
