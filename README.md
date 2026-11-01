@@ -2,14 +2,14 @@
 
 Renderer-independent chart planning and geometry in strict TypeScript. The Core converts source data and a viewport size into a read-only frame that a renderer can paint.
 
-**Version 0.0.13 is experimental.** Public contracts can change before 1.0. Pin the version while integrating a renderer.
+**Version 0.0.14 is experimental.** Public contracts can change before 1.0. Pin the version while integrating a renderer.
 
 Version 0.0.5 reduces repeated work in defensive input copying while preserving validation, ownership and chart geometry. Public data and planning contracts are unchanged.
 
 ## Install
 
 ```sh
-npm install @neural-charts/core@0.0.13
+npm install @neural-charts/core@0.0.14
 ```
 
 The package ships ESM JavaScript and TypeScript declarations. It has no runtime dependencies, framework peer dependencies, browser globals, native bridges or module initialization side effects. Its declarations compile with `lib: ["ES2022"]`, without DOM types. Development and package verification use Node.js 22 or newer.
@@ -643,6 +643,36 @@ The complete isoline calculation has an explicit segment budget, default 8,192 a
 Each observation is a **derived isoline segment**, not an original sample. `observation.value` is the requested level. `observation.contour` identifies the grid, level, source cell and four original sample IDs/values; it contains both source interpolated endpoints and plot-local clipped endpoints. Derived IDs stay stable when clipping removes earlier saddle arms. All original samples remain in the frame even when levels are hidden or no crossing exists. `emptyReason` distinguishes hidden levels, unknown cells, no crossings and an outside viewport.
 
 X/Y domains, reversed axes, numeric ticks, references and controlled viewport windows use the shared coordinate model. Reference values are grid coordinates, not scalar thresholds. Clipping happens in source space before projection. Contour frames do not invent circular or polygonal hits; adapters can index the explicit straight segment endpoints with their platform touch tolerance. Tooltips should label the level as interpolated and provide the original corners separately. Keyboard navigation, gesture handling, tooltip placement and reduced-motion animation belong to the adapter.
+
+## Measured Venn and Euler relations
+
+Venn plans accept up to three named sets and explicit inclusive measurements for every nonempty combination. An empty set list with empty data is valid. For two sets provide A, B and A∩B; for three sets provide all seven combinations. Use `0` for a measured empty intersection and `null` for an unknown measurement. Missing combinations are rejected rather than inferred as zero.
+
+```ts
+import {planChart, type PlanVennSpec} from '@neural-charts/core/plan';
+
+const sets = {
+  family: 'venn',
+  title: 'Membership overlap',
+  sets: [{id: 'a', label: 'Product A'}, {id: 'b', label: 'Product B'}],
+  data: [
+    {id: 'total-a', sets: ['a'], value: 100},
+    {id: 'total-b', sets: ['b'], value: 80},
+    {id: 'both', sets: ['a', 'b'], value: 35},
+  ],
+} as const satisfies PlanVennSpec;
+
+const result = planChart(sets, {width: 390, height: 300});
+if (result.status !== 'invalid') {
+  const fitStatus = result.frame.vennLayout?.status;
+  const originalMeasurements = result.frame.vennData;
+  void {fitStatus, originalMeasurements};
+}
+```
+
+Singleton circle areas remain proportional to original set measures. Two-set overlap uses exact arc integration and bounded inverse search. For three sets, not every valid set relation is exactly representable by circles: the bounded fit reports `vennLayout.status`, individual area errors and `maxErrorRatio`, relative to the largest visible set. An approximate fit never changes source counts. Negative exclusive memberships and intersections larger than their known parent sets are rejected, including contradictions detectable in otherwise incomplete data.
+
+Unknown visible relations produce no guessed circles. Known counts, zeros, hidden measurements and omitted anchors remain distinguishable in `vennData`, observations and `vennLayout`. Disjoint and contained arrangements also support Euler relations. Adapters select exact circle memberships using the layout's stable `bit` values and each observation's `venn.mask`; they should not replace intersections with a polygon approximation. An omitted label anchor does not erase its original measurement. Font fitting, visual transparency, touches, accessible navigation, legends and tooltips belong to the renderer.
 
 ## License
 

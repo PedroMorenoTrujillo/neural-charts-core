@@ -1,3 +1,4 @@
+export type {PlanVennSpec,PlanVennSet,PlanVennMeasure,PlanVennCircle,PlanVennValue,PlanVennSummary,PlanVennAreaError,PlanVennLayout,PlanVennFrame,PlanVennResult} from './public/venn-types.js';
 export type {PlanContourSpec,PlanContourGrid,PlanContourAxis,PlanContourLevel,PlanContourPoint,PlanContourSample,PlanContourValue,PlanContourLayout,PlanContourObservation,PlanContourFrame,PlanContourResult} from './public/contour-types.js';
 export {prepareWordCloudMeasurements} from './plan/wordcloud-source.js';
 export type {PlanCellPoint,PlanCellGeometry,PlanCellPaint} from './public/cell-types.js';
