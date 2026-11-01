@@ -2,14 +2,14 @@
 
 Renderer-independent chart planning and geometry in strict TypeScript. The Core converts source data and a viewport size into a read-only frame that a renderer can paint.
 
-**Version 0.0.16 is experimental.** Public contracts can change before 1.0. Pin the version while integrating a renderer.
+**Version 0.0.17 is experimental.** Public contracts can change before 1.0. Pin the version while integrating a renderer.
 
 Version 0.0.5 reduces repeated work in defensive input copying while preserving validation, ownership and chart geometry. Public data and planning contracts are unchanged.
 
 ## Install
 
 ```sh
-npm install @neural-charts/core@0.0.16
+npm install @neural-charts/core@0.0.17
 ```
 
 The package ships ESM JavaScript and TypeScript declarations. It has no runtime dependencies, framework peer dependencies, browser globals, native bridges or module initialization side effects. Its declarations compile with `lib: ["ES2022"]`, without DOM types. Development and package verification use Node.js 22 or newer.
@@ -166,7 +166,7 @@ A reference has a stable ID, an axis and a value. X accepts a category ID or num
 
 ## Supported planning families
 
-The current contract produces 56 frame families. These are planning capabilities; inclusion does not certify a renderer's feature parity or device performance.
+The current contract produces 57 frame families. These are planning capabilities; inclusion does not certify a renderer's feature parity or device performance.
 
 | Family | Input | Notes |
 | --- | --- | --- |
@@ -214,6 +214,7 @@ The current contract produces 56 frame families. These are planning capabilities
 | Polar | `PlanPolarSpec` | Polar series and grid. |
 | Wind rose | `PlanWindRoseSpec` | Ordered directions and truly stacked frequency bands, by sum or percentage. |
 | Radial bar | `PlanRadialBarSpec` | Concentric progress bands with a common angle scale and exact annular hits. |
+| Parallel coordinates | `PlanParallelSpec` | Independent linear dimensions, in Cartesian or polar coordinates; per-axis domains and units. |
 | Funnel | `PlanFunnelSpec` | Stages with width proportional to value. |
 | Pyramid | `PlanPyramidSpec` | Ordered stage geometry. |
 | Treemap | `PlanTreemapSpec` | Rectangular hierarchy. |
@@ -770,6 +771,51 @@ const result = planChart(progress, {width: 390, height: 300});
 ```
 
 `innerRadiusRatio` accepts 0–0.8; band gaps accept 0–0.5. Domains excluding original values return a diagnostic instead of clipping progress silently. Both families return native-ready circular arc commands, exact annular-sector hit regions and stable observation IDs. They do not accept Cartesian references, viewport zoom/pan or the generic Cartesian stacking option. Rendering, tooltip placement, animation and platform accessibility stay in the adapter.
+
+## Independent-axis parallel coordinates
+
+Parallel coordinates compare records across variables with different units and ranges. Each dimension has its own linear scale. `coordinates: 'polar'` arranges those independent dimensions around a centre; it does not replace their domains with one radar maximum. Cartesian mode needs 2–16 dimensions; polar mode needs 3–16. Both accept up to 16 original records and 256 original points, with one point per record/dimension pair.
+
+```ts
+import {planChart, type PlanParallelSpec} from '@neural-charts/core/plan';
+
+const vehicles = {
+  family: 'parallel',
+  title: 'Vehicle measurements',
+  coordinates: 'cartesian',
+  axes: [
+    {id: 'mass', label: 'Mass', kind: 'linear', unit: 'kg', domain: [1000, 2000]},
+    {id: 'time', label: 'Acceleration', kind: 'linear', unit: 's', domain: [5, 15], reversed: true},
+    {id: 'range', label: 'Range', kind: 'linear', unit: 'km', domain: [200, 600]},
+  ],
+  series: [
+    {id: 'a', name: 'Vehicle A', data: [
+      {id: 'mass-a', axisId: 'mass', value: 1250},
+      {id: 'time-a', axisId: 'time', value: 7.5},
+      {id: 'range-a', axisId: 'range', value: 450},
+    ]},
+    {id: 'b', name: 'Vehicle B', data: [
+      {id: 'mass-b', axisId: 'mass', value: 1850},
+      {id: 'time-b', axisId: 'time', value: 10},
+      {id: 'range-b', axisId: 'range', value: null},
+    ]},
+  ],
+} as const satisfies PlanParallelSpec;
+
+const result = planChart(vehicles, {width: 390, height: 300});
+if (result.status !== 'invalid') {
+  const axes = result.frame.parallel?.axes;
+  const valueUnit = result.frame.observations[0]?.parallel?.unit;
+}
+```
+
+Every axis supports an increasing finite `domain`, `reversed`, `nice` and `ticks.targetCount`. An explicit domain must contain all original known values, including hidden records. Automatic domains use the entire source and therefore remain stable when the legend hides a record. A constant dimension uses the shared constant-domain expansion. A dimension with no known values and no explicit domain has no invented numeric range or ticks.
+
+Zero and negative measurements retain their original values. `null` and omitted dimensions create gaps; paths never bridge a missing dimension. Polar mode joins the last and first dimensions only when both endpoints are known. Unknown dimension IDs and duplicate coordinates within a record return diagnostics. A record with only one known dimension still has its original circular observation target.
+
+`frame.parallel` contains exact axis endpoints, labels, tick positions, domains, units, source counts and grid commands. Each observation has `parallel: {axisId, axisLabel, unit}` and a semantic group keyed by its dimension. Adapters can compose a shared tooltip for one dimension without mixing units or unrelated coordinates. `frame.unit` is empty because no global unit describes all variables. Native text, collision handling and final label density belong to the renderer; Core returns no SVG text or browser measurements.
+
+There is no universal numeric X/Y viewport, Cartesian reference-line system, stacking or logarithmic scale in this parallel-coordinate contract. Those incompatible options return diagnostics. The Cartesian and polar variants share the same source identities and independent-scale mathematics.
 
 ## License
 

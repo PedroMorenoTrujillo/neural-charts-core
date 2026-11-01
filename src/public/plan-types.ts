@@ -110,7 +110,9 @@ export interface PlanVectorSpec {readonly family:'vector';readonly title:string;
 export interface PlanWindbarbSpec {readonly family:'windbarb';readonly title:string;readonly description?:string;readonly axes:Readonly<{x:NumericAxis;y:NumericAxis}>;readonly series:readonly PlanDirectionalSeries<PlanWindbarbPoint>[];}
 import type {PlanWindRoseSpec,PlanRadialBarSpec} from './circular-bar-plan-types.js';
 export type {PlanWindRoseSpec,PlanRadialBarSpec} from './circular-bar-plan-types.js';
-export type PlanSpec = PlanWindRoseSpec | PlanRadialBarSpec | PlanHeatmapSpec | PlanVennSpec | PlanContourSpec | PlanTilemapSpec | PlanPictorialSpec | PlanWordCloudSpec | PlanRelationshipSpec | PlanBulletSpec | PlanVariwideSpec | PlanXRangeSpec | PlanTimelineSpec | PlanSankeySpec | PlanVectorSpec | PlanWindbarbSpec | PlanNetworkgraphSpec | PlanPackedBubbleSpec | PlanSunburstSpec | PlanNodeGraphSpec | PlanVariablePieSpec | PlanItemSpec | PlanPolygonSpec | PlanLollipopSpec | PlanDumbbellSpec | PlanColumnPyramidSpec | PlanBoxplotSpec | PlanErrorbarSpec | PlanStreamgraphSpec | PlanRangeSpec | PlanHistogramSpec | PlanBellcurveSpec | PlanAreaSplineSpec | PlanFunnelSpec | PlanPyramidSpec | PlanParetoSpec | PlanRadarSpec | PlanPolarSpec | PlanWaterfallSpec | PlanTreemapSpec | PlanMixedSpec | PlanAreaSpec | PlanSplineSpec | PlanScatterSpec | PlanLineSpec | PlanColumnSpec | PlanPieSpec | PlanDonutSpec | PlanGaugeSpec | PlanBubbleSpec;
+import type {PlanParallelSpec,PlanParallelValue,PlanParallelLayout} from './parallel-plan-types.js';
+export type {PlanParallelSpec,PlanParallelAxis,PlanParallelPoint,PlanParallelSeries,PlanParallelValue,PlanParallelAxisFrame,PlanParallelLayout} from './parallel-plan-types.js';
+export type PlanSpec = PlanParallelSpec | PlanWindRoseSpec | PlanRadialBarSpec | PlanHeatmapSpec | PlanVennSpec | PlanContourSpec | PlanTilemapSpec | PlanPictorialSpec | PlanWordCloudSpec | PlanRelationshipSpec | PlanBulletSpec | PlanVariwideSpec | PlanXRangeSpec | PlanTimelineSpec | PlanSankeySpec | PlanVectorSpec | PlanWindbarbSpec | PlanNetworkgraphSpec | PlanPackedBubbleSpec | PlanSunburstSpec | PlanNodeGraphSpec | PlanVariablePieSpec | PlanItemSpec | PlanPolygonSpec | PlanLollipopSpec | PlanDumbbellSpec | PlanColumnPyramidSpec | PlanBoxplotSpec | PlanErrorbarSpec | PlanStreamgraphSpec | PlanRangeSpec | PlanHistogramSpec | PlanBellcurveSpec | PlanAreaSplineSpec | PlanFunnelSpec | PlanPyramidSpec | PlanParetoSpec | PlanRadarSpec | PlanPolarSpec | PlanWaterfallSpec | PlanTreemapSpec | PlanMixedSpec | PlanAreaSpec | PlanSplineSpec | PlanScatterSpec | PlanLineSpec | PlanColumnSpec | PlanPieSpec | PlanDonutSpec | PlanGaugeSpec | PlanBubbleSpec;
 export interface PlanOptions {
   /** Renderer-only measured-text port, supported by WordCloud. */
   readonly wordcloudText?:PlanWordCloudTextInput;
@@ -172,6 +174,7 @@ export interface PlanSeries {
 }
 export interface PlanLegendItem {readonly id:string;readonly name:string;readonly color:string;readonly visible:boolean;}
 export interface PlanObservation {
+  readonly parallel?:PlanParallelValue;
   readonly heatmap?:PlanHeatmapValue;
   readonly venn?:PlanVennValue;
   readonly contour?:PlanContourValue;
@@ -239,6 +242,7 @@ export interface PlanFrame {
   readonly annotations?:readonly PlanAnnotation[];
   readonly viewport?:PlanViewportState;
   readonly references?:readonly PlanProjectedReference[];
+  readonly parallel?:PlanParallelLayout;
   readonly polarGrid?:PlanPolarGrid;
 }
 export type PlanResult =

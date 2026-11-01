@@ -20,6 +20,7 @@ export type {PlanReference,PlanProjectedReference} from './public/plan-types.js'
 export type {PlanMixedSpec,PlanAreaSpec,PlanSplineSpec,PlanScatterSpec} from './public/plan-types.js';
 export type {PlanTreemapSpec,PlanTreemapNode} from './public/plan-types.js';
 export type {PlanWaterfallSpec,PlanWaterfallPoint,PlanWaterfallSeries} from './public/plan-types.js';
+export type {PlanParallelSpec,PlanParallelAxis,PlanParallelPoint,PlanParallelSeries,PlanParallelValue,PlanParallelAxisFrame,PlanParallelLayout} from './public/parallel-plan-types.js';
 export type {PlanWindRoseSpec,PlanRadialBarSpec} from './public/circular-bar-plan-types.js';
 export type {PlanRadarSpec,PlanRadarSeries,PlanPolarSpec,PlanPolarGrid} from './public/plan-types.js';
 export type {PlanSpec,PlanLineSpec,PlanColumnSpec,PlanOptions,PlanResult,PlanFrame,PlanCommand,PlanSeries,PlanBar,PlanObservation,PlanLegendItem} from './public/plan-types.js';
