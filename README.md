@@ -2,14 +2,14 @@
 
 Renderer-independent chart planning and geometry in strict TypeScript. The Core converts source data and a viewport size into a read-only frame that a renderer can paint.
 
-**Version 0.0.15 is experimental.** Public contracts can change before 1.0. Pin the version while integrating a renderer.
+**Version 0.0.16 is experimental.** Public contracts can change before 1.0. Pin the version while integrating a renderer.
 
 Version 0.0.5 reduces repeated work in defensive input copying while preserving validation, ownership and chart geometry. Public data and planning contracts are unchanged.
 
 ## Install
 
 ```sh
-npm install @neural-charts/core@0.0.15
+npm install @neural-charts/core@0.0.16
 ```
 
 The package ships ESM JavaScript and TypeScript declarations. It has no runtime dependencies, framework peer dependencies, browser globals, native bridges or module initialization side effects. Its declarations compile with `lib: ["ES2022"]`, without DOM types. Development and package verification use Node.js 22 or newer.
@@ -166,7 +166,7 @@ A reference has a stable ID, an axis and a value. X accepts a category ID or num
 
 ## Supported planning families
 
-The current contract produces 51 frame families. These are planning capabilities; inclusion does not certify a renderer's feature parity or device performance.
+The current contract produces 56 frame families. These are planning capabilities; inclusion does not certify a renderer's feature parity or device performance.
 
 | Family | Input | Notes |
 | --- | --- | --- |
@@ -207,8 +207,13 @@ The current contract produces 51 frame families. These are planning capabilities
 | Word Cloud | `PlanWordCloudSpec` | Deterministic bounded packing using actual renderer-supplied text measurements. |
 | Pictorial | `PlanPictorialSpec` | Grouped or stacked height bands clipped to original vector silhouettes, including holes. |
 | Tilemap | `PlanTilemapSpec` | Integer lattice cells in four actual shapes, with continuous or class-based value colors. |
+| Heatmap | `PlanHeatmapSpec` | Sparse category matrices with exact rectangular ownership and a quantitative color axis. |
+| Contour | `PlanContourSpec` | Isolines derived from original scalar grids and explicit thresholds. |
+| Venn | `PlanVennSpec` | Explicit inclusive measurements for up to three sets; bounded Euler relationships. |
 | Radar | `PlanRadarSpec` | Values across named radial dimensions. |
 | Polar | `PlanPolarSpec` | Polar series and grid. |
+| Wind rose | `PlanWindRoseSpec` | Ordered directions and truly stacked frequency bands, by sum or percentage. |
+| Radial bar | `PlanRadialBarSpec` | Concentric progress bands with a common angle scale and exact annular hits. |
 | Funnel | `PlanFunnelSpec` | Stages with width proportional to value. |
 | Pyramid | `PlanPyramidSpec` | Ordered stage geometry. |
 | Treemap | `PlanTreemapSpec` | Rectangular hierarchy. |
@@ -575,13 +580,13 @@ Both temporal families accept X reference lines and X viewport navigation. Y/XY 
 
 ### Current boundaries
 
-- Sum/percent stacking is an explicit option for area and column inputs. Streamgraph has its own stacking model. Other families do not inherit stacking simply because they paint a path.
+- Sum/percent stacking is an explicit option for area and column inputs. Wind rose declares its own radial `stacking` property. Streamgraph has its own stacking model. Other families do not inherit stacking simply because they paint a path.
 - Mixed planning uses the supported series composition in `PlanMixedSpec`. Independent arbitrary multi-axis composition and arbitrary radial/Cartesian overlays are not part of this release. Pareto supplies its own cumulative scale.
 - A frame's observations describe the planned visible geometry. Preserve the original data separately for full-resolution inspection, exports and domain changes.
 - No Core-side universal point downsampling is promised. A host must set a display budget appropriate to its device and viewport, preserve important extremes/gaps, and expose original values when aggregating. Do not silently replace data with demo values.
 - Text labels are planning hints; final font metrics, truncation, collision handling and accessible full values belong to the renderer. Core does not measure Canvas or native fonts.
 - Tooltip pinning, animation, collision avoidance, shared-tooltip composition, haptics, scrolling and selection persistence are renderer/controller responsibilities.
-- Heatmap is not exposed by the public planning API in this release. Maps, Gantt and 3D are outside this package's current planning surface.
+- Heatmap exposes sparse category matrices through `@neural-charts/core/plan`; see its limits below. Maps, Gantt and 3D are outside this package's current planning surface.
 
 ## Performance and integration
 
@@ -715,6 +720,56 @@ Zero and negative values remain selectable observations. An explicit `null` cell
 Each cell has exact rectangular polygon geometry. `heatmapLayout.rows` and `columns` provide exact painted band extents and stable category IDs, allowing an adapter to distinguish gaps, absent coordinates and explicit unknown cells without estimating scales or creating fake observations. Category order can be reversed independently on either axis. The colour domain defaults to the original known source extent, including zero, and stays separate from coordinate categories. Explicit continuous domains clamp only the colour, never the original numeric value. Ordered colour classes retain each original value and class identity. The quantitative colour axis replaces a series visibility legend.
 
 `gapRatio` accepts 0–0.5 and `opacity` accepts 0–1. A transparent matrix retains its source summary with a `noInk` status. Labels are optional rendering roles, limited to 64 sufficiently large cells. Font measurement and final label fit belong to the renderer. This first matrix planning contract does not support numeric axes, stacking, series visibility, viewport zoom/pan or reference lines. Its independent legacy entry remains unchanged.
+
+## Wind rose and radial bars
+
+Wind rose orders directions clockwise from twelve o'clock. Each series supplies nonnegative frequencies at stable category IDs. Annular sectors are adjacent radial stack segments, rather than overlapping polar wedges. Radius is linear in frequency; filled sector area is not the value scale. Up to 32 directions, 16 series and 512 source points are accepted.
+
+```ts
+import {planChart, type PlanWindRoseSpec} from '@neural-charts/core/plan';
+
+const wind = {
+  family: 'windrose',
+  title: 'Wind frequency',
+  axes: {
+    x: {kind: 'category', values: [{id: 'n', label: 'North'}, {id: 's', label: 'South'}]},
+    y: {kind: 'linear', title: 'hours'},
+  },
+  series: [
+    {id: 'low', name: 'Low speed', data: [{id: 'low-n', x: 'n', y: 2}, {id: 'low-s', x: 's', y: 4}]},
+    {id: 'high', name: 'High speed', data: [{id: 'high-n', x: 'n', y: 6}, {id: 'high-s', x: 's', y: 4}]},
+  ],
+  stacking: 'sum',
+  gapRatio: 0.12,
+} as const satisfies PlanWindRoseSpec;
+
+const result = planChart(wind, {width: 390, height: 300});
+if (result.status !== 'invalid') {
+  const originalFrequency = result.frame.observations[0]?.value;
+}
+```
+
+`stacking: 'percent'` normalizes each complete direction to 100 while retaining original frequencies in `value`. It requires a known value for every visible series in every direction: absent or `null` measurements return a diagnostic. Sum mode keeps known contributions and marks observations from incomplete directions with `incomplete: true`, omitting their undefined percentages. A zero remains an observation without an invented positive sector. An explicit radial domain must start at zero and contain all visible stack totals. Hiding a series recalculates the stacks and their scale. `gapRatio` accepts 0–0.5.
+
+Radial bars give each source item one concentric band. A common zero-based domain maps values to clockwise angles; a full-domain value closes a complete ring using two arcs per boundary. The source order and automatic source domain remain stable when a ring is hidden. Use an explicit domain for progress comparisons across source updates. Up to 16 original items are accepted; `null` paints no band and zero remains inspectable without a positive arc.
+
+```ts
+import {planChart, type PlanRadialBarSpec} from '@neural-charts/core/plan';
+
+const progress = {
+  family: 'radialbar',
+  title: 'Targets',
+  unit: '%',
+  domain: [0, 100],
+  data: [{id: 'delivery', label: 'Delivery', value: 100}, {id: 'review', label: 'Review', value: 65}],
+  innerRadiusRatio: 0.2,
+  gapRatio: 0.12,
+} as const satisfies PlanRadialBarSpec;
+
+const result = planChart(progress, {width: 390, height: 300});
+```
+
+`innerRadiusRatio` accepts 0–0.8; band gaps accept 0–0.5. Domains excluding original values return a diagnostic instead of clipping progress silently. Both families return native-ready circular arc commands, exact annular-sector hit regions and stable observation IDs. They do not accept Cartesian references, viewport zoom/pan or the generic Cartesian stacking option. Rendering, tooltip placement, animation and platform accessibility stay in the adapter.
 
 ## License
 
