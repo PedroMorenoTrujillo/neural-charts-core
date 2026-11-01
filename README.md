@@ -2,14 +2,14 @@
 
 Renderer-independent chart planning and geometry in strict TypeScript. The Core converts source data and a viewport size into a read-only frame that a renderer can paint.
 
-**Version 0.0.7 is experimental.** Public contracts can change before 1.0. Pin the version while integrating a renderer.
+**Version 0.0.8 is experimental.** Public contracts can change before 1.0. Pin the version while integrating a renderer.
 
 Version 0.0.5 reduces repeated work in defensive input copying while preserving validation, ownership and chart geometry. Public data and planning contracts are unchanged.
 
 ## Install
 
 ```sh
-npm install @neural-charts/core@0.0.7
+npm install @neural-charts/core@0.0.8
 ```
 
 The package ships ESM JavaScript and TypeScript declarations. It has no runtime dependencies, framework peer dependencies, browser globals, native bridges or module initialization side effects. Its declarations compile with `lib: ["ES2022"]`, without DOM types. Development and package verification use Node.js 22 or newer.
@@ -78,7 +78,7 @@ The Core does not mount UI, access a document, measure fonts, register listeners
 
 ## Public API
 
-Both `@neural-charts/core` and `@neural-charts/core/plan` export the same two functions and their types. Other internal files are not supported imports.
+Both `@neural-charts/core` and `@neural-charts/core/plan` export `planChart`, `transformPlanViewport`, `prepareWordCloudMeasurements` and their types. Other internal files are not supported imports.
 
 ### `planChart(spec: PlanSpec, options: PlanOptions): PlanResult`
 
@@ -162,7 +162,7 @@ A reference has a stable ID, an axis and a value. X accepts a category ID or num
 
 ## Supported planning families
 
-The current contract produces 48 frame families. These are planning capabilities; inclusion does not certify a renderer's feature parity or device performance.
+The current contract produces 49 frame families. These are planning capabilities; inclusion does not certify a renderer's feature parity or device performance.
 
 | Family | Input | Notes |
 | --- | --- | --- |
@@ -200,6 +200,7 @@ The current contract produces 48 frame families. These are planning capabilities
 | Dependency Wheel | `PlanDependencyWheelSpec` | Weighted directed relationships, including cycles, on radial node ports. |
 | Chord | `PlanChordSpec` | Weighted undirected relationships sharing the radial layout engine. |
 | Arc Diagram | `PlanArcDiagramSpec` | Original node order with weighted arcs and bounded node sizes. |
+| Word Cloud | `PlanWordCloudSpec` | Deterministic bounded packing using actual renderer-supplied text measurements. |
 | Radar | `PlanRadarSpec` | Values across named radial dimensions. |
 | Polar | `PlanPolarSpec` | Polar series and grid. |
 | Funnel | `PlanFunnelSpec` | Stages with width proportional to value. |
@@ -212,6 +213,59 @@ The current contract produces 48 frame families. These are planning capabilities
 | Sankey | `PlanSankeySpec` | Weighted directed acyclic flows, horizontal or vertical nodes and filled links. |
 
 Each input is a strict discriminated interface. Do not build a single object containing every family's properties or use casts to force an unsupported combination. Scalar parts, measured XY series, ranges, directional values and hierarchy nodes have different data semantics.
+
+### Word Cloud: measured text
+
+Word Cloud needs actual text measurements from its renderer. Core never estimates text width from character counts and never accesses fonts, browser APIs or native views. Prepare the bounded measurement requests, measure them with the same resolved font and logical units used for drawing, then pass the measurements into the final plan.
+
+```ts
+import {
+  planChart,
+  prepareWordCloudMeasurements,
+  type PlanWordCloudMeasurementRequest,
+  type PlanWordCloudSpec,
+} from '@neural-charts/core/plan';
+
+const cloudSpec = {
+  family: 'wordcloud',
+  title: 'Topics',
+  words: [
+    {id: 'design', text: 'Design', weight: 12},
+    {id: 'engineering', text: 'Engineering', weight: 8},
+    {id: 'research', text: 'Research', weight: 5},
+  ],
+  minFontSize: 16,
+  maxFontSize: 36,
+  rotations: [0, 90],
+  seed: 7,
+} satisfies PlanWordCloudSpec;
+
+async function planMeasuredCloud(
+  measure: (request: PlanWordCloudMeasurementRequest) => Promise<{
+    readonly width: number;
+    readonly height: number;
+  }>,
+) {
+  const dimensions = {width: 320, height: 240};
+  const fontKey = 'resolved-body-font:revision-1';
+  const prepared = prepareWordCloudMeasurements(cloudSpec, {...dimensions, fontKey});
+  if (prepared.status === 'invalid') throw new Error(prepared.diagnostic.code);
+  const measurements = await Promise.all(prepared.preparation.requests.map(async request => ({
+    ...request,
+    ...await measure(request),
+  })));
+  return planChart(cloudSpec, {
+    ...dimensions,
+    wordcloudText: {fontKey, measurements},
+  });
+}
+```
+
+`measure` is supplied by the renderer; the example does not substitute synthetic bounds for real font measurements. `fontKey` is an opaque cache identity for the resolved font, style and accessibility scale. It is not a CSS font declaration. Reject stale asynchronous batches when the source, available space or resolved font changes. Cache measurements locally with a bounded capacity; pointer movement and color changes should not measure text again.
+
+The source accepts up to 2,048 words and selects at most 128 measurement candidates. Packing has a deterministic global budget of 32,768 attempts. Each word keeps its stable ID, original text and weight; unknown, zero, hidden, budget-excluded, inkless and non-fitting words remain distinguishable in `wordcloudData`. Positive words that do not fit are not reported as missing source data. Core does not silently shrink below `minFontSize`.
+
+Render `textGlyphs` directly using their measured logical size, center, rotation and bounds. Use native text nodes or escaped text when serializing SVG; source text must never be interpreted as markup. The final plan requires measurements matching the exact requested ID, text, size and font key. `wordcloudText` is rejected for other families. This family does not support Cartesian axes, references, viewport zoom or stacking.
 
 ### Dependency Wheel: directed relationships
 

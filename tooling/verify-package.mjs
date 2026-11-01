@@ -79,8 +79,9 @@ for (const name of ['window', 'document', 'HTMLElement', 'SVGElement', 'navigato
 }
 const root = await import('@neural-charts/core');
 const seam = await import('@neural-charts/core/plan');
-assert.deepEqual(Object.keys(root).sort(), ['planChart', 'transformPlanViewport']);
+assert.deepEqual(Object.keys(root).sort(), ['planChart', 'prepareWordCloudMeasurements', 'transformPlanViewport']);
 assert.equal(root.planChart, seam.planChart);
+assert.equal(root.prepareWordCloudMeasurements, seam.prepareWordCloudMeasurements);
 const input = {family: 'line', title: 'Source', axes: {x: {kind: 'linear'}, y: {kind: 'linear'}}, series: [{id: 's', name: 'Series', data: [{id: 'a', x: 0, y: 0}, {id: 'gap', x: 1, y: null}, {id: 'b', x: 2, y: 8}]}]};
 const first = root.planChart(input, {width: 390, height: 300, viewport: {axes: 'x'}});
 assert.equal(first.status, 'ok');
@@ -92,6 +93,21 @@ const transformed = root.transformPlanViewport(first.frame.viewport, {kind: 'zoo
 assert.equal(transformed.status, 'ok');
 assert.equal(root.planChart(input, {width: 0, height: 300}).status, 'invalid');
 assert.equal(root.planChart(input, {width: 390, height: 300, hiddenSeriesIds: ['s']}).status, 'empty');
+const wordSource = {family: 'wordcloud', title: 'Supplied box fixture', words: [{id: 'word', text: 'Literal <text>', weight: 3}]};
+const wordOptions = {width: 390, height: 300, fontKey: 'opaque-fixture-key'};
+const preparation = root.prepareWordCloudMeasurements(wordSource, wordOptions);
+assert.equal(preparation.status, 'ok');
+assert(Object.isFrozen(preparation.preparation.requests));
+assert.equal(root.planChart(wordSource, {width: 390, height: 300}).diagnostic.reason, 'TEXT_MEASUREMENTS_REQUIRED');
+// Pre-supplied rectangles exercise the port; they do not approximate any font.
+const measurements = preparation.preparation.requests.map(request => ({...request, width: 80, height: 20}));
+const cloud = root.planChart(wordSource, {width: 390, height: 300, wordcloudText: {fontKey: wordOptions.fontKey, measurements}});
+assert.equal(cloud.status, 'ok');
+assert.equal(cloud.frame.series[0].textGlyphs[0].text, 'Literal <text>');
+assert.equal(cloud.frame.wordcloudData[0].weight, 3);
+wordSource.words[0].text = 'Changed'; measurements[0].width = 1000;
+assert.equal(cloud.frame.series[0].textGlyphs[0].bounds.width, 80);
+assert.equal(cloud.frame.series[0].textGlyphs[0].text, 'Literal <text>');
 await import('./compiled/example-0.js');
 console.log('Isolated ESM runtime, public exports, owned inputs, DOM traps and README example passed.');
 `);
