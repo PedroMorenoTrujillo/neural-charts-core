@@ -1,6 +1,6 @@
 {
   "name": "@neural-charts/core",
-  "version": "0.0.17",
+  "version": "0.0.18",
   "description": "Renderer-independent TypeScript chart planning, geometry and viewport calculations.",
   "license": "MIT",
   "type": "module",

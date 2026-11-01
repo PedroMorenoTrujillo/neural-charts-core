@@ -2,14 +2,14 @@
 
 Renderer-independent chart planning and geometry in strict TypeScript. The Core converts source data and a viewport size into a read-only frame that a renderer can paint.
 
-**Version 0.0.17 is experimental.** Public contracts can change before 1.0. Pin the version while integrating a renderer.
+**Version 0.0.18 is experimental.** Public contracts can change before 1.0. Pin the version while integrating a renderer.
 
 Version 0.0.5 reduces repeated work in defensive input copying while preserving validation, ownership and chart geometry. Public data and planning contracts are unchanged.
 
 ## Install
 
 ```sh
-npm install @neural-charts/core@0.0.17
+npm install @neural-charts/core@0.0.18
 ```
 
 The package ships ESM JavaScript and TypeScript declarations. It has no runtime dependencies, framework peer dependencies, browser globals, native bridges or module initialization side effects. Its declarations compile with `lib: ["ES2022"]`, without DOM types. Development and package verification use Node.js 22 or newer.
@@ -166,7 +166,7 @@ A reference has a stable ID, an axis and a value. X accepts a category ID or num
 
 ## Supported planning families
 
-The current contract produces 57 frame families. These are planning capabilities; inclusion does not certify a renderer's feature parity or device performance.
+The current contract produces 58 frame families. These are planning capabilities; inclusion does not certify a renderer's feature parity or device performance.
 
 | Family | Input | Notes |
 | --- | --- | --- |
@@ -215,6 +215,7 @@ The current contract produces 57 frame families. These are planning capabilities
 | Wind rose | `PlanWindRoseSpec` | Ordered directions and truly stacked frequency bands, by sum or percentage. |
 | Radial bar | `PlanRadialBarSpec` | Concentric progress bands with a common angle scale and exact annular hits. |
 | Parallel coordinates | `PlanParallelSpec` | Independent linear dimensions, in Cartesian or polar coordinates; per-axis domains and units. |
+| Dendrogram | `PlanDendrogramSpec` | Ordered clustering tree with aligned leaves and source merge heights, or explicitly derived topology levels. |
 | Funnel | `PlanFunnelSpec` | Stages with width proportional to value. |
 | Pyramid | `PlanPyramidSpec` | Ordered stage geometry. |
 | Treemap | `PlanTreemapSpec` | Rectangular hierarchy. |
@@ -820,3 +821,27 @@ There is no universal numeric X/Y viewport, Cartesian reference-line system, sta
 ## License
 
 [MIT](LICENSE), copyright 2026 Pedro Moreno Trujillo.
+
+
+### Dendrogram: source distance or derived topology
+
+`PlanDendrogramSpec` accepts `root`, an ordered recursive `PlanDendrogramNode` with `id`, optional `label`, `height` and `children`. For measured clustering, supply a finite nonnegative height on every internal node; a parent cannot be below its children. Leaves have height zero. An optional unit describes the original merge distances. No sorting or clustering of raw samples is performed.
+
+If all internal heights are omitted, the planner derives topology levels from the leaves. Those are explicitly marked `heightMode: 'topology'` and use `levels`, never a fabricated physical distance. Mixed measured and missing internal heights are invalid. A single leaf may explicitly supply zero and a physical unit.
+
+`orientation` is horizontal by default or vertical. Leaves align at height zero even when their depths differ. Orthogonal branches join at the supplied merge height, not equally spaced depths. The bounded input supports 128 nodes, 64 leaves and depth16; IDs are globally unique and child order is preserved. All original nodes remain observations. Leaf labels may be reduced at small sizes without removing their identities or values.
+
+`frame.dendrogram` records orientation, height mode, maximum height, node/leaf counts and unit. Each observation's `dendrogram` role records leaf/cluster kind, height mode, source/topology/leaf-zero provenance, leaf count and depth. A zero-height tree has no invented positive numeric axis. There are no visibility-series legends, stacking, reference lines or viewport controls on this owner.
+
+```ts
+import {planChart} from '@neural-charts/core/plan';
+import type {PlanDendrogramSpec} from '@neural-charts/core/plan';
+const clusters = {
+  family:'dendrogram', title:'Measured similarity', unit:'distance',
+  root:{id:'all',height:10,children:[
+    {id:'pair',height:2,children:[{id:'a',label:'Alpha'},{id:'b',label:'Beta'}]},
+    {id:'c',label:'Gamma'}
+  ]}
+} satisfies PlanDendrogramSpec;
+const clustered = planChart(clusters,{width:390,height:300});
+```
