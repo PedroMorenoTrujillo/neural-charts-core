@@ -9,18 +9,31 @@ export function ownPlanInput(value:unknown):unknown {
     if(typeof v!=='object'||seen.has(v))throw Error('BAD_JSON');
     const array=Array.isArray(v);
     if(!array&&Object.getPrototypeOf(v)!==Object.prototype&&Object.getPrototypeOf(v)!==null)throw Error('BAD_JSON');
+    const keys=Object.keys(v);
     if(array){
-      const length=Object.getOwnPropertyDescriptor(v,'length')?.value,keys=Object.keys(v);
+      const length=Object.getOwnPropertyDescriptor(v,'length')?.value;
       // Empty slots are not nulls. Copying only enumerable keys used to drop a
       // sparse array's length and silently turn missing input into no data.
       if(!Number.isSafeInteger(length)||length>200000||keys.length!==length||keys.some((key,index)=>key!==String(index)))throw Error('BAD_ARRAY');
     }
     seen.add(v);
-    const copy:Record<string,unknown>|unknown[]=array?[]:Object.create(null);
-    for(const key of Object.keys(v)){
+    if(array){
+      const copy:unknown[]=[];
+      for(const key of keys){
+        const d=Object.getOwnPropertyDescriptor(v,key);
+        if(!d||!('value' in d))throw Error('ACCESSOR');
+        // Numeric prototype setters must not run while copying arrays.
+        Object.defineProperty(copy,key,{value:visit(d.value,depth+1),enumerable:true,writable:true,configurable:true});
+      }
+      seen.delete(v);return copy;
+    }
+    // A null prototype makes assignment safe for __proto__, constructor and
+    // inherited setters while retaining ordinary writable data properties.
+    const copy:Record<string,unknown>=Object.create(null);
+    for(const key of keys){
       const d=Object.getOwnPropertyDescriptor(v,key);
       if(!d||!('value' in d))throw Error('ACCESSOR');
-      Object.defineProperty(copy,key,{value:visit(d.value,depth+1),enumerable:true,writable:true,configurable:true});
+      copy[key]=visit(d.value,depth+1);
     }
     seen.delete(v);return copy;
   };

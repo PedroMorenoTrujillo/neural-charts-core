@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import {execFileSync} from 'node:child_process';
 import {appendFileSync, readFileSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
-import {setTimeout as delay} from 'node:timers/promises';
+import {waitForRegistry} from './registry-propagation.mjs';
 import {compareReleaseVersions} from './release-version.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
@@ -58,13 +58,9 @@ switch (process.argv[2]) {
       const archive = 'work/package-check/neural-charts-core-' + version + '.tgz';
       console.log(command('npm', ['publish', archive, '--access', 'public', '--tag', 'latest', '--provenance']));
     }
-    let published;
-    for (let attempt = 0; attempt < 20; attempt++) {
-      published = await registryVersion();
-      if (published) break;
-      await delay(15_000);
-    }
-    assert(published, 'Registry has not exposed the accepted version yet; rerun safely later');
+    const published = await waitForRegistry(registryVersion, {
+      onPending: attempt => console.log(`npm accepted the upload; checking registry visibility (${attempt}). No additional upload is being performed.`),
+    });
     assert.equal(published.dist?.integrity, receipt.sha512);
     if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY,
       `Published **@neural-charts/core@${version}** with verified archive integrity and OIDC. This workflow publishes Core only; consumer packages and websites are unchanged.\n`);
