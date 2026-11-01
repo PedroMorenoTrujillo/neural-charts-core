@@ -2,12 +2,12 @@
 
 Renderer-independent chart planning and geometry in strict TypeScript. The Core converts source data and a viewport size into a read-only frame that a renderer can paint.
 
-**Version 0.0.3 is experimental.** Public contracts can change before 1.0. Pin the version while integrating a renderer.
+**Version 0.0.4 is experimental.** Public contracts can change before 1.0. Pin the version while integrating a renderer.
 
 ## Install
 
 ```sh
-npm install @neural-charts/core@0.0.3
+npm install @neural-charts/core@0.0.4
 ```
 
 The package ships ESM JavaScript and TypeScript declarations. It has no runtime dependencies, framework peer dependencies, browser globals, native bridges or module initialization side effects. Its declarations compile with `lib: ["ES2022"]`, without DOM types. Development and package verification use Node.js 22 or newer.
@@ -135,7 +135,9 @@ export function zoomIn(spec: PlanSpec) {
 }
 ```
 
-Supported intents are `zoom` (factor and optional anchor), `pan` (axis deltas), `transform` (combined factor, anchor and deltas), and `reset`. Windows are constrained by the supplied viewport state. X can be numeric, time or categorical where the family supports it; Y windows are numeric. Deltas and anchors use the domain contract, not DOM pixels. Do not use this helper for radial or hierarchy zoom: those interactions need a separate family-specific navigation contract.
+Supported intents are `zoom` (factor and optional anchor), `pan` (axis deltas), `transform` (combined factor, anchor and deltas), and `reset`. Windows are constrained by the supplied viewport state. X can be numeric, time or categorical where the family supports it; Y windows are numeric where supported.
+
+Anchors are normalized fractions in `[0, 1]`, ordered from the beginning to the end of the displayed domain/window; the default is `0.5`. They are not timestamps or pixel coordinates. Pan deltas are finite fractions of the currently displayed span: positive moves toward larger domain values or later category IDs, and negative toward earlier ones, subject to bounds. For example, a numeric window `[20, 60]` panned by `0.25` becomes `[30, 70]` when the full bounds permit it. The renderer converts finger movement and reversed screen axes to these domain-order fractions. A zoom factor above 1 zooms in; below 1 zooms out. A combined transform applies its pan to the zoomed window. This helper does not implement radial or hierarchy navigation.
 
 ### Reference lines
 
@@ -156,7 +158,7 @@ A reference has a stable ID, an axis and a value. X accepts a category ID or num
 
 ## Supported planning families
 
-The current contract produces 41 frame families. These are planning capabilities; inclusion does not certify a renderer's feature parity or device performance.
+The current contract produces 43 frame families. These are planning capabilities; inclusion does not certify a renderer's feature parity or device performance.
 
 | Family | Input | Notes |
 | --- | --- | --- |
@@ -187,6 +189,8 @@ The current contract produces 41 frame families. These are planning capabilities
 | Mixed | `PlanMixedSpec` | Shared-frame composition. Not every family combination is supported. |
 | Pareto | `PlanParetoSpec` | Ranked columns and cumulative percentage line. |
 | Waterfall | `PlanWaterfallSpec` | Changes and explicit intermediate/final totals. |
+| X-range | `PlanXRangeSpec` | Source start/end intervals on named rows, optional completion and grouped/overlapping lanes. |
+| Timeline | `PlanTimelineSpec` | Numeric or UTC events with original titles/descriptions and bounded labels. |
 | Radar | `PlanRadarSpec` | Values across named radial dimensions. |
 | Polar | `PlanPolarSpec` | Polar series and grid. |
 | Funnel | `PlanFunnelSpec` | Stages with width proportional to value. |
@@ -231,6 +235,60 @@ Sankey is bounded to 128 nodes, 512 links and 16 optional groups. Node and link 
 Geometry that cannot be represented at the projected precision can be omitted. Such observations keep their exact value and identity and expose `sankey.geometryOmitted: true`, without a painted shape or geometric hit region. The host must keep the value available through data inspection and accessible navigation. Very thin ribbons below 0.0002 logical pixels are not widened to fabricate visible flow. Hidden groups recalculate the scale from the remaining visible flows while validation still checks the full input, including hidden values.
 
 Optional groups use the exported `PlanHierarchyGroup` shape and a node's `groupId`. Legend visibility, viewport clipping and semantic hit regions remain part of the shared plan contract. Stacking and Cartesian reference lines are incompatible with Sankey. A renderer must provide readable labels and accessible selection for narrow links; the Core's geometric output does not guarantee an adequate touch target on its own.
+
+### X-range intervals
+
+```ts
+import {planChart, type PlanXRangeSpec} from '@neural-charts/core';
+
+const data = {
+  family: 'xrange',
+  title: 'Service windows',
+  axes: {
+    x: {kind: 'time'},
+    y: {kind: 'category', values: [{id: 'north', label: 'North'}]},
+  },
+  series: [{id: 'service', name: 'Service', data: [
+    {id: 'inspection', rowId: 'north', start: Date.UTC(2026, 0, 5), end: Date.UTC(2026, 0, 7), completed: 0.5},
+  ]}],
+  grouping: 'grouped',
+} satisfies PlanXRangeSpec;
+
+const result = planChart(data, {width: 390, height: 300});
+void result;
+```
+
+X-range accepts up to 256 named rows, 16 series and 2,048 intervals in total. `axes.x` is a discriminated `PlanTemporalAxis`: `linear` coordinates can specify a unit and `includeZero`; `time` coordinates are UTC epoch milliseconds and cannot specify either property. Optional domains are numeric pairs; `reversed` and `nice` control direction and tick-domain planning. Rows have independent stable IDs and labels, with optional reversed ordering on Y.
+
+Every interval retains its `id`, `rowId`, original `start` and `end`. Endpoints are numbers or `null`; unknown endpoints yield a missing summary rather than a zero-duration observation. A measured interval requires `end >= start` and a representable duration. Equal endpoints produce a marker at the actual coordinate. `completed` is optional: omit it for a plain interval, use a number in `[0, 1]` for known completion, or `null` for unknown completion. Unknown completion must not be announced as 0%. The full outline and proportional fill share the same source identity.
+
+`grouping` is `grouped` or `overlap`; `rowPadding` is between 0 and 0.9. The frame exposes `intervals` source summaries, including hidden and missing data. Their `visible` property means the series is enabled in the legend, independently of viewport clipping. Their `missing` property means an endpoint is unknown. Observations with geometry additionally expose `interval` with original endpoints, duration, row identity and completion. Preserve the original data in the host for inspection and accessible alternatives.
+
+### Timeline events
+
+```ts
+import {planChart, type PlanTimelineSpec} from '@neural-charts/core';
+
+const data = {
+  family: 'timeline',
+  title: 'Milestones',
+  axes: {x: {kind: 'time'}},
+  series: [{id: 'events', name: 'Events', data: [
+    {id: 'opened', x: Date.UTC(2026, 0, 5), title: 'Opened', description: 'Original event description'},
+    {id: 'pending', x: null, title: 'Date not yet known'},
+  ]}],
+  labelPosition: 'alternate',
+} satisfies PlanTimelineSpec;
+
+const result = planChart(data, {width: 390, height: 300});
+void result;
+```
+
+Timeline supports up to 16 series and 2,048 events. An event has a stable ID, numeric coordinate or UTC timestamp, title, and optional description. An unknown coordinate stays `null` in the source summary and creates no fabricated event marker. The frame's `events` summaries preserve hidden/missing items; `visible` tracks legend visibility and `missing` tracks a null coordinate. Planned observations expose `event` with the original coordinate, title and description.
+
+`labelPosition` is `alternate`, `above` or `below`; `labelMaxWidth` is between 24 and 240 logical pixels and `markerRadius` between 0 and 16. At most 128 labels are planned even when more markers are visible. These labels are approximate placement hints; native font metrics, final collision handling and full accessible event text remain renderer responsibilities.
+
+Both temporal families accept X reference lines and X viewport navigation. Y/XY viewport requests, Y references and stacking are incompatible and return diagnostics. Category-row scrolling is a host layout concern. Their structured planning output does not implement project scheduling or task dependencies.
 
 ### Current boundaries
 

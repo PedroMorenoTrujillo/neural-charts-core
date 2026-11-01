@@ -1,3 +1,5 @@
+import type {PlanXRangeSpec,PlanIntervalValue,PlanIntervalSummary} from './xrange-plan-types.js';
+import type {PlanTimelineSpec,PlanTimelineEvent,PlanTimelineSummary} from './timeline-plan-types.js';
 import type {AreaChartSpec} from './area-types.js';
 import type {SplineChartSpec} from './spline-types.js';
 import type {MixedChartSpec} from './mixed-types.js';
@@ -95,7 +97,7 @@ export interface PlanWindbarbPoint {readonly id:string;readonly x:number|null;re
 export interface PlanDirectionalSeries<P> {readonly id:string;readonly name:string;readonly color?:string;readonly data:readonly P[];}
 export interface PlanVectorSpec {readonly family:'vector';readonly title:string;readonly description?:string;readonly unit?:string;readonly axes:Readonly<{x:NumericAxis;y:NumericAxis}>;readonly series:readonly PlanDirectionalSeries<PlanVectorPoint>[];}
 export interface PlanWindbarbSpec {readonly family:'windbarb';readonly title:string;readonly description?:string;readonly axes:Readonly<{x:NumericAxis;y:NumericAxis}>;readonly series:readonly PlanDirectionalSeries<PlanWindbarbPoint>[];}
-export type PlanSpec = PlanSankeySpec | PlanVectorSpec | PlanWindbarbSpec | PlanNetworkgraphSpec | PlanPackedBubbleSpec | PlanSunburstSpec | PlanNodeGraphSpec | PlanVariablePieSpec | PlanItemSpec | PlanPolygonSpec | PlanLollipopSpec | PlanDumbbellSpec | PlanColumnPyramidSpec | PlanBoxplotSpec | PlanErrorbarSpec | PlanStreamgraphSpec | PlanRangeSpec | PlanHistogramSpec | PlanBellcurveSpec | PlanAreaSplineSpec | PlanFunnelSpec | PlanPyramidSpec | PlanParetoSpec | PlanRadarSpec | PlanPolarSpec | PlanWaterfallSpec | PlanTreemapSpec | PlanMixedSpec | PlanAreaSpec | PlanSplineSpec | PlanScatterSpec | PlanLineSpec | PlanColumnSpec | PlanPieSpec | PlanDonutSpec | PlanGaugeSpec | PlanBubbleSpec;
+export type PlanSpec = PlanXRangeSpec | PlanTimelineSpec | PlanSankeySpec | PlanVectorSpec | PlanWindbarbSpec | PlanNetworkgraphSpec | PlanPackedBubbleSpec | PlanSunburstSpec | PlanNodeGraphSpec | PlanVariablePieSpec | PlanItemSpec | PlanPolygonSpec | PlanLollipopSpec | PlanDumbbellSpec | PlanColumnPyramidSpec | PlanBoxplotSpec | PlanErrorbarSpec | PlanStreamgraphSpec | PlanRangeSpec | PlanHistogramSpec | PlanBellcurveSpec | PlanAreaSplineSpec | PlanFunnelSpec | PlanPyramidSpec | PlanParetoSpec | PlanRadarSpec | PlanPolarSpec | PlanWaterfallSpec | PlanTreemapSpec | PlanMixedSpec | PlanAreaSpec | PlanSplineSpec | PlanScatterSpec | PlanLineSpec | PlanColumnSpec | PlanPieSpec | PlanDonutSpec | PlanGaugeSpec | PlanBubbleSpec;
 export interface PlanOptions {
   readonly width: number;
   readonly height: number;
@@ -146,6 +148,8 @@ export interface PlanSeries {
 }
 export interface PlanLegendItem {readonly id:string;readonly name:string;readonly color:string;readonly visible:boolean;}
 export interface PlanObservation {
+  readonly interval?:PlanIntervalValue;
+  readonly event?:PlanTimelineEvent;
   readonly sankey?:(Readonly<{kind:'node';incoming:number;outgoing:number}>|Readonly<{kind:'link';from:string;to:string;fromLabel:string;toLabel:string}>)&Readonly<{geometryOmitted?:true}>;
   readonly vector?:Readonly<{dx:number;dy:number}>;
   readonly wind?:Readonly<{direction:number|null}>;
@@ -165,10 +169,12 @@ export interface PlanObservation {
   readonly computedKind?:'subtotal'|'total';
 }
 export interface PlanFrame {
+  readonly intervals?:readonly PlanIntervalSummary[];
+  readonly events?:readonly PlanTimelineSummary[];
   readonly distribution?:PlanDistributionSummary;
   readonly secondaryGrid?:readonly Readonly<{y:number;label:string}>[];
   readonly schema:'nc-plan/1';
-  readonly family:'sankey'|'vector'|'windbarb'|'networkgraph'|'packedbubble'|'sunburst'|'treegraph'|'organization'|'variablepie'|'item'|'polygon'|'lollipop'|'dumbbell'|'columnpyramid'|'boxplot'|'errorbar'|'streamgraph'|'arearange'|'areasplinerange'|'columnrange'|'histogram'|'bellcurve'|'areaspline'|'funnel'|'pyramid'|'pareto'|'radar'|'polar'|'waterfall'|'treemap'|'mixed'|'line'|'area'|'spline'|'scatter'|'column'|'bar'|'pie'|'donut'|'gauge'|'bubble';
+  readonly family:'xrange'|'timeline'|'sankey'|'vector'|'windbarb'|'networkgraph'|'packedbubble'|'sunburst'|'treegraph'|'organization'|'variablepie'|'item'|'polygon'|'lollipop'|'dumbbell'|'columnpyramid'|'boxplot'|'errorbar'|'streamgraph'|'arearange'|'areasplinerange'|'columnrange'|'histogram'|'bellcurve'|'areaspline'|'funnel'|'pyramid'|'pareto'|'radar'|'polar'|'waterfall'|'treemap'|'mixed'|'line'|'area'|'spline'|'scatter'|'column'|'bar'|'pie'|'donut'|'gauge'|'bubble';
   readonly title:string;readonly description:string;readonly unit:string;
   readonly width:number;readonly height:number;
   readonly legend:readonly PlanLegendItem[];

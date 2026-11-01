@@ -18,3 +18,7 @@ export type {PlanParetoSpec} from './public/plan-types.js';
 
 export type {PlanFunnelSpec,PlanPyramidSpec,PlanFunnelPoint} from './public/plan-types.js';
 export type {PlanNetworkgraphSpec,PlanPackedBubbleSpec,PlanPackedBubbleSeries,PlanPackedBubblePoint,PlanSunburstSpec,PlanHierarchyNode,PlanHierarchyLink,PlanHierarchyGroup,PlanNodeGraphSpec,PlanTreegraphSpec,PlanOrganizationSpec,PlanVariablePieSpec,PlanVariablePiePoint,PlanItemSpec,PlanItemPoint,PlanPolygonSpec,PlanLollipopSpec,PlanDumbbellSpec,PlanColumnPyramidSpec,PlanBoxplotSpec,PlanErrorbarSpec,PlanBoxplotPoint,PlanBoxplotSeries,PlanErrorbarPoint,PlanErrorbarSeries,PlanStreamgraphSpec,PlanAreaSplineSpec,PlanRangeSpec,PlanRangeSeries,PlanRangePoint,PlanHistogramSpec,PlanBellcurveSpec,PlanDistributionSummary} from './public/plan-types.js';
+
+export type {PlanTemporalAxis} from './public/temporal-plan-types.js';
+export type {PlanXRangeSpec,PlanXRangeRow,PlanXRangeSeries,PlanXRangePoint,PlanXRangeFrame,PlanXRangeObservation,PlanXRangeResult,PlanIntervalValue,PlanIntervalSummary} from './public/xrange-plan-types.js';
+export type {PlanTimelineSpec,PlanTimelineSeries,PlanTimelinePoint,PlanTimelineFrame,PlanTimelineObservation,PlanTimelineResult,PlanTimelineEvent,PlanTimelineSummary} from './public/timeline-plan-types.js';
