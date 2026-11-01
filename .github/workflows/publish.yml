@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: core-publish-${{ github.ref }}
+  group: core-publish
   cancel-in-progress: false
 
 jobs:
@@ -24,6 +24,7 @@ jobs:
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: '22.22.3'
+          package-manager-cache: false
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: node tooling/release.mjs verify
       - run: npm run check
@@ -45,6 +46,7 @@ jobs:
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: '22.22.3'
+          package-manager-cache: false
       - run: npm install --global npm@12.2.1 --ignore-scripts --no-audit --no-fund
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: node tooling/release.mjs verify

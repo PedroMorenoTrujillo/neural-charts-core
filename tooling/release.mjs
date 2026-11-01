@@ -3,6 +3,7 @@ import {execFileSync} from 'node:child_process';
 import {appendFileSync, readFileSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
 import {setTimeout as delay} from 'node:timers/promises';
+import {compareReleaseVersions} from './release-version.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const manifest = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
@@ -49,6 +50,11 @@ switch (process.argv[2]) {
       assert.equal(before.dist?.integrity, receipt.sha512, 'Published version has different bytes; never overwrite it');
       console.log('Exact archive already published; safe rerun.');
     } else {
+      const metadataResponse = await fetch('https://registry.npmjs.org/@neural-charts%2fcore', {signal: AbortSignal.timeout(30_000)});
+      assert(metadataResponse.ok, 'Cannot verify the current latest version');
+      const metadata = await metadataResponse.json();
+      const latest = metadata['dist-tags']?.latest;
+      if (latest) assert(compareReleaseVersions(version, latest) >= 0, 'Refusing to move npm latest to an older release');
       const archive = 'work/package-check/neural-charts-core-' + version + '.tgz';
       console.log(command('npm', ['publish', archive, '--access', 'public', '--tag', 'latest', '--provenance']));
     }

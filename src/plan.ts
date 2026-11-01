@@ -1,5 +1,6 @@
 export type {PlanVectorSpec,PlanWindbarbSpec,PlanVectorPoint,PlanWindbarbPoint,PlanDirectionalSeries} from './public/plan-types.js';
 import {planChart as projectPlan} from './plan/plan.js';
+export type {PlanSankeySpec,PlanSankeyNode,PlanSankeyLink} from './public/plan-types.js';
 import {transformPlanViewport as applyViewport} from './plan/viewport.js';
 import type {PlanSpec,PlanOptions,PlanResult,PlanViewportState,PlanViewportIntent,PlanViewportResult} from './public/plan-types.js';
 export function planChart(spec:PlanSpec,options:PlanOptions):PlanResult{return projectPlan(spec,options);}

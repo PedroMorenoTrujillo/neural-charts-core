@@ -1,6 +1,6 @@
 {
   "name": "@neural-charts/core",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Renderer-independent TypeScript chart planning, geometry and viewport calculations.",
   "license": "MIT",
   "type": "module",
@@ -8,17 +8,45 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
-    ".": {"types": "./dist/index.d.ts", "import": "./dist/index.js", "default": "./dist/index.js"},
-    "./plan": {"types": "./dist/plan.d.ts", "import": "./dist/plan.js", "default": "./dist/plan.js"},
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./plan": {
+      "types": "./dist/plan.d.ts",
+      "import": "./dist/plan.js",
+      "default": "./dist/plan.js"
+    },
     "./package.json": "./package.json"
   },
-  "files": ["dist", "README.md", "LICENSE"],
-  "engines": {"node": ">=22"},
-  "repository": {"type": "git", "url": "git+https://github.com/PedroMorenoTrujillo/neural-charts-core.git"},
-  "bugs": {"url": "https://github.com/PedroMorenoTrujillo/neural-charts-core/issues"},
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/PedroMorenoTrujillo/neural-charts-core.git"
+  },
+  "bugs": {
+    "url": "https://github.com/PedroMorenoTrujillo/neural-charts-core/issues"
+  },
   "homepage": "https://github.com/PedroMorenoTrujillo/neural-charts-core#readme",
-  "publishConfig": {"access": "public", "registry": "https://registry.npmjs.org/"},
-  "keywords": ["charts", "geometry", "typescript", "native", "renderer-independent"],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "keywords": [
+    "charts",
+    "geometry",
+    "typescript",
+    "native",
+    "renderer-independent"
+  ],
   "dependencies": {},
   "optionalDependencies": {},
   "peerDependencies": {},

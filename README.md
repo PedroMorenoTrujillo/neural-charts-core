@@ -2,12 +2,12 @@
 
 Renderer-independent chart planning and geometry in strict TypeScript. The Core converts source data and a viewport size into a read-only frame that a renderer can paint.
 
-**Version 0.0.1 is experimental.** Public contracts can change before 1.0. Pin the version while integrating a renderer.
+**Version 0.0.2 is experimental.** Public contracts can change before 1.0. Pin the version while integrating a renderer.
 
 ## Install
 
 ```sh
-npm install @neural-charts/core@0.0.1
+npm install @neural-charts/core@0.0.2
 ```
 
 The package ships ESM JavaScript and TypeScript declarations. It has no runtime dependencies, framework peer dependencies, browser globals, native bridges or module initialization side effects. Its declarations compile with `lib: ["ES2022"]`, without DOM types. Development and package verification use Node.js 22 or newer.
@@ -156,7 +156,7 @@ A reference has a stable ID, an axis and a value. X accepts a category ID or num
 
 ## Supported planning families
 
-The current contract produces 40 frame families. These are planning capabilities; inclusion does not certify a renderer's feature parity or device performance.
+The current contract produces 41 frame families. These are planning capabilities; inclusion does not certify a renderer's feature parity or device performance.
 
 | Family | Input | Notes |
 | --- | --- | --- |
@@ -196,8 +196,41 @@ The current contract produces 40 frame families. These are planning capabilities
 | Tree graph / organization | `PlanTreegraphSpec` / `PlanOrganizationSpec` | Typed hierarchy nodes and links. |
 | Network graph | `PlanNetworkgraphSpec` | Nodes and links with bounded layout work. |
 | Packed bubble | `PlanPackedBubbleSpec` | Packed scalar values, grouped by series. |
+| Sankey | `PlanSankeySpec` | Weighted directed acyclic flows, horizontal or vertical nodes and filled links. |
 
 Each input is a strict discriminated interface. Do not build a single object containing every family's properties or use casts to force an unsupported combination. Scalar parts, measured XY series, ranges, directional values and hierarchy nodes have different data semantics.
+
+### Sankey data and constraints
+
+```ts
+import {planChart, type PlanSankeySpec} from '@neural-charts/core';
+
+const data = {
+  family: 'sankey',
+  title: 'Measured energy flow',
+  nodes: [
+    {id: 'source', label: 'Source'},
+    {id: 'useful', label: 'Useful energy'},
+    {id: 'losses', label: 'Losses'},
+  ],
+  links: [
+    {id: 'supply', from: 'source', to: 'useful', value: 80},
+    {id: 'loss', from: 'source', to: 'losses', value: 20},
+  ],
+  orientation: 'horizontal',
+} satisfies PlanSankeySpec;
+
+const result = planChart(data, {width: 390, height: 300});
+void result;
+```
+
+Nodes have stable IDs and labels; links have stable IDs, source/target node IDs and a nonnegative numeric value or `null`. A missing link value stays unknown, rather than becoming a fabricated flow. Node observations report known incoming/outgoing amounts; link observations retain their source and target identities. Zero contributes no flow width.
+
+Sankey is bounded to 128 nodes, 512 links and 16 optional groups. Node and link IDs must be globally unique. Endpoints must exist; cycles and self-links are invalid. `orientation` accepts `horizontal` or `vertical`; `nodeWidth` and `nodePadding` configure layout. Link thickness represents value and joins the corresponding node faces. The planner does not balance inconsistent source measurements or invent an unmeasured remainder.
+
+Geometry that cannot be represented at the projected precision can be omitted. Such observations keep their exact value and identity and expose `sankey.geometryOmitted: true`, without a painted shape or geometric hit region. The host must keep the value available through data inspection and accessible navigation. Very thin ribbons below 0.0002 logical pixels are not widened to fabricate visible flow. Hidden groups recalculate the scale from the remaining visible flows while validation still checks the full input, including hidden values.
+
+Optional groups use the exported `PlanHierarchyGroup` shape and a node's `groupId`. Legend visibility, viewport clipping and semantic hit regions remain part of the shared plan contract. Stacking and Cartesian reference lines are incompatible with Sankey. A renderer must provide readable labels and accessible selection for narrow links; the Core's geometric output does not guarantee an adequate touch target on its own.
 
 ### Current boundaries
 
@@ -233,6 +266,14 @@ npm run check
 Temporary build/test files live under ignored `work/` and `dist/`. They are excluded from npm. To remove local generated artifacts, delete `work/`, `dist/` and, if no longer needed, `node_modules/`.
 
 When proposing a change, include source-data fixtures, valid/empty/invalid cases, stable identity assertions and boundary cases. Extend the public types and renderer integration together. Keep platform UI behavior in the appropriate adapter. Do not add browser helpers to a shared geometry module.
+
+## Automated Core releases
+
+The GitHub workflow `.github/workflows/publish.yml` owns Core publication only. It does not update Native, publish consumer packages or deploy documentation websites.
+
+For a release, update the package version, lockfile and versioned README examples on `main`, then push the matching `v<version>` tag. The workflow checks that the tag matches the package, belongs to the history of `main`, and passes strict tests and the isolated package consumer. It then publishes the verified archive using npm Trusted Publishing with the GitHub environment `npm-release`, checks the registry archive integrity, and records a GitHub release. Re-running an already published version succeeds only if the archive bytes match exactly.
+
+The npm trusted publisher is restricted to this repository, `publish.yml` and `npm-release`. GitHub issues short-lived credentials for each release; no permanent npm token is stored. Running the workflow manually performs verification without publishing. A failed check blocks publication.
 
 ## License
 
