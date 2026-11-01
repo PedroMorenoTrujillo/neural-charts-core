@@ -2,14 +2,14 @@
 
 Renderer-independent chart planning and geometry in strict TypeScript. The Core converts source data and a viewport size into a read-only frame that a renderer can paint.
 
-**Version 0.0.5 is experimental.** Public contracts can change before 1.0. Pin the version while integrating a renderer.
+**Version 0.0.6 is experimental.** Public contracts can change before 1.0. Pin the version while integrating a renderer.
 
 Version 0.0.5 reduces repeated work in defensive input copying while preserving validation, ownership and chart geometry. Public data and planning contracts are unchanged.
 
 ## Install
 
 ```sh
-npm install @neural-charts/core@0.0.5
+npm install @neural-charts/core@0.0.6
 ```
 
 The package ships ESM JavaScript and TypeScript declarations. It has no runtime dependencies, framework peer dependencies, browser globals, native bridges or module initialization side effects. Its declarations compile with `lib: ["ES2022"]`, without DOM types. Development and package verification use Node.js 22 or newer.
@@ -160,7 +160,7 @@ A reference has a stable ID, an axis and a value. X accepts a category ID or num
 
 ## Supported planning families
 
-The current contract produces 43 frame families. These are planning capabilities; inclusion does not certify a renderer's feature parity or device performance.
+The current contract produces 45 frame families. These are planning capabilities; inclusion does not certify a renderer's feature parity or device performance.
 
 | Family | Input | Notes |
 | --- | --- | --- |
@@ -193,6 +193,8 @@ The current contract produces 43 frame families. These are planning capabilities
 | Waterfall | `PlanWaterfallSpec` | Changes and explicit intermediate/final totals. |
 | X-range | `PlanXRangeSpec` | Source start/end intervals on named rows, optional completion and grouped/overlapping lanes. |
 | Timeline | `PlanTimelineSpec` | Numeric or UTC events with original titles/descriptions and bounded labels. |
+| Bullet | `PlanBulletSpec` | Original measures and targets, with qualitative bands as separate decorations. |
+| Variwide | `PlanVariwideSpec` | Category widths proportional to original nonnegative Z values, with independent signed Y values. |
 | Radar | `PlanRadarSpec` | Values across named radial dimensions. |
 | Polar | `PlanPolarSpec` | Polar series and grid. |
 | Funnel | `PlanFunnelSpec` | Stages with width proportional to value. |
@@ -205,6 +207,64 @@ The current contract produces 43 frame families. These are planning capabilities
 | Sankey | `PlanSankeySpec` | Weighted directed acyclic flows, horizontal or vertical nodes and filled links. |
 
 Each input is a strict discriminated interface. Do not build a single object containing every family's properties or use casts to force an unsupported combination. Scalar parts, measured XY series, ranges, directional values and hierarchy nodes have different data semantics.
+
+### Bullet measures and targets
+
+```ts
+import {planChart, type PlanBulletSpec} from '@neural-charts/core';
+
+const data = {
+  family: 'bullet', title: 'Service coverage', orientation: 'horizontal',
+  axes: {
+    x: {kind: 'category', values: [{id: 'support', label: 'Support'}]},
+    y: {kind: 'linear', domain: [0, 100], unit: '%'},
+  },
+  series: [{id: 'coverage', name: 'Coverage', data: [
+    {id: 'support-coverage', x: 'support', y: 72, target: 80},
+  ]}],
+  bands: [
+    {id: 'low', from: 0, to: 60, label: 'Needs attention'},
+    {id: 'expected', from: 60, to: 80, label: 'Expected'},
+    {id: 'high', from: 80, to: 100, label: 'High'},
+  ],
+} satisfies PlanBulletSpec;
+
+const result = planChart(data, {width: 390, height: 260});
+if (result.status !== 'invalid') {
+  // Paint bands, measures and target lines in the same coordinate frame.
+  const {series, observations, bulletBands, bulletTargets, bulletGrid} = result.frame;
+  void [series, observations, bulletBands, bulletTargets, bulletGrid];
+}
+```
+
+Bullet accepts up to 64 categories, 16 series and 1,024 points in total. A missing measure can still have a known target; an omitted target, `null` target and target zero remain distinct. Bands are decorations: they do not create observations, series, legend items or inferred domain values. Provide an explicit numeric domain when qualitative bands must remain in view. Stacking and viewport transforms are rejected; X/Y reference lines use the source axis semantics, including horizontal orientation.
+
+### Variwide widths and values
+
+```ts
+import {planChart, type PlanVariwideSpec} from '@neural-charts/core';
+
+const data = {
+  family: 'variwide', title: 'Output and share',
+  axes: {
+    x: {kind: 'category', values: [{id: 'a', label: 'A'}, {id: 'b', label: 'B'}]},
+    y: {kind: 'linear', domain: [-10, 10]},
+  },
+  series: [{id: 'output', name: 'Output', data: [
+    {id: 'output-a', x: 'a', y: 3, z: 2},
+    {id: 'output-b', x: 'b', y: -6, z: 8},
+  ]}],
+} satisfies PlanVariwideSpec;
+
+const result = planChart(data, {width: 390, height: 300});
+if (result.status !== 'invalid') {
+  // Read the actual weighted X bands; do not replace them with equal-width slots.
+  const {series, categoryBands, variwideData, variwideLayout} = result.frame;
+  void [series, categoryBands, variwideData, variwideLayout];
+}
+```
+
+Variwide accepts one series and up to 64 categories/points. `z` controls width and must be nonnegative or `null`; `y` controls signed height. Zero width, unknown width, a missing category point and geometry below drawing precision have explicit states in `categoryBands`. Unknown widths set `variwideLayout.incomplete`; a chart without positive known width reports `no-positive-width`. Only numeric Y zoom/pan and Y reference lines are supported. X zoom, multiple series and stacking are rejected.
 
 ### Sankey data and constraints
 

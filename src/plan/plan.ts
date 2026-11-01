@@ -1,3 +1,5 @@
+import {planBullet} from './bullet.js';
+import {planVariwide} from './variwide.js';
 import {planXRange} from './xrange.js';
 import {planTimeline} from './timeline.js';
 import {planDirectional} from './directional.js';
@@ -56,8 +58,10 @@ export function planChart(value:PlanSpec,options:PlanOptions):PlanResult {
     if(!Number.isFinite(width)||!Number.isFinite(height)||width<64||height<64||width>10000||height>10000)return bad('BAD_VIEWPORT','options');
     if(!Array.isArray(hidden)||hidden.length>16||hidden.some(id=>typeof id!=='string'||!id||id.length>128)||new Set(hidden).size!==hidden.length)return bad('BAD_VISIBILITY','options.hiddenSeriesIds');
     const spec=ownPlanInput(value) as PlanSpec;
-    if(!spec||typeof spec!=='object'||!['xrange','timeline','sankey','vector','windbarb','networkgraph','packedbubble','sunburst','treegraph','organization','variablepie','item','polygon','lollipop','dumbbell','columnpyramid','boxplot','errorbar','streamgraph','arearange','areasplinerange','columnrange','histogram','bellcurve','areaspline','funnel','pyramid','pareto','radar','polar','waterfall','treemap','mixed','line','area','spline','scatter','column','pie','donut','gauge','bubble'].includes(spec.family))return bad('UNSUPPORTED_FAMILY','family');
+    if(!spec||typeof spec!=='object'||!['bullet','variwide','xrange','timeline','sankey','vector','windbarb','networkgraph','packedbubble','sunburst','treegraph','organization','variablepie','item','polygon','lollipop','dumbbell','columnpyramid','boxplot','errorbar','streamgraph','arearange','areasplinerange','columnrange','histogram','bellcurve','areaspline','funnel','pyramid','pareto','radar','polar','waterfall','treemap','mixed','line','area','spline','scatter','column','pie','donut','gauge','bubble'].includes(spec.family))return bad('UNSUPPORTED_FAMILY','family');
     if(ownedOptions.stacking!==undefined&&(!['column','area'].includes(spec.family)||!['sum','percent'].includes(ownedOptions.stacking)))return bad('BAD_STACK_MODE','options.stacking');
+    if(spec.family==='bullet')return planBullet(spec,ownedOptions);
+    if(spec.family==='variwide')return planVariwide(spec,ownedOptions);
     if(spec.family==='xrange')return planXRange(spec,ownedOptions);
     if(spec.family==='timeline')return planTimeline(spec,ownedOptions);
     if(spec.family==='sankey')return planSankey(spec,ownedOptions);

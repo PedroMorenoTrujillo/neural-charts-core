@@ -22,3 +22,6 @@ export type {PlanNetworkgraphSpec,PlanPackedBubbleSpec,PlanPackedBubbleSeries,Pl
 export type {PlanTemporalAxis} from './public/temporal-plan-types.js';
 export type {PlanXRangeSpec,PlanXRangeRow,PlanXRangeSeries,PlanXRangePoint,PlanXRangeFrame,PlanXRangeObservation,PlanXRangeResult,PlanIntervalValue,PlanIntervalSummary} from './public/xrange-plan-types.js';
 export type {PlanTimelineSpec,PlanTimelineSeries,PlanTimelinePoint,PlanTimelineFrame,PlanTimelineObservation,PlanTimelineResult,PlanTimelineEvent,PlanTimelineSummary} from './public/timeline-plan-types.js';
+
+export type {PlanBulletPoint,PlanBulletSeries,PlanBulletBand,PlanBulletSpec,PlanBulletValue,PlanBulletSummary,PlanBulletBandGeometry,PlanBulletTargetGeometry,PlanBulletObservation,PlanBulletFrame,PlanBulletResult} from './public/bullet-plan-types.js';
+export type {PlanVariwidePoint,PlanVariwideSeries,PlanVariwideSpec,PlanVariwideValue,PlanVariwideCategoryBand,PlanVariwideSummary,PlanVariwideObservation,PlanVariwideFrame,PlanVariwideResult} from './public/variwide-plan-types.js';
