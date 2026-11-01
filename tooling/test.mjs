@@ -5,7 +5,7 @@ import {fileURLToPath} from 'node:url';
 const root = fileURLToPath(new URL('../', import.meta.url));
 mkdirSync(new URL('../work/reports/', import.meta.url), {recursive: true});
 const commands = [
-  ['release-guards', ['--test', 'tooling/release.test.mjs']],
+  ['release-guards', ['--test', 'tooling/release.test.mjs', 'tooling/pack-metadata.test.mjs']],
   ['unit-property', ['node_modules/vitest/vitest.mjs', 'run']],
   ...readdirSync(new URL('../tests/plan/', import.meta.url)).filter(f => f.endsWith('.mjs')).sort().map(f => [f, ['tests/plan/' + f]]),
 ];

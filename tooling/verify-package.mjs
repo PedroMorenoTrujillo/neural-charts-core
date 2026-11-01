@@ -4,6 +4,7 @@ import {mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync} from 'node:
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import ts from 'typescript';
+import {packedMetadata} from './pack-metadata.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const staging = path.join(root, 'work/package-check');
@@ -49,7 +50,7 @@ for (const file of javascript) {
   }
 }
 
-const [packed] = JSON.parse(run(npm, ['pack', '--ignore-scripts', '--json', '--pack-destination', staging]));
+const packed = packedMetadata(run(npm, ['pack', '--ignore-scripts', '--json', '--pack-destination', staging]), metadata.name, metadata.version);
 for (const file of packed.files) {
   assert(/^(?:package\.json|README\.md|LICENSE|dist\/.+\.(?:js|d\.ts))$/.test(file.path), 'Unexpected published file: ' + file.path);
   assert(!file.path.includes('..'), 'Invalid archive path');
