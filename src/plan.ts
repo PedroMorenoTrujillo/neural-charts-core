@@ -1,3 +1,4 @@
+export type {PlanContourSpec,PlanContourGrid,PlanContourAxis,PlanContourLevel,PlanContourPoint,PlanContourSample,PlanContourValue,PlanContourLayout,PlanContourObservation,PlanContourFrame,PlanContourResult} from './public/contour-types.js';
 export {prepareWordCloudMeasurements} from './plan/wordcloud-source.js';
 export type {PlanCellPoint,PlanCellGeometry,PlanCellPaint} from './public/cell-types.js';
 export type {PlanColorStop,PlanColorClass,PlanContinuousColorAxisSpec,PlanClassColorAxisSpec,PlanColorAxisSpec,PlanValueColor,PlanValueColorMapping,PlanContinuousColorAxisFrame,PlanClassColorAxisFrame,PlanColorAxisFrame} from './public/color-axis-types.js';

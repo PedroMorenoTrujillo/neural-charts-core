@@ -16,7 +16,7 @@ export interface PlanReferenceContext {
  * still validate category/time semantics when these values enter their input. */
 export function validatePlanReferences(input:unknown,spec:PlanSpec):ChartResult<readonly PlanReference[]|undefined>{
   if(input===undefined)return ok(undefined);
-  if(!['vector','windbarb','polygon','lollipop','dumbbell','columnpyramid','boxplot','errorbar','streamgraph','arearange','areasplinerange','columnrange','areaspline','waterfall','mixed','line','area','spline','scatter','column','bubble'].includes(spec.family))return invalid('INVALID_CONFIG','UNSUPPORTED_REFERENCES','options.references');
+  if(!['contour','vector','windbarb','polygon','lollipop','dumbbell','columnpyramid','boxplot','errorbar','streamgraph','arearange','areasplinerange','columnrange','areaspline','waterfall','mixed','line','area','spline','scatter','column','bubble'].includes(spec.family))return invalid('INVALID_CONFIG','UNSUPPORTED_REFERENCES','options.references');
   if(!Array.isArray(input)||input.length>16)return invalid('INVALID_CONFIG','BAD_REFERENCES','options.references');
   const ids=new Set<string>();
   for(let index=0;index<input.length;index++){

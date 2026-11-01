@@ -2,14 +2,14 @@
 
 Renderer-independent chart planning and geometry in strict TypeScript. The Core converts source data and a viewport size into a read-only frame that a renderer can paint.
 
-**Version 0.0.12 is experimental.** Public contracts can change before 1.0. Pin the version while integrating a renderer.
+**Version 0.0.13 is experimental.** Public contracts can change before 1.0. Pin the version while integrating a renderer.
 
 Version 0.0.5 reduces repeated work in defensive input copying while preserving validation, ownership and chart geometry. Public data and planning contracts are unchanged.
 
 ## Install
 
 ```sh
-npm install @neural-charts/core@0.0.12
+npm install @neural-charts/core@0.0.13
 ```
 
 The package ships ESM JavaScript and TypeScript declarations. It has no runtime dependencies, framework peer dependencies, browser globals, native bridges or module initialization side effects. Its declarations compile with `lib: ["ES2022"]`, without DOM types. Development and package verification use Node.js 22 or newer.
@@ -615,6 +615,34 @@ The GitHub workflow `.github/workflows/publish.yml` owns Core publication only. 
 For a release, update the package version, lockfile and versioned README examples on `main`, then push the matching `v<version>` tag. The workflow checks that the tag matches the package, belongs to the history of `main`, and passes strict tests and the isolated package consumer. It then publishes the verified archive using npm Trusted Publishing with the GitHub environment `npm-release`, checks the registry archive integrity, and records a GitHub release. Re-running an already published version succeeds only if the archive bytes match exactly.
 
 The npm trusted publisher is restricted to this repository, `publish.yml` and `npm-release`. GitHub issues short-lived credentials for each release; no permanent npm token is stored. Running the workflow manually performs verification without publishing. A failed check blocks publication.
+
+## Scalar contour isolines
+
+`PlanContourSpec` accepts one measured rectangular field. `grid.x` and `grid.y` are strictly increasing finite numeric coordinates, each with 2–64 entries. `grid.values` and `grid.ids` have exactly `x.length * y.length` row-major entries, at most 4,096 samples. Each original ID is unique and remains unchanged in `frame.contour.samples`. `null` is unknown and breaks every incident cell; zero remains a measured value.
+
+```ts
+import {planChart, type PlanContourSpec} from '@neural-charts/core';
+
+const field = {
+  family: 'contour', title: 'Measured temperature',
+  axes: {x: {kind: 'linear'}, y: {kind: 'linear'}},
+  grid: {
+    id: 'temperature', x: [0, 2], y: [0, 3],
+    ids: ['northwest', 'northeast', 'southwest', 'southeast'],
+    values: [10, 30, 10, 30], unit: '°C',
+  },
+  contour: {levels: [{id: 'warm', value: 20}], segmentBudget: 8192},
+} as const satisfies PlanContourSpec;
+const result = planChart(field, {width: 390, height: 300});
+```
+
+Levels have stable unique IDs and 1–8 strictly increasing finite values. Their optional names and colours are presentation metadata. Marching squares uses linear edge interpolation and a bilinear asymptotic decider for ambiguous saddle cells. Exact saddle intersections preserve their four arms. Shared edges are deduplicated; zero-length contacts do not become fake line segments. This version does not implement filled contour bands or smoothing.
+
+The complete isoline calculation has an explicit segment budget, default 8,192 and maximum 32,768, applied before viewport clipping. Exceeding it returns `CONTOUR_SEGMENT_BUDGET`, with no partially truncated frame. A renderer may impose a lower published bound. The frame contains at most one M/L command path per visible level. No DOM, canvas, native runtime or renderer dependency participates in calculation.
+
+Each observation is a **derived isoline segment**, not an original sample. `observation.value` is the requested level. `observation.contour` identifies the grid, level, source cell and four original sample IDs/values; it contains both source interpolated endpoints and plot-local clipped endpoints. Derived IDs stay stable when clipping removes earlier saddle arms. All original samples remain in the frame even when levels are hidden or no crossing exists. `emptyReason` distinguishes hidden levels, unknown cells, no crossings and an outside viewport.
+
+X/Y domains, reversed axes, numeric ticks, references and controlled viewport windows use the shared coordinate model. Reference values are grid coordinates, not scalar thresholds. Clipping happens in source space before projection. Contour frames do not invent circular or polygonal hits; adapters can index the explicit straight segment endpoints with their platform touch tolerance. Tooltips should label the level as interpolated and provide the original corners separately. Keyboard navigation, gesture handling, tooltip placement and reduced-motion animation belong to the adapter.
 
 ## License
 
