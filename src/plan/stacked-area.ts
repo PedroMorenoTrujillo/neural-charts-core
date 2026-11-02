@@ -27,7 +27,7 @@ export function planStackedArea(spec:PlanAreaSpec,options:PlanOptions,references
   const {width,height}=options,plot={x:16,y:14,width:width-32,height:height-28},palette=defaultPalette('light',false).series;
   const legend=input.series.map((s,i)=>({id:s.id,name:s.name,color:s.color??palette[i%palette.length]!,visible:!hidden.includes(s.id)}));
   const base={schema:'nc-plan/1' as const,family:'area' as const,width,height,title:input.title,description:input.description??'',unit:input.axes.y.title??'',legend};
-  if(!domains.value.y)return freezePlan({status:'empty',frame:withPlanReferences({...base,series:[],observations:[],labels:[],grid:[]},references)});
+  if(!domains.value.y)return freezePlan({status:'empty',frame:withPlanReferences({...base,series:[],observations:[],labels:[],grid:[]},references,undefined,options.referenceBands)});
   const xa=input.axes.x;
   let yt=selectNumericTicks(domains.value.y,{nice:input.axes.y.nice??!input.axes.y.domain,targetCount:input.axes.y.ticks?.targetCount??5});if(yt.status==='invalid')return yt;
   let xt=xa.kind==='category'||!domains.value.x?null:(xa.kind==='time'?selectTimeTicks:selectNumericTicks)(domains.value.x,{nice:xa.nice??false,targetCount:xa.ticks?.targetCount??6});if(xt?.status==='invalid')return xt;
@@ -62,6 +62,6 @@ export function planStackedArea(spec:PlanAreaSpec,options:PlanOptions,references
   }
   const values=xa.kind==='category'?xa.values.map(c=>c.id):(xt?.value.ticks??[]),labels=values.flatMap(value=>{const x=p.mapX(value);return x===null||x<plot.x||x>plot.x+plot.width?[]:[{x,label:formatAxis(value,xa.kind,interval,data.line.labels)}];});
   const annotations=planStackLabels(stack.value.categories.values(),stack.value.mode,yDomain,id=>p.mapX(data.coordinates[Number(id.slice(1))]!),p.mapY).filter(label=>label.x>=plot.x&&label.x<=plot.x+plot.width);
-  const frame=withPlanReferences({...base,series,observations,labels,annotations,grid:yt.value.ticks.map(value=>({y:p.mapY(value)!,label:String(value)})),...(view?{viewport:planViewportState(view,{x:xDomain,y:yDomain},input.axes,plot)!}:{})},references,{plot,domains:{x:xDomain,y:yDomain},mapX:p.mapX,mapY:p.mapY,...(xa.kind==='category'?{categories:referenceCategories(xa.values,plot,p.mapX)}:{})});
+  const frame=withPlanReferences({...base,series,observations,labels,annotations,grid:yt.value.ticks.map(value=>({y:p.mapY(value)!,label:String(value)})),...(view?{viewport:planViewportState(view,{x:xDomain,y:yDomain},input.axes,plot)!}:{})},references,{plot,domains:{x:xDomain,y:yDomain},mapX:p.mapX,mapY:p.mapY,bandSourceAxes:input.axes,...(xa.kind==='category'?{categories:referenceCategories(xa.values,plot,p.mapX)}:{})},options.referenceBands);
   return freezePlan({status:observations.length?'ok':'empty',frame});
 }

@@ -35,7 +35,7 @@ export function planGroupedStacks(spec:PlanColumnSpec,options:PlanOptions,refere
   const base={schema:'nc-plan/1' as const,family:horizontal?'bar' as const:'column' as const,width,height,title:input.title,description:input.description??'',unit:input.axes.y.title??'',legend,stackGroups};
   let low=Infinity,high=-Infinity;
   for(const data of partitions){const d=stackedDomain(data,state,mode);if(d.status==='invalid')return d;if(d.value){low=Math.min(low,d.value[0]);high=Math.max(high,d.value[1]);}}
-  if(!Number.isFinite(low)||!Number.isFinite(high))return freezePlan({status:'empty',frame:withPlanReferences({...base,series:[],observations:[],labels:[],grid:[]},references)});
+  if(!Number.isFinite(low)||!Number.isFinite(high))return freezePlan({status:'empty',frame:withPlanReferences({...base,series:[],observations:[],labels:[],grid:[]},references,undefined,options.referenceBands)});
   let ticks=selectNumericTicks([low,high],{nice:input.axes.y.nice??!input.axes.y.domain,targetCount:input.axes.y.ticks?.targetCount??5});if(ticks.status==='invalid')return ticks;
   const fullDomain=ticks.value.domain,prepared=preparePlanViewport(input.axes,{x:null,y:fullDomain},options.viewport);if(prepared.status==='invalid')return prepared;
   const view=prepared.value,scoped=withViewportDomains({x:null,y:fullDomain},view);
@@ -70,5 +70,5 @@ export function planGroupedStacks(spec:PlanColumnSpec,options:PlanOptions,refere
   const labels=horizontal?ticks.value.ticks.map(v=>({x:p.mapValue(v)!,label:String(v)})):input.axes.x.values.flatMap(c=>{const x=p.bands.center(c.id);return x===null?[]:[{x,label:c.label??c.id}];});
   const yLabels=horizontal?input.axes.x.values.flatMap(c=>{const y=p.bands.center(c.id);return y===null?[]:[{id:c.id,y,label:c.label??c.id}];}):undefined;
   const frame={...base,series,observations,labels,annotations,grid:horizontal?[]:ticks.value.ticks.map(v=>({y:p.mapValue(v)!,label:String(v)})),...(yLabels?{yLabels}:{}),...(view?{viewport:planViewportState(view,{x:null,y:ticks.value.domain},input.axes,plot)!}:{})};
-  return freezePlan({status:observations.length?'ok':'empty',frame:withPlanReferences(frame,references,{plot,domains:{x:null,y:ticks.value.domain},mapY:p.mapValue,horizontal})});
+  return freezePlan({status:observations.length?'ok':'empty',frame:withPlanReferences(frame,references,{plot,domains:{x:null,y:ticks.value.domain},mapY:p.mapValue,horizontal,bandSourceAxes:input.axes,categorySlot:id=>{const band=p.bands.band(id);return band?[band.start,band.end]:null;}},options.referenceBands)});
 }

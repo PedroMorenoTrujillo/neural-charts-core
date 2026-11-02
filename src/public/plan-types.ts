@@ -147,6 +147,7 @@ export interface PlanOptions {
   readonly stacking?:'sum'|'percent';
   readonly viewport?:PlanViewportConfig;
   readonly references?:readonly PlanReference[];
+  readonly referenceBands?:readonly import('./reference-band-plan-types.js').PlanReferenceBand[];
 }
 export type PlanReference=Readonly<{id:string;axis:'x';value:string|number;yAxis?:never}>|Readonly<{id:string;axis:'y';value:number;yAxis?:'secondary'}>;
 export type PlanProjectedReference=Readonly<{id:string;axis:'x'|'y';valueAxis?:'secondary'}>&(
@@ -277,6 +278,7 @@ export interface PlanFrame {
   readonly annotations?:readonly PlanAnnotation[];
   readonly viewport?:PlanViewportState;
   readonly references?:readonly PlanProjectedReference[];
+  readonly referenceBands?:readonly import('./reference-band-plan-types.js').PlanProjectedReferenceBand[];
   readonly regression?:PlanRegressionLayout;
   readonly fan?:PlanFanLayout;
   readonly violin?:PlanViolinLayout;

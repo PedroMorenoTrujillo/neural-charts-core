@@ -19,6 +19,7 @@ export function planChart(spec:PlanSpec,options:PlanOptions):PlanResult{return p
 export function transformPlanViewport(state:PlanViewportState,intent:PlanViewportIntent):PlanViewportResult{return applyViewport(state,intent);}
 export type {PlanViewportConfig,PlanViewportValue,PlanViewportAxis,PlanViewportState,PlanViewportIntent,PlanViewportResult} from './public/plan-types.js';
 export type {PlanReference,PlanProjectedReference} from './public/plan-types.js';
+export type {PlanReferenceBand,PlanProjectedReferenceBand} from './public/reference-band-plan-types.js';
 export type {PlanMixedSpec,PlanAreaSpec,PlanSplineSpec,PlanScatterSpec} from './public/plan-types.js';
 export type {PlanTreemapSpec,PlanTreemapNode} from './public/plan-types.js';
 export type {PlanWaterfallSpec,PlanWaterfallPoint,PlanWaterfallSeries} from './public/plan-types.js';

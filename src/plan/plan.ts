@@ -64,6 +64,7 @@ import {preparePlanViewport,planViewportState,planLineViewportScales} from './vi
 import {withViewportDomains} from '../internal/interaction/viewport-axes.js';
 import {viewportCategoryWindow} from '../internal/interaction/viewport.js';
 import {validatePlanReferences,withPlanReferences,referenceCategories,type PlanReferenceContext} from './references.js';
+import {validatePlanReferenceBands} from './reference-bands.js';
 
 const bad=(reason:string,path:string,message=reason):PlanResult=>({status:'invalid',diagnostic:{code:'INVALID_CONFIG',reason,path,message}});
 const legendFor=(items:readonly Readonly<{id:string;name:string;color?:string}>[],palette:readonly string[],hidden:readonly string[]):readonly PlanLegendItem[]=>
@@ -73,12 +74,13 @@ const legendFor=(items:readonly Readonly<{id:string;name:string;color?:string}>[
 export function planChart(value:PlanSpec,options:PlanOptions):PlanResult {
   try{
     const ownedOptions=ownPlanInput(options) as PlanOptions;
-    if(!ownedOptions||typeof ownedOptions!=='object'||Object.keys(ownedOptions).some(key=>!['width','height','hiddenSeriesIds','stacking','stackGroups','viewport','references','wordcloudText','circular'].includes(key)))return bad('UNKNOWN_OPTION','options');
+    if(!ownedOptions||typeof ownedOptions!=='object'||Object.keys(ownedOptions).some(key=>!['width','height','hiddenSeriesIds','stacking','stackGroups','viewport','references','referenceBands','wordcloudText','circular'].includes(key)))return bad('UNKNOWN_OPTION','options');
     const {width,height}=ownedOptions,hidden=ownedOptions.hiddenSeriesIds??[];
     if(!Number.isFinite(width)||!Number.isFinite(height)||width<64||height<64||width>10000||height>10000)return bad('BAD_VIEWPORT','options');
     if(!Array.isArray(hidden)||hidden.length>16||hidden.some(id=>typeof id!=='string'||!id||id.length>256)||new Set(hidden).size!==hidden.length)return bad('BAD_VISIBILITY','options.hiddenSeriesIds');
     const spec=ownPlanInput(value) as PlanSpec;
     if(!spec||typeof spec!=='object'||!['regression','fan','violin','flame','dendrogram','parallel','windrose','radialbar','heatmap','venn','contour','tilemap','pictorial','wordcloud','dependencywheel','arcdiagram','chord','bullet','variwide','xrange','timeline','sankey','vector','windbarb','networkgraph','packedbubble','sunburst','treegraph','organization','variablepie','item','polygon','lollipop','dumbbell','columnpyramid','boxplot','errorbar','streamgraph','arearange','areasplinerange','columnrange','histogram','bellcurve','areaspline','funnel','pyramid','pareto','radar','polar','waterfall','treemap','mixed','line','area','spline','scatter','column','pie','donut','gauge','bubble'].includes(spec.family))return bad('UNSUPPORTED_FAMILY','family');
+    const checkedBands=validatePlanReferenceBands(ownedOptions.referenceBands,spec);if(checkedBands.status==='invalid')return checkedBands;
     if(ownedOptions.stacking!==undefined&&(!['column','area','pictorial'].includes(spec.family)||!['sum','percent'].includes(ownedOptions.stacking)))return bad('BAD_STACK_MODE','options.stacking');
     if(ownedOptions.stackGroups!==undefined&&(spec.family!=='column'||!ownedOptions.stacking))return bad('STACK_GROUPS_REQUIRE_STACKED_COLUMNS','options.stackGroups');
     if(ownedOptions.wordcloudText!==undefined&&spec.family!=='wordcloud')return bad('UNSUPPORTED_TEXT_MEASUREMENTS','options.wordcloudText');
@@ -131,11 +133,11 @@ export function planChart(value:PlanSpec,options:PlanOptions):PlanResult {
     if(spec.family==='mixed')return planMixed(spec,ownedOptions,references);
     if(spec.family==='area'&&ownedOptions.stacking)return planStackedArea(spec,ownedOptions,references);
     if(ownedOptions.circular!==undefined&&(spec.family==='pie'||spec.family==='donut'||spec.family==='gauge'))return planCircularDisplay(spec,ownedOptions);
-    if(spec.family!=='line'&&spec.family!=='area'&&spec.family!=='areaspline'&&spec.family!=='spline'&&spec.family!=='column')return planAdditional(spec,width,height,hidden,ownedOptions.viewport,references);
+    if(spec.family!=='line'&&spec.family!=='area'&&spec.family!=='areaspline'&&spec.family!=='spline'&&spec.family!=='column')return planAdditional(spec,width,height,hidden,ownedOptions.viewport,references,undefined,checkedBands.value);
     if(!Array.isArray(spec.series)||spec.series.length>16||spec.series.reduce((n,s)=>n+(Array.isArray(s?.data)?s.data.length:10001),0)>10000)return bad('INPUT_LIMIT','series');
     if(spec.axes?.x?.kind==='category'&&Array.isArray(spec.axes.x.values)&&spec.axes.x.values.length>64)return bad('LABEL_LIMIT','axes.x.values');
     const state={hiddenSeriesIds:[...hidden]},plot={x:16,y:14,width:width-32,height:height-28},palette=defaultPalette('light',false).series;
-    const finish=(frame:PlanFrame,context?:PlanReferenceContext):PlanResult=>freezePlan({status:frame.observations.length?'ok':'empty',frame:withPlanReferences(frame,references,context)});
+    const finish=(frame:PlanFrame,context?:PlanReferenceContext):PlanResult=>freezePlan({status:frame.observations.length?'ok':'empty',frame:withPlanReferences(frame,references,context,checkedBands.value)});
     if(spec.family==='line'||spec.family==='area'||spec.family==='areaspline'||spec.family==='spline'){
       const filled=spec.family==='area'||spec.family==='areaspline';
       if(filled&&Object.getOwnPropertyDescriptor(spec.axes.y,'includeZero')?.value===false)return bad('AREA_REQUIRES_ZERO','axes.y.includeZero');
@@ -172,7 +174,7 @@ export function planChart(value:PlanSpec,options:PlanOptions):PlanResult {
       }
       const values=xa.kind==='category'?xa.values.map(c=>c.id):(xt?.value.ticks??[]);
       const labels=values.flatMap(v=>{const x=p.mapX(v);return x===null||x<plot.x||x>plot.x+plot.width?[]:[{x,label:formatAxis(v,xa.kind,interval,data.labels)}];});
-      return finish({...base,series,observations,labels,grid:yt.value.ticks.map(v=>({y:p.mapY(v)!,label:String(v)})),...(view?{viewport:planViewportState(view,{x:xt?.value.domain??domains.value.x,y:yt.value.domain},input.axes,plot)!}:{})},references===undefined||!p.series.some(series=>series.series.valid.length>0)?undefined:{plot,domains:{x:xt?.value.domain??domains.value.x,y:yt.value.domain},mapX:p.mapX,mapY:p.mapY,...(xa.kind==='category'?{categories:referenceCategories(xa.values,plot,p.mapX)}:{})});
+      return finish({...base,series,observations,labels,grid:yt.value.ticks.map(v=>({y:p.mapY(v)!,label:String(v)})),...(view?{viewport:planViewportState(view,{x:xt?.value.domain??domains.value.x,y:yt.value.domain},input.axes,plot)!}:{})},references===undefined&&checkedBands.value===undefined||!p.series.some(series=>series.series.valid.length>0)?undefined:{plot,domains:{x:xt?.value.domain??domains.value.x,y:yt.value.domain},mapX:p.mapX,mapY:p.mapY,bandSourceAxes:input.axes,...(xa.kind==='category'?{categories:referenceCategories(xa.values,plot,p.mapX)}:{})});
     }
     const stacking=ownedOptions.stacking;
     const referenceInput=references===undefined?spec:{...spec,references};
@@ -213,6 +215,6 @@ export function planChart(value:PlanSpec,options:PlanOptions):PlanResult {
     const labels=p.horizontal?ticks.value.ticks.map(v=>({x:p.mapValue(v)!,label:String(v)})):input.axes.x.values.flatMap(c=>{const x=p.bands.center(c.id);return x===null?[]:[{x,label:c.label??c.id}];});
     const yLabels=p.horizontal?input.axes.x.values.flatMap(c=>{const y=p.bands.center(c.id);return y===null?[]:[{id:c.id,y,label:c.label??c.id}];}):undefined;
     const annotations=stacked?.status==='ok'&&stacking?planStackLabels(stacked.value.stack.categories.values(),stacking,ticks.value.domain,p.bands.center,p.mapValue,p.horizontal):undefined;
-    return finish({...base,series,observations,labels,...(annotations?{annotations}:{}),grid:p.horizontal?[]:ticks.value.ticks.map(v=>({y:p.mapValue(v)!,label:String(v)})),...(yLabels?{yLabels}:{}),...(view?{viewport:planViewportState(view,{x:null,y:ticks.value.domain},input.axes,plot)!}:{})},references===undefined||!data.series.some(series=>!hidden.includes(series.spec.id)&&series.valid.length>0)?undefined:{plot,domains:{x:null,y:ticks.value.domain},mapY:p.mapValue,horizontal:p.horizontal});
+    return finish({...base,series,observations,labels,...(annotations?{annotations}:{}),grid:p.horizontal?[]:ticks.value.ticks.map(v=>({y:p.mapValue(v)!,label:String(v)})),...(yLabels?{yLabels}:{}),...(view?{viewport:planViewportState(view,{x:null,y:ticks.value.domain},input.axes,plot)!}:{})},references===undefined&&checkedBands.value===undefined||!data.series.some(series=>!hidden.includes(series.spec.id)&&series.valid.length>0)?undefined:{plot,domains:{x:null,y:ticks.value.domain},mapY:p.mapValue,horizontal:p.horizontal,bandSourceAxes:input.axes,categorySlot:id=>{const band=p.bands.band(id);return band?[band.start,band.end]:null;}});
   }catch(error){return bad(error instanceof Error?error.message:'UNREADABLE_INPUT','spec');}
 }

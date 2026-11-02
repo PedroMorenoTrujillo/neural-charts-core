@@ -3,6 +3,9 @@ import type {PlanSpec,PlanReference,PlanProjectedReference,PlanFrame} from '../p
 import type {Plot} from '../internal/layout/frame.js';
 import {referenceOutside} from '../internal/axes/scene.js';
 import {invalid,ok} from '../internal/diagnostics.js';
+import type {AxisInput} from '../internal/axes/plan.js';
+import type {PlanReferenceBand} from '../public/reference-band-plan-types.js';
+import {withPlanReferenceBands} from './reference-bands.js';
 
 export interface PlanReferenceContext {
   readonly plot:Plot;
@@ -12,6 +15,8 @@ export interface PlanReferenceContext {
   readonly mapY?:(value:number)=>number|null;
   readonly secondaryY?:Readonly<{domain:readonly[number,number]|null;map:(value:number)=>number|null}>;
   readonly horizontal?:boolean;
+  readonly bandSourceAxes?:Readonly<{x:AxisInput;y:AxisInput}>;
+  readonly categorySlot?:(id:string)=>readonly[number,number]|null;
 }
 /** Validate only the additive, style-free envelope. Existing family validators
  * still validate category/time semantics when these values enter their input. */
@@ -52,6 +57,7 @@ function projectedReferences(references:readonly PlanReference[],context:PlanRef
     return {...identity,status:'visible' as const,line:vertical?{x1:coordinate,y1:plot.y,x2:coordinate,y2:plot.y+plot.height}:{x1:plot.x,y1:coordinate,x2:plot.x+plot.width,y2:coordinate}};
   });
 }
-export function withPlanReferences(frame:PlanFrame,references:readonly PlanReference[]|undefined,context?:PlanReferenceContext):PlanFrame{
-  return references===undefined?frame:{...frame,references:projectedReferences(references,context)};
+export function withPlanReferences(frame:PlanFrame,references:readonly PlanReference[]|undefined,context?:PlanReferenceContext,bands?:readonly PlanReferenceBand[]):PlanFrame{
+  const output=references===undefined?frame:{...frame,references:projectedReferences(references,context)};
+  return withPlanReferenceBands(output,bands,context);
 }

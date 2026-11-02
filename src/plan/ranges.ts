@@ -73,7 +73,7 @@ export function planRanges(spec:PlanRangeSpec,options:PlanOptions,references?:re
     const groupGap=Object.hasOwn(input,'groupGap')?number(input.groupGap,'groupGap',0,.95):.2;
     const barGap=Object.hasOwn(input,'barGap')?number(input.barGap,'barGap',0,1):.2;
     const maxBarWidth=Object.hasOwn(input,'maxBarWidth')?number(input.maxBarWidth,'maxBarWidth',.25,1024):Infinity;
-    const opts=record(options,['width','height','hiddenSeriesIds','stacking','viewport','references'],['width','height'],'options');
+    const opts=record(options,['width','height','hiddenSeriesIds','stacking','viewport','references','referenceBands'],['width','height'],'options');
     const width=number(opts.width,'options.width',64,10000),height=number(opts.height,'options.height',64,10000),plot={x:16,y:14,width:width-32,height:height-28};
     if(Object.hasOwn(opts,'stacking'))fail('options.stacking','UNSUPPORTED_STACKING');
     const hidden=Object.hasOwn(opts,'hiddenSeriesIds')?array(opts.hiddenSeriesIds,16,'options.hiddenSeriesIds').map((id,i)=>text(id,'options.hiddenSeriesIds['+i+']',128)):[];
@@ -125,7 +125,7 @@ export function planRanges(spec:PlanRangeSpec,options:PlanOptions,references?:re
     }
     const legend=source.map(s=>({id:s.id,name:s.name,color:s.color,visible:!hidden.includes(s.id)}));
     const base={schema:'nc-plan/1' as const,family,title,description,unit:validated.axes.y.title??'',width,height,legend};
-    const finish=(frame:PlanFrame,context?:Parameters<typeof withPlanReferences>[2]):PlanResult=>freezePlan({status:frame.observations.length?'ok':'empty',frame:withPlanReferences(frame,references,context)});
+    const finish=(frame:PlanFrame,context?:Parameters<typeof withPlanReferences>[2]):PlanResult=>freezePlan({status:frame.observations.length?'ok':'empty',frame:withPlanReferences(frame,references,context,options.referenceBands)});
     if(!domains.value.y)return finish({...base,series:[],observations:[],grid:[],labels:[]});
     let yt=selectNumericTicks(domains.value.y,{nice:validated.axes.y.nice??!validated.axes.y.domain,targetCount:validated.axes.y.ticks?.targetCount??5});if(yt.status==='invalid')return yt;
     let xt=xa.kind==='category'||!initialX?null:(xa.kind==='time'?selectTimeTicks:selectNumericTicks)(initialX,{nice:xa.nice??false,targetCount:xa.ticks?.targetCount??6});if(xt?.status==='invalid')return xt;
@@ -179,6 +179,6 @@ export function planRanges(spec:PlanRangeSpec,options:PlanOptions,references?:re
     }
     const values=xa.kind==='category'?xa.values.map(c=>c.id):xt?.value.ticks??[],labels=values.flatMap(v=>{const x=p.mapX(v);return x===null||x<plot.x||x>plot.x+plot.width?[]:[{x,label:formatAxis(v,xa.kind,interval,normalized.labels)}];});
     const frame:PlanFrame={...base,series,observations,labels,grid:yt.value.ticks.map(v=>({y:p.mapY(v)!,label:String(v)})),...(view?{viewport:planViewportState(view,{x:xt?.value.domain??initialX,y:yt.value.domain},validated.axes,plot)!}:{})};
-    return finish(transform?transform(frame,{plot,yDomain:yt.value.domain,mapX:p.mapX,mapY:p.mapY,slots}):frame,{plot,domains:{x:xt?.value.domain??initialX,y:yt.value.domain},mapX:p.mapX,mapY:p.mapY,...(xa.kind==='category'?{categories:referenceCategories(xa.values,plot,p.mapX)}:{})});
+    return finish(transform?transform(frame,{plot,yDomain:yt.value.domain,mapX:p.mapX,mapY:p.mapY,slots}):frame,{plot,domains:{x:xt?.value.domain??initialX,y:yt.value.domain},mapX:p.mapX,mapY:p.mapY,bandSourceAxes:validated.axes,...(xa.kind==='category'?{categories:referenceCategories(xa.values,plot,p.mapX)}:{})});
   }catch(error){return error instanceof ValidationFailure?{status:'invalid',diagnostic:error.diagnostic}:{status:'invalid',diagnostic:{code:'INVALID_CONFIG',reason:'BAD_SPEC',path:'spec',message:'BAD_SPEC'}};}
 }

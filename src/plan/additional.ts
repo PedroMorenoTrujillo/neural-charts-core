@@ -13,9 +13,10 @@ import {freezePlan} from './input.js';
 import {preparePlanViewport,planViewportState} from './viewport.js';
 import {withViewportDomains} from '../internal/interaction/viewport-axes.js';
 import {withPlanReferences,type PlanReferenceContext} from './references.js';
+import type {PlanReferenceBand} from '../public/reference-band-plan-types.js';
 
 const bad=(reason:string,path:string):PlanResult=>({status:'invalid',diagnostic:{code:'INVALID_CONFIG',reason,path,message:reason}});
-const finish=(frame:PlanFrame,references?:readonly PlanReference[],context?:PlanReferenceContext):PlanResult=>freezePlan({status:frame.observations.length?'ok':'empty',frame:withPlanReferences(frame,references,context)});
+const finish=(frame:PlanFrame,references?:readonly PlanReference[],context?:PlanReferenceContext,bands?:readonly PlanReferenceBand[]):PlanResult=>freezePlan({status:frame.observations.length?'ok':'empty',frame:withPlanReferences(frame,references,context,bands)});
 const legendFor=(items:readonly Readonly<{id:string;name:string;color?:string}>[],palette:readonly string[],hidden:readonly string[]):readonly PlanLegendItem[]=>
   items.map((item,i)=>({id:item.id,name:item.name,color:item.color??palette[i%palette.length]!,visible:!hidden.includes(item.id)}));
 export interface ScatterFrameContext{
@@ -26,7 +27,7 @@ export interface ScatterFrameContext{
 export type ScatterFrameTransform=(frame:PlanFrame,context:ScatterFrameContext)=>PlanFrame;
 
 /** Family orchestration over the existing radial/gauge/scatter calculation owners. */
-export function planAdditional(spec:PlanPieSpec|PlanDonutSpec|PlanGaugeSpec|PlanBubbleSpec|PlanScatterSpec,width:number,height:number,hidden:readonly string[],viewport?:PlanViewportConfig,references?:readonly PlanReference[],transform?:ScatterFrameTransform):PlanResult {
+export function planAdditional(spec:PlanPieSpec|PlanDonutSpec|PlanGaugeSpec|PlanBubbleSpec|PlanScatterSpec,width:number,height:number,hidden:readonly string[],viewport?:PlanViewportConfig,references?:readonly PlanReference[],transform?:ScatterFrameTransform,bands?:readonly PlanReferenceBand[]):PlanResult {
   const palette=defaultPalette('light',false).series;
   if(spec.family==='pie'||spec.family==='donut'){
     if(Array.isArray(spec.data)&&spec.data.length>16)return bad('SLICE_LIMIT','data');
@@ -78,7 +79,7 @@ export function planAdditional(spec:PlanPieSpec|PlanDonutSpec|PlanGaugeSpec|Plan
   const base={schema:'nc-plan/1' as const,family:spec.family,width,height,title:input.title,description:input.description??'',unit:input.axes.y.title??'',legend};
   const data=normalizeScatter(input);if(data.status==='invalid')return data;
   const domains=scatterDomains(data.value,state);if(domains.status==='invalid')return domains;
-  if(!domains.value.x||!domains.value.y)return finish({...base,series:[],observations:[],labels:[],grid:[]},references);
+  if(!domains.value.x||!domains.value.y)return finish({...base,series:[],observations:[],labels:[],grid:[]},references,undefined,bands);
   let xt=selectNumericTicks(domains.value.x,{nice:input.axes.x.nice??!input.axes.x.domain,targetCount:input.axes.x.ticks?.targetCount??5}),yt=selectNumericTicks(domains.value.y,{nice:input.axes.y.nice??!input.axes.y.domain,targetCount:input.axes.y.ticks?.targetCount??5});
   if(xt.status==='invalid')return xt;if(yt.status==='invalid')return yt;
   const prepared=preparePlanViewport(input.axes,{x:xt.value.domain,y:yt.value.domain},viewport);if(prepared.status==='invalid')return prepared;
@@ -97,5 +98,5 @@ export function planAdditional(spec:PlanPieSpec|PlanDonutSpec|PlanGaugeSpec|Plan
     series.push({id:s.series.spec.id,name:s.series.spec.name,color,circles});
   }
   const plot={x:px,y:py,width:width-2*px,height:height-2*py},frame:PlanFrame={...base,series,observations,labels:xt.value.ticks.map(v=>({x:x.value.map(v)!,label:String(v)})),grid:yt.value.ticks.map(v=>({y:y.value.map(v)!,label:String(v)})),...(view?{viewport:planViewportState(view,{x:xt.value.domain,y:yt.value.domain},input.axes,plot)!}:{})};
-  return finish(transform?transform(frame,{plot,xDomain:xt.value.domain,yDomain:yt.value.domain,mapX:x.value.map,mapY:y.value.map}):frame,references,!data.value.series.some(series=>!hidden.includes(series.spec.id)&&series.paired.length>0)?undefined:{plot,domains:{x:xt.value.domain,y:yt.value.domain},mapX:value=>typeof value==='number'?x.value.map(value):null,mapY:y.value.map});
+  return finish(transform?transform(frame,{plot,xDomain:xt.value.domain,yDomain:yt.value.domain,mapX:x.value.map,mapY:y.value.map}):frame,references,!data.value.series.some(series=>!hidden.includes(series.spec.id)&&series.paired.length>0)?undefined:{plot,domains:{x:xt.value.domain,y:yt.value.domain},mapX:value=>typeof value==='number'?x.value.map(value):null,mapY:y.value.map,bandSourceAxes:input.axes},bands);
 }

@@ -56,7 +56,7 @@ export function planMixedAxes(spec:PlanMixedSpec,options:PlanOptions,references?
     if(first===null||last===null||first===last)return bad('UNREPRESENTABLE_SECONDARY_VIEWPORT','viewport.y');displayed[1]=[Math.min(first,last),Math.max(first,last)];
   }
   const mixedAxes:PlanMixedAxesLayout={mode:'dual-y',primary:{domain:full[0]!,displayed:displayed[0]!,reversed:primary.value.axes.y.reversed??false},secondary:{domain:full[1]!,displayed:displayed[1]!,reversed:secondary.value.axes.y.reversed??false},series:schema.value.series.map(s=>({id:s.id,yAxis:assignment.get(s.id)!}))};
-  if(full.every(d=>d===null))return freezePlan({status:'empty',frame:withPlanReferences({...base,mixedAxes,series:[],observations:[],labels:[],grid:[]},references)});
+  if(full.every(d=>d===null))return freezePlan({status:'empty',frame:withPlanReferences({...base,mixedAxes,series:[],observations:[],labels:[],grid:[]},references,undefined,options.referenceBands)});
   const window=view?.value.x?viewportCategoryWindow(view.value.x)??undefined:undefined,all=primary.value.axes.x.values;
   const first=window?all.findIndex(c=>c.id===window.firstId):0,last=window?all.findIndex(c=>c.id===window.lastId):all.length-1,visible=all.slice(first,last+1);
   const shared=createMixedCategoryFrame(visible.map(c=>c.id),plot,spec.groupGap);if(shared.status==='invalid')return shared;
@@ -83,5 +83,5 @@ export function planMixedAxes(spec:PlanMixedSpec,options:PlanOptions,references?
   }
   const rank=(id:string)=>globalData.kinds.get(id)==='area'?0:globalData.kinds.get(id)==='column'?1:2,order=new Map(schema.value.series.map((s,i)=>[s.id,i]));paint.sort((a,b)=>rank(a.id)-rank(b.id)||order.get(a.id)!-order.get(b.id)!);observations.sort((a,b)=>order.get(a.id.seriesId)!-order.get(b.id.seriesId)!);
   const frame={...base,mixedAxes,series:paint,observations,labels:visible.map(c=>({x:categoryMap(c.id)!,label:c.label??c.id})),grid:grids[0]!,...(full[1]?{secondaryGrid:grids[1]!}:{}),...(view?{viewport:planViewportState(view,{x:null,y:displayed[0]!},primary.value.axes,plot)!}:{})};
-  return freezePlan({status:observations.length?'ok':'empty',frame:withPlanReferences(frame,references,{plot,domains:{x:null,y:displayed[0]!},mapX:categoryMap,...(primaryMap?{mapY:primaryMap}:{}),...(secondaryMap?{secondaryY:{domain:displayed[1]!,map:secondaryMap}}:{}),categories:referenceCategories(all,plot,categoryMap)})});
+  return freezePlan({status:observations.length?'ok':'empty',frame:withPlanReferences(frame,references,{plot,domains:{x:null,y:displayed[0]!},mapX:categoryMap,...(primaryMap?{mapY:primaryMap}:{}),...(secondaryMap?{secondaryY:{domain:displayed[1]!,map:secondaryMap}}:{}),bandSourceAxes:primary.value.axes,categories:referenceCategories(all,plot,categoryMap)},options.referenceBands)});
 }

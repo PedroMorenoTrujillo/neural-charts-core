@@ -27,7 +27,7 @@ export function planMixed(spec:PlanMixedSpec,options:PlanOptions,references?:rea
   const {width,height}=options,plot={x:16,y:14,width:width-32,height:height-28},palette=defaultPalette('light',false);
   const legend=input.series.map((s,i)=>({id:s.id,name:s.name,color:s.color??palette.series[i%palette.series.length]!,visible:!hidden.includes(s.id)}));
   const base={schema:'nc-plan/1' as const,family:'mixed' as const,width,height,title:input.title,description:input.description??'',unit:input.axes.y.title??'',legend};
-  if(!domains.value.y)return freezePlan({status:'empty',frame:withPlanReferences({...base,series:[],observations:[],labels:[],grid:[]},references)});
+  if(!domains.value.y)return freezePlan({status:'empty',frame:withPlanReferences({...base,series:[],observations:[],labels:[],grid:[]},references,undefined,options.referenceBands)});
   let yt=selectNumericTicks(domains.value.y,{nice:input.axes.y.nice??!input.axes.y.domain,targetCount:input.axes.y.ticks?.targetCount??5});if(yt.status==='invalid')return yt;
   const prepared=preparePlanViewport(input.axes,{x:null,y:yt.value.domain},options.viewport);if(prepared.status==='invalid')return prepared;
   const view=prepared.value,scoped=withViewportDomains({x:null,y:yt.value.domain},view);
@@ -51,6 +51,6 @@ export function planMixed(spec:PlanMixedSpec,options:PlanOptions,references?:rea
   // Preserve semantic/legend order while matching the owner's paint precedence.
   const rank=(id:string)=>data.kinds.get(id)==='area'?0:data.kinds.get(id)==='column'?1:2;
   series.sort((a,b)=>rank(a.id)-rank(b.id));
-  const frame=withPlanReferences({...base,series,observations,labels:visible.map(c=>({x:maps.mapX(c.id)!,label:c.label??c.id})),grid:yt.value.ticks.map(value=>({y:maps.mapY(value)!,label:String(value)})),...(view?{viewport:planViewportState(view,{x:null,y:yt.value.domain},input.axes,plot)!}:{})},references,{plot,domains:{x:null,y:yt.value.domain},...maps,categories:referenceCategories(all,plot,maps.mapX)});
+  const frame=withPlanReferences({...base,series,observations,labels:visible.map(c=>({x:maps.mapX(c.id)!,label:c.label??c.id})),grid:yt.value.ticks.map(value=>({y:maps.mapY(value)!,label:String(value)})),...(view?{viewport:planViewportState(view,{x:null,y:yt.value.domain},input.axes,plot)!}:{})},references,{plot,domains:{x:null,y:yt.value.domain},...maps,bandSourceAxes:input.axes,categories:referenceCategories(all,plot,maps.mapX)},options.referenceBands);
   return freezePlan({status:observations.length?'ok':'empty',frame});
 }

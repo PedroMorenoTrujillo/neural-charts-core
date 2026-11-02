@@ -2,14 +2,14 @@
 
 Renderer-independent chart planning and geometry in strict TypeScript. The Core converts source data and a viewport size into a read-only frame that a renderer can paint.
 
-**Version 0.0.23 is experimental.** Public contracts can change before 1.0. Pin the version while integrating a renderer.
+**Version 0.0.24 is experimental.** Public contracts can change before 1.0. Pin the version while integrating a renderer.
 
 Version 0.0.5 reduces repeated work in defensive input copying while preserving validation, ownership and chart geometry. Public data and planning contracts are unchanged.
 
 ## Install
 
 ```sh
-npm install @neural-charts/core@0.0.23
+npm install @neural-charts/core@0.0.24
 ```
 
 The package ships ESM JavaScript and TypeScript declarations. It has no runtime dependencies, framework peer dependencies, browser globals, native bridges or module initialization side effects. Its declarations compile with `lib: ["ES2022"]`, without DOM types. Development and package verification use Node.js 22 or newer.
@@ -91,6 +91,7 @@ Planning is synchronous. Inputs are owned internally so subsequent caller mutati
 | `stacking` | `'sum' \| 'percent'` | Available for `area`, `column` and `pictorial`. Horizontal columns retain bar orientation. Other families return an invalid result. |
 | `viewport` | `PlanViewportConfig` | Enabled axes and optional controlled data-domain window. See viewport example below. |
 | `references` | `readonly PlanReference[]` | Named X/Y reference values, projected where supported by the family. Style and label rendering belong to the host. |
+| `referenceBands` | `readonly PlanReferenceBand[]` | Up to 32 named intervals in represented axis units; clipped boxes retain their original endpoints. Paint belongs to the host. |
 
 Unknown top-level planning options are rejected. Chart-specific validators also reject unsupported shapes and invalid values. TypeScript types help at build time; inspect the result for untrusted or remote data at runtime.
 
@@ -167,6 +168,34 @@ const options = {
 ```
 
 A reference has a stable ID, an axis and a value. X accepts a category ID or numeric coordinate; Y accepts a number. Inspect each projected reference's status before painting it. References outside a domain or incompatible with a chart must not be painted as if they were visible. They do not supply colors, text styling or drag handles.
+
+### Reference bands
+
+```ts
+import type {PlanReferenceBand} from '@neural-charts/core/plan';
+
+const referenceBands = [
+  {id: 'target', axis: 'y', from: 40, to: 60},
+  {id: 'campaign', axis: 'x', from: 'mon', to: 'fri'},
+] as const satisfies readonly PlanReferenceBand[];
+```
+
+Pass these intervals in `PlanOptions.referenceBands`. Render only bands whose
+`status` is `visible`, using their clipped `box`. An interval outside the window
+is `outside`; an empty or fully hidden source produces `unavailable`. Bands do
+not expand domains, add observations or become legend/tooltip targets.
+
+Category endpoints are inclusive source IDs, including a single category.
+Numeric and time endpoints must increase. Logical X remains categorical in
+horizontal bars. Y bands use the displayed axis units: percent-stacked charts
+use percentages, without changing the raw observations. A secondary mixed Y
+band explicitly sets `valueAxis: 'secondary'`.
+
+Supported owners are line, area, spline, area spline, column/bar, mixed,
+scatter and bubble. Other families reject this option. Colors, opacity and
+annotation layout belong to the renderer. See the
+[complete contract](https://github.com/PedroMorenoTrujillo/neural-charts-core/blob/main/docs/reference-bands-contract.md)
+for limits and incompatible inputs.
 
 ## Supported planning families
 
