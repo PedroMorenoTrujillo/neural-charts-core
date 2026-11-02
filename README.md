@@ -2,14 +2,14 @@
 
 Renderer-independent chart planning and geometry in strict TypeScript. The Core converts source data and a viewport size into a read-only frame that a renderer can paint.
 
-**Version 0.0.19 is experimental.** Public contracts can change before 1.0. Pin the version while integrating a renderer.
+**Version 0.0.20 is experimental.** Public contracts can change before 1.0. Pin the version while integrating a renderer.
 
 Version 0.0.5 reduces repeated work in defensive input copying while preserving validation, ownership and chart geometry. Public data and planning contracts are unchanged.
 
 ## Install
 
 ```sh
-npm install @neural-charts/core@0.0.19
+npm install @neural-charts/core@0.0.20
 ```
 
 The package ships ESM JavaScript and TypeScript declarations. It has no runtime dependencies, framework peer dependencies, browser globals, native bridges or module initialization side effects. Its declarations compile with `lib: ["ES2022"]`, without DOM types. Development and package verification use Node.js 22 or newer.
@@ -166,7 +166,7 @@ A reference has a stable ID, an axis and a value. X accepts a category ID or num
 
 ## Supported planning families
 
-The current contract produces 60 frame families. These are planning capabilities; inclusion does not certify a renderer's feature parity or device performance.
+The current contract produces 62 frame families. These are planning capabilities; inclusion does not certify a renderer's feature parity or device performance.
 
 | Family | Input | Notes |
 | --- | --- | --- |
@@ -215,6 +215,8 @@ The current contract produces 60 frame families. These are planning capabilities
 | Wind rose | `PlanWindRoseSpec` | Ordered directions and truly stacked frequency bands, by sum or percentage. |
 | Radial bar | `PlanRadialBarSpec` | Concentric progress bands with a common angle scale and exact annular hits. |
 | Parallel coordinates | `PlanParallelSpec` | Independent linear dimensions, in Cartesian or polar coordinates; per-axis domains and units. |
+| Fan | `PlanFanSpec` | Caller-supplied nested uncertainty intervals and central estimates in one range frame. |
+| Regression | `PlanRegressionSpec` | Original XY samples with explicitly derived ordinary least-squares models in one scatter frame. |
 | Flame | `PlanFlameSpec` | Original single-thread call intervals, derived stack depth and exclusive duration. |
 | Violin | `PlanViolinSpec` | Raw sample groups, compact-kernel density and explicitly derived statistical summaries. |
 | Dendrogram | `PlanDendrogramSpec` | Ordered clustering tree with aligned leaves and source merge heights, or explicitly derived topology levels. |
@@ -886,4 +888,50 @@ const distributions = {family:'violin',title:'Response time',axes:{y:{kind:'line
   {id:'second',label:'Second group',samples:[{id:'d',value:8},{id:'e',value:14},{id:'f',value:null}]}
 ]} as const satisfies PlanViolinSpec;
 const violinPlan = planChart(distributions,{width:390,height:300});
+```
+
+
+### Fan: nested uncertainty and a central estimate
+
+`PlanFanSpec` receives caller-supplied estimates and interval bounds. It does not calculate a forecast or invent probabilities. Declare one to six `bands` with stable IDs, labels and strictly increasing `coverage` fractions between zero and one. Each of up to 1,024 `data` points contains an original ID, correlated category/numeric/UTC X coordinate, central `value:number|null` and `intervals` keyed by `bandId`.
+
+Known intervals must contain the known central estimate. Increasing coverage must not narrow any known interval. A null/null pair means unknown; an omitted interval means it is not configured at that coordinate. Half-known pairs, duplicate interval IDs, inverted bounds and non-nested known intervals are rejected. The band ID `center` is reserved for the central drawing series. Zero-width intervals and real zero estimates remain zero.
+
+All intervals and the centre use one existing range-owner category frame and value domain. Wider intervals paint first; the centre is a genuine line in that same frame. Original estimates and original interval endpoints remain separate in the observation's `fan` role. `frame.fan` describes coverage and identities. Numeric/category viewport and reference handling reuse the range owner. Stacking is unsupported. Hiding a drawing series changes visibility, never the supplied bounds or estimates.
+
+```ts
+import {planChart} from '@neural-charts/core/plan';
+import type {PlanFanSpec} from '@neural-charts/core/plan';
+const uncertainty = {
+  family:'fan',title:'Supplied uncertainty',
+  axes:{x:{kind:'linear'},y:{kind:'linear'}},
+  bands:[{id:'central-50',label:'50%',coverage:0.5},{id:'central-95',label:'95%',coverage:0.95}],
+  data:[
+    {id:'past',x:0,value:10,intervals:[]},
+    {id:'next',x:1,value:12,intervals:[{bandId:'central-50',low:10,high:14},{bandId:'central-95',low:8,high:16}]},
+    {id:'later',x:2,value:14,intervals:[{bandId:'central-50',low:11,high:17},{bandId:'central-95',low:6,high:22}]},
+  ],
+} as const satisfies PlanFanSpec;
+const uncertaintyResult = planChart(uncertainty,{width:390,height:300});
+```
+
+### Regression: original XY samples and an explicitly derived fit
+
+`PlanRegressionSpec` receives up to eight original scatter series and 4,096 total source rows. Original IDs, coordinates and unknown values remain source data; no predicted value replaces a measurement. Series IDs and point IDs are bounded to 96 characters; names to 190. The source series prefix `ols:` is reserved for the derived drawing series. Source fields are `id`, `name`, optional `color` and `data`; a point contains `id`, `x:number|null` and `y:number|null`.
+
+Ordinary least squares uses only known XY pairs. Its shifted, scaled and compensated covariance avoids raw-square overflow and loss of small differences at large timestamp offsets. The model reports known/missing pair counts, slope, intercept and R². Constant response produces a genuine zero slope and null R² because total response variance is zero. Fewer than two known pairs or constant X preserve the original points and report an unavailable fit. Nonrepresentable coefficients are diagnosed rather than silently becoming zero or infinity.
+
+Source points and the derived straight line share one scatter frame, numeric axes and domains. Fits use only the measured X extent; there is no extrapolation. Cropping clips the line in original coordinates before pixel mapping, including windows containing no original endpoint. Derived endpoint observations are explicitly identified as `regression.kind:'fit'`, with their actual estimated X/Y values and a bounded line hit strip. Original samples use `kind:'sample'`. Model statistics are stored once in `frame.regression.models`, linked by `modelId`, rather than repeated in every observation. Original and fit visibility are independent; visibility does not change the model's training samples. Stacking is unsupported.
+
+```ts
+import {planChart} from '@neural-charts/core/plan';
+import type {PlanRegressionSpec} from '@neural-charts/core/plan';
+const measured = {
+  family:'regression',title:'Measurements and linear fit',
+  axes:{x:{kind:'linear'},y:{kind:'linear'}},
+  series:[{id:'measurements',name:'Original measurements',data:[
+    {id:'a',x:1,y:3},{id:'b',x:2,y:5},{id:'c',x:3,y:7},{id:'unknown',x:4,y:null},
+  ]}],
+} as const satisfies PlanRegressionSpec;
+const regressionResult = planChart(measured,{width:390,height:300,viewport:{axes:'x',value:{x:[1.2,2.8]}}});
 ```

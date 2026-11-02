@@ -14,7 +14,7 @@ function fraction(a:number,b:number,value:number):number{
 }
 /** Clip in source coordinates before mapping: extreme off-window values must
  * not overflow a pixel scale or become a clamped, fabricated diagonal. */
-export function clipContourSegment(segment:ContourSegment,x:Domain,y:Domain):readonly [ContourPoint,ContourPoint]|null{
+export function clipSourceSegment(segment:Pick<ContourSegment,'start'|'end'>,x:Domain,y:Domain):readonly [ContourPoint,ContourPoint]|null{
   const code=(p:ContourPoint)=>(p.x<x[0]?1:p.x>x[1]?2:0)|(p.y<y[0]?4:p.y>y[1]?8:0);
   let a=segment.start,b=segment.end;
   for(let attempt=0;attempt<8;attempt++){
@@ -26,8 +26,12 @@ export function clipContourSegment(segment:ContourSegment,x:Domain,y:Domain):rea
     else if(outside&4){const t=fraction(a.y,b.y,y[0]);point={x:between(a.x,b.x,t),y:y[0]};}
     else if(outside&2){const t=fraction(a.x,b.x,x[1]);point={x:x[1],y:between(a.y,b.y,t)};}
     else{const t=fraction(a.x,b.x,x[0]);point={x:x[0],y:between(a.y,b.y,t)};}
-    if(!Number.isFinite(point.x)||!Number.isFinite(point.y))throw Error('UNREPRESENTABLE_CONTOUR_CLIP');
+    if(!Number.isFinite(point.x)||!Number.isFinite(point.y))throw Error('UNREPRESENTABLE_SOURCE_CLIP');
     if(ca)a=point;else b=point;
   }
-  throw Error('UNREPRESENTABLE_CONTOUR_CLIP');
+  throw Error('UNREPRESENTABLE_SOURCE_CLIP');
+}
+/** Backward-compatible private contour owner name; geometry is shared unchanged. */
+export function clipContourSegment(segment:ContourSegment,x:Domain,y:Domain):readonly [ContourPoint,ContourPoint]|null{
+  try{return clipSourceSegment(segment,x,y);}catch(error){if(error instanceof Error&&error.message==='UNREPRESENTABLE_SOURCE_CLIP')throw Error('UNREPRESENTABLE_CONTOUR_CLIP');throw error;}
 }

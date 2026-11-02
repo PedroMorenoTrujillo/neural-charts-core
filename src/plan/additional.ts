@@ -18,9 +18,15 @@ const bad=(reason:string,path:string):PlanResult=>({status:'invalid',diagnostic:
 const finish=(frame:PlanFrame,references?:readonly PlanReference[],context?:PlanReferenceContext):PlanResult=>freezePlan({status:frame.observations.length?'ok':'empty',frame:withPlanReferences(frame,references,context)});
 const legendFor=(items:readonly Readonly<{id:string;name:string;color?:string}>[],palette:readonly string[],hidden:readonly string[]):readonly PlanLegendItem[]=>
   items.map((item,i)=>({id:item.id,name:item.name,color:item.color??palette[i%palette.length]!,visible:!hidden.includes(item.id)}));
+export interface ScatterFrameContext{
+  readonly plot:Readonly<{x:number;y:number;width:number;height:number}>;
+  readonly xDomain:readonly[number,number];readonly yDomain:readonly[number,number];
+  readonly mapX:(value:number)=>number|null;readonly mapY:(value:number)=>number|null;
+}
+export type ScatterFrameTransform=(frame:PlanFrame,context:ScatterFrameContext)=>PlanFrame;
 
 /** Family orchestration over the existing radial/gauge/scatter calculation owners. */
-export function planAdditional(spec:PlanPieSpec|PlanDonutSpec|PlanGaugeSpec|PlanBubbleSpec|PlanScatterSpec,width:number,height:number,hidden:readonly string[],viewport?:PlanViewportConfig,references?:readonly PlanReference[]):PlanResult {
+export function planAdditional(spec:PlanPieSpec|PlanDonutSpec|PlanGaugeSpec|PlanBubbleSpec|PlanScatterSpec,width:number,height:number,hidden:readonly string[],viewport?:PlanViewportConfig,references?:readonly PlanReference[],transform?:ScatterFrameTransform):PlanResult {
   const palette=defaultPalette('light',false).series;
   if(spec.family==='pie'||spec.family==='donut'){
     if(Array.isArray(spec.data)&&spec.data.length>16)return bad('SLICE_LIMIT','data');
@@ -90,5 +96,6 @@ export function planAdditional(spec:PlanPieSpec|PlanDonutSpec|PlanGaugeSpec|Plan
     }
     series.push({id:s.series.spec.id,name:s.series.spec.name,color,circles});
   }
-  return finish({...base,series,observations,labels:xt.value.ticks.map(v=>({x:x.value.map(v)!,label:String(v)})),grid:yt.value.ticks.map(v=>({y:y.value.map(v)!,label:String(v)})),...(view?{viewport:planViewportState(view,{x:xt.value.domain,y:yt.value.domain},input.axes,{x:px,y:py,width:width-2*px,height:height-2*py})!}:{})},references,!data.value.series.some(series=>!hidden.includes(series.spec.id)&&series.paired.length>0)?undefined:{plot:{x:px,y:py,width:width-2*px,height:height-2*py},domains:{x:xt.value.domain,y:yt.value.domain},mapX:value=>typeof value==='number'?x.value.map(value):null,mapY:y.value.map});
+  const plot={x:px,y:py,width:width-2*px,height:height-2*py},frame:PlanFrame={...base,series,observations,labels:xt.value.ticks.map(v=>({x:x.value.map(v)!,label:String(v)})),grid:yt.value.ticks.map(v=>({y:y.value.map(v)!,label:String(v)})),...(view?{viewport:planViewportState(view,{x:xt.value.domain,y:yt.value.domain},input.axes,plot)!}:{})};
+  return finish(transform?transform(frame,{plot,xDomain:xt.value.domain,yDomain:yt.value.domain,mapX:x.value.map,mapY:y.value.map}):frame,references,!data.value.series.some(series=>!hidden.includes(series.spec.id)&&series.paired.length>0)?undefined:{plot,domains:{x:xt.value.domain,y:yt.value.domain},mapX:value=>typeof value==='number'?x.value.map(value):null,mapY:y.value.map});
 }

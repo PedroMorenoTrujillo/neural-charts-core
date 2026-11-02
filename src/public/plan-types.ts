@@ -114,11 +114,15 @@ import type {PlanParallelSpec,PlanParallelValue,PlanParallelLayout} from './para
 export type {PlanParallelSpec,PlanParallelAxis,PlanParallelPoint,PlanParallelSeries,PlanParallelValue,PlanParallelAxisFrame,PlanParallelLayout} from './parallel-plan-types.js';
 import type {PlanDendrogramSpec,PlanDendrogramValue,PlanDendrogramLayout} from './dendrogram-plan-types.js';
 export type {PlanDendrogramSpec,PlanDendrogramNode,PlanDendrogramValue,PlanDendrogramLayout} from './dendrogram-plan-types.js';
+import type {PlanRegressionSpec,PlanRegressionValue,PlanRegressionLayout} from './regression-plan-types.js';
+export type {PlanRegressionSpec,PlanRegressionModel,PlanRegressionValue,PlanRegressionLayout} from './regression-plan-types.js';
+import type {PlanFanSpec,PlanFanValue,PlanFanLayout} from './fan-plan-types.js';
+export type {PlanFanSpec,PlanFanBand,PlanFanInterval,PlanFanPoint,PlanFanValue,PlanFanLayout} from './fan-plan-types.js';
 import type {PlanFlameSpec,PlanFlameValue,PlanFlameLayout} from './flame-plan-types.js';
 export type {PlanFlameSpec,PlanFlameSpan,PlanFlameValue,PlanFlameLayout} from './flame-plan-types.js';
 import type {PlanViolinSpec,PlanViolinValue,PlanViolinLayout} from './violin-plan-types.js';
 export type {PlanViolinSpec,PlanViolinSample,PlanViolinGroup,PlanViolinValue,PlanViolinDensity,PlanViolinGroupFrame,PlanViolinLayout} from './violin-plan-types.js';
-export type PlanSpec = PlanViolinSpec | PlanFlameSpec | PlanDendrogramSpec | PlanParallelSpec | PlanWindRoseSpec | PlanRadialBarSpec | PlanHeatmapSpec | PlanVennSpec | PlanContourSpec | PlanTilemapSpec | PlanPictorialSpec | PlanWordCloudSpec | PlanRelationshipSpec | PlanBulletSpec | PlanVariwideSpec | PlanXRangeSpec | PlanTimelineSpec | PlanSankeySpec | PlanVectorSpec | PlanWindbarbSpec | PlanNetworkgraphSpec | PlanPackedBubbleSpec | PlanSunburstSpec | PlanNodeGraphSpec | PlanVariablePieSpec | PlanItemSpec | PlanPolygonSpec | PlanLollipopSpec | PlanDumbbellSpec | PlanColumnPyramidSpec | PlanBoxplotSpec | PlanErrorbarSpec | PlanStreamgraphSpec | PlanRangeSpec | PlanHistogramSpec | PlanBellcurveSpec | PlanAreaSplineSpec | PlanFunnelSpec | PlanPyramidSpec | PlanParetoSpec | PlanRadarSpec | PlanPolarSpec | PlanWaterfallSpec | PlanTreemapSpec | PlanMixedSpec | PlanAreaSpec | PlanSplineSpec | PlanScatterSpec | PlanLineSpec | PlanColumnSpec | PlanPieSpec | PlanDonutSpec | PlanGaugeSpec | PlanBubbleSpec;
+export type PlanSpec = PlanRegressionSpec | PlanFanSpec | PlanViolinSpec | PlanFlameSpec | PlanDendrogramSpec | PlanParallelSpec | PlanWindRoseSpec | PlanRadialBarSpec | PlanHeatmapSpec | PlanVennSpec | PlanContourSpec | PlanTilemapSpec | PlanPictorialSpec | PlanWordCloudSpec | PlanRelationshipSpec | PlanBulletSpec | PlanVariwideSpec | PlanXRangeSpec | PlanTimelineSpec | PlanSankeySpec | PlanVectorSpec | PlanWindbarbSpec | PlanNetworkgraphSpec | PlanPackedBubbleSpec | PlanSunburstSpec | PlanNodeGraphSpec | PlanVariablePieSpec | PlanItemSpec | PlanPolygonSpec | PlanLollipopSpec | PlanDumbbellSpec | PlanColumnPyramidSpec | PlanBoxplotSpec | PlanErrorbarSpec | PlanStreamgraphSpec | PlanRangeSpec | PlanHistogramSpec | PlanBellcurveSpec | PlanAreaSplineSpec | PlanFunnelSpec | PlanPyramidSpec | PlanParetoSpec | PlanRadarSpec | PlanPolarSpec | PlanWaterfallSpec | PlanTreemapSpec | PlanMixedSpec | PlanAreaSpec | PlanSplineSpec | PlanScatterSpec | PlanLineSpec | PlanColumnSpec | PlanPieSpec | PlanDonutSpec | PlanGaugeSpec | PlanBubbleSpec;
 export interface PlanOptions {
   /** Renderer-only measured-text port, supported by WordCloud. */
   readonly wordcloudText?:PlanWordCloudTextInput;
@@ -180,6 +184,8 @@ export interface PlanSeries {
 }
 export interface PlanLegendItem {readonly id:string;readonly name:string;readonly color:string;readonly visible:boolean;}
 export interface PlanObservation {
+  readonly regression?:PlanRegressionValue;
+  readonly fan?:PlanFanValue;
   readonly violin?:PlanViolinValue;
   readonly flame?:PlanFlameValue;
   readonly dendrogram?:PlanDendrogramValue;
@@ -251,6 +257,8 @@ export interface PlanFrame {
   readonly annotations?:readonly PlanAnnotation[];
   readonly viewport?:PlanViewportState;
   readonly references?:readonly PlanProjectedReference[];
+  readonly regression?:PlanRegressionLayout;
+  readonly fan?:PlanFanLayout;
   readonly violin?:PlanViolinLayout;
   readonly flame?:PlanFlameLayout;
   readonly dendrogram?:PlanDendrogramLayout;
