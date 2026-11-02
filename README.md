@@ -2,14 +2,14 @@
 
 Renderer-independent chart planning and geometry in strict TypeScript. The Core converts source data and a viewport size into a read-only frame that a renderer can paint.
 
-**Version 0.0.22 is experimental.** Public contracts can change before 1.0. Pin the version while integrating a renderer.
+**Version 0.0.23 is experimental.** Public contracts can change before 1.0. Pin the version while integrating a renderer.
 
 Version 0.0.5 reduces repeated work in defensive input copying while preserving validation, ownership and chart geometry. Public data and planning contracts are unchanged.
 
 ## Install
 
 ```sh
-npm install @neural-charts/core@0.0.22
+npm install @neural-charts/core@0.0.23
 ```
 
 The package ships ESM JavaScript and TypeScript declarations. It has no runtime dependencies, framework peer dependencies, browser globals, native bridges or module initialization side effects. Its declarations compile with `lib: ["ES2022"]`, without DOM types. Development and package verification use Node.js 22 or newer.
@@ -958,3 +958,7 @@ const measurement = {family:'gauge',title:'Original measurement',
 const half = planChart(shares, {width:390,height:260,circular:{startAngle:-90,endAngle:90}});
 const needle = planChart(measurement, {width:390,height:300,circular:{gaugeStyle:'needle',tickCount:7}});
 ```
+
+### Coordinated supplied ranges and lines
+
+The mixed planning contract also accepts original line measurements with supplied straight or smooth interval series. A single category frame, original-value scale and viewport coordinate all layers; interval endpoints stay explicit in tooltip data. See [complete typed examples and incompatibilities](https://github.com/PedroMorenoTrujillo/neural-charts-core/blob/main/docs/mixed-ranges-contract.md).

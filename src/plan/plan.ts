@@ -1,4 +1,5 @@
 import {planMixedAxes} from './mixed-axes.js';
+import {planMixedRanges} from './mixed-ranges.js';
 import {planCircularDisplay} from './circular-display.js';
 import {planGroupedStacks} from './grouped-stacks.js';
 import {planHeatmap} from './heatmap.js';
@@ -125,6 +126,7 @@ export function planChart(value:PlanSpec,options:PlanOptions):PlanResult {
     if(spec.family==='waterfall')return planWaterfall(spec,ownedOptions,references);
     if(spec.family==='treemap')return planTreemap(spec,ownedOptions);
     if(spec.family==='column'&&ownedOptions.stackGroups)return planGroupedStacks(spec,ownedOptions,references);
+    if(spec.family==='mixed'&&Array.isArray(spec.series)&&spec.series.some(s=>s?.kind==='arearange'||s?.kind==='areasplinerange'))return planMixedRanges(spec,ownedOptions,references);
     if(spec.family==='mixed'&&(spec.axes?.secondaryY!==undefined||Array.isArray(spec.series)&&spec.series.some(s=>s?.yAxis!==undefined)))return planMixedAxes(spec,ownedOptions,references);
     if(spec.family==='mixed')return planMixed(spec,ownedOptions,references);
     if(spec.family==='area'&&ownedOptions.stacking)return planStackedArea(spec,ownedOptions,references);

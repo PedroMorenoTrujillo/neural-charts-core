@@ -46,3 +46,6 @@ export type {PlanStackGroup,PlanStackGroupsLayout} from './public/stack-group-pl
 export type {PlanMixedSeries} from './public/plan-types.js';
 export type {PlanMixedYAxisFrame,PlanMixedAxesLayout} from './public/mixed-axes-plan-types.js';
 export type {PlanCircularOptions,PlanCircularGeometry,PlanSectorCircularFrame,PlanGaugeCircularBase,PlanSolidGaugeFrame,PlanNeedleGaugeFrame,PlanCircularFrame,PlanRadialSummary} from './public/circular-plan-types.js';
+export type {PlanMixedRangeSeries,PlanMixedRangeLineSeries,PlanMixedRangeSpec,PlanMixedRangesLayout} from './public/mixed-range-plan-types.js';
+
+export type {PlanMixedScalarSeries,PlanCartesianMixedSpec} from './public/plan-types.js';

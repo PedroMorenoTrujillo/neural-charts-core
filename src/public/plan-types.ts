@@ -82,11 +82,13 @@ export interface PlanHistogramSpec{readonly family:'histogram';readonly title:st
 export interface PlanBellcurveSpec{readonly family:'bellcurve';readonly title:string;readonly description?:string;readonly samples:readonly number[];readonly intervals?:number;readonly standardDeviations?:number;}
 export interface PlanDistributionSummary{readonly derived:true;readonly sampleCount:number;readonly mean?:number;readonly sampleStandardDeviation?:number;}
 type MixedPlanBase=Pick<MixedChartSpec,'family'|'title'|'description'|'groupGap'|'barGap'|'maxBarWidth'>;
-export type PlanMixedSeries=MixedChartSpec['series'][number]&Readonly<{yAxis?:'primary'|'secondary'}>;
-export type PlanMixedSpec=MixedPlanBase&(
+export type PlanMixedScalarSeries=MixedChartSpec['series'][number]&Readonly<{yAxis?:'primary'|'secondary'}>;
+export type PlanMixedSeries=PlanMixedScalarSeries|import('./mixed-range-plan-types.js').PlanMixedRangeSeries;
+export type PlanCartesianMixedSpec=MixedPlanBase&(
   |Readonly<{axes:MixedChartSpec['axes']&Readonly<{secondaryY?:never}>;series:readonly (MixedChartSpec['series'][number]&Readonly<{yAxis?:'primary'}>)[]}>
-  |Readonly<{axes:MixedChartSpec['axes']&Readonly<{secondaryY:MixedChartSpec['axes']['y']}>;series:readonly PlanMixedSeries[]}>
+  |Readonly<{axes:MixedChartSpec['axes']&Readonly<{secondaryY:MixedChartSpec['axes']['y']}>;series:readonly PlanMixedScalarSeries[]}>
 );
+export type PlanMixedSpec=PlanCartesianMixedSpec|import('./mixed-range-plan-types.js').PlanMixedRangeSpec;
 export type PlanTreemapNode=Readonly<{id:string;label?:string}>&(Readonly<{value:number|null;children?:never}>|Readonly<{children:readonly PlanTreemapNode[];value?:never}>);
 export interface PlanTreemapSpec {readonly family:'treemap';readonly title:string;readonly description?:string;readonly root:PlanTreemapNode;}
 export type PlanScatterSpec=Pick<ScatterChartSpec,'family'|'title'|'description'|'axes'>&{readonly series:readonly Pick<ScatterChartSpec['series'][number],'id'|'name'|'color'|'data'>[]};
@@ -235,6 +237,7 @@ export interface PlanFrame {
   readonly circular?:import('./circular-plan-types.js').PlanCircularFrame;
   readonly radialSummary?:import('./circular-plan-types.js').PlanRadialSummary;
   readonly mixedAxes?:PlanMixedAxesLayout;
+  readonly mixedRanges?:import('./mixed-range-plan-types.js').PlanMixedRangesLayout;
   readonly stackGroups?:PlanStackGroupsLayout;
   readonly heatmapData?:readonly PlanHeatmapSummary[];
   readonly heatmapLayout?:PlanHeatmapLayout;

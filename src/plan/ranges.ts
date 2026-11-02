@@ -20,6 +20,7 @@ type Pair=Readonly<{top:Vertex;bottom:Vertex}>;
 /** Internal owner handoff only; never exported from the public plan entry. */
 export interface RangeGlyphContext {
   readonly plot:Readonly<{x:number;y:number;width:number;height:number}>;
+  readonly yDomain:readonly[number,number];
   readonly mapX:(value:string|number)=>number|null;
   readonly mapY:(value:number)=>number|null;
   readonly slots:readonly Readonly<{seriesId:string;pointId:string;left:number;right:number;center:number;width:number}>[];
@@ -63,7 +64,7 @@ function smoothPairs(points:readonly Pair[],parameters:readonly number[]|undefin
 
 /** True two-boundary intervals. The scalar value is only a compatible midpoint;
  * lowValue/highValue retain the original endpoints for tooltip/accessibility. */
-export function planRanges(spec:PlanRangeSpec,options:PlanOptions,references?:readonly PlanReference[],transform?:RangeGlyphTransform):PlanResult{
+export function planRanges(spec:PlanRangeSpec,options:PlanOptions,references?:readonly PlanReference[],transform?:RangeGlyphTransform,renderSeriesIds?:ReadonlySet<string>):PlanResult{
   try{
     const input=record(spec,['family','title','description','axes','series','groupGap','barGap','maxBarWidth'],['family','title','axes','series'],'spec');
     const family=choice(input.family,['arearange','areasplinerange','columnrange'],'family'),columns=family==='columnrange';
@@ -141,6 +142,7 @@ export function planRanges(spec:PlanRangeSpec,options:PlanOptions,references?:re
     const m=visible.length,slot=m?Math.min(step*(1-groupGap)/(m+(m-1)*barGap),maxBarWidth):0,slotGap=slot*barGap,groupWidth=m*slot+(m-1)*slotGap;
     let budget=MAX_PATH_COMMANDS;const slots:{seriesId:string;pointId:string;left:number;right:number;center:number;width:number}[]=[];
     for(const [si,s]of visible.entries()){
+      if(renderSeriesIds&&!renderSeriesIds.has(s.id))continue;
       const commands:PlanCommand[]=[],areaCommands:PlanCommand[]=[],bars:PlanBar[]=[];
       let run:{point:typeof s.data[number];pair:Pair}[]=[];
       const flush=()=>{
@@ -177,6 +179,6 @@ export function planRanges(spec:PlanRangeSpec,options:PlanOptions,references?:re
     }
     const values=xa.kind==='category'?xa.values.map(c=>c.id):xt?.value.ticks??[],labels=values.flatMap(v=>{const x=p.mapX(v);return x===null||x<plot.x||x>plot.x+plot.width?[]:[{x,label:formatAxis(v,xa.kind,interval,normalized.labels)}];});
     const frame:PlanFrame={...base,series,observations,labels,grid:yt.value.ticks.map(v=>({y:p.mapY(v)!,label:String(v)})),...(view?{viewport:planViewportState(view,{x:xt?.value.domain??initialX,y:yt.value.domain},validated.axes,plot)!}:{})};
-    return finish(transform?transform(frame,{plot,mapX:p.mapX,mapY:p.mapY,slots}):frame,{plot,domains:{x:xt?.value.domain??initialX,y:yt.value.domain},mapX:p.mapX,mapY:p.mapY,...(xa.kind==='category'?{categories:referenceCategories(xa.values,plot,p.mapX)}:{})});
+    return finish(transform?transform(frame,{plot,yDomain:yt.value.domain,mapX:p.mapX,mapY:p.mapY,slots}):frame,{plot,domains:{x:xt?.value.domain??initialX,y:yt.value.domain},mapX:p.mapX,mapY:p.mapY,...(xa.kind==='category'?{categories:referenceCategories(xa.values,plot,p.mapX)}:{})});
   }catch(error){return error instanceof ValidationFailure?{status:'invalid',diagnostic:error.diagnostic}:{status:'invalid',diagnostic:{code:'INVALID_CONFIG',reason:'BAD_SPEC',path:'spec',message:'BAD_SPEC'}};}
 }
