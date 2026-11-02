@@ -92,6 +92,8 @@ Planning is synchronous. Inputs are owned internally so subsequent caller mutati
 | `viewport` | `PlanViewportConfig` | Enabled axes and optional controlled data-domain window. See viewport example below. |
 | `references` | `readonly PlanReference[]` | Named X/Y reference values, projected where supported by the family. Style and label rendering belong to the host. |
 | `referenceBands` | `readonly PlanReferenceBand[]` | Up to 32 named intervals in represented axis units; clipped boxes retain their original endpoints. Paint belongs to the host. |
+| `scales` | `PlanScales` | Optional base-10 logarithmic X/Y projection for line, scatter and bubble. Original values stay unchanged; known log coordinates, domains and decorations must be positive. |
+| `hierarchy` | `PlanHierarchyLayoutOptions` | Horizontal or vertical layout for treegraph and organization. Keeps original topology and a physical XY viewport. |
 
 Unknown top-level planning options are rejected. Chart-specific validators also reject unsupported shapes and invalid values. TypeScript types help at build time; inspect the result for untrusted or remote data at runtime.
 
@@ -196,6 +198,30 @@ scatter and bubble. Other families reject this option. Colors, opacity and
 annotation layout belong to the renderer. See the
 [complete contract](https://github.com/PedroMorenoTrujillo/neural-charts-core/blob/main/docs/reference-bands-contract.md)
 for limits and incompatible inputs.
+
+### Logarithmic axes
+
+```ts
+import {planChart, type PlanLineSpec, type PlanScales} from '@neural-charts/core';
+
+const source = {
+  family: 'line', title: 'Orders',
+  axes: {x: {kind: 'linear'}, y: {kind: 'linear'}},
+  series: [{id: 'orders', name: 'Orders', data: [
+    {id: 'a', x: 1, y: 1}, {id: 'b', x: 2, y: 10}, {id: 'c', x: 3, y: 100},
+  ]}],
+} as const satisfies PlanLineSpec;
+const scales = {y: {kind: 'log', base: 10}} as const satisfies PlanScales;
+const result = planChart(source, {width: 390, height: 300, scales, viewport: {axes: 'y'}});
+```
+
+The numeric input axes still describe original source coordinates. `scales`
+changes projection; it never replaces observations with logarithms. Logarithmic
+viewport bounds add `kind: 'log'` to `PlanViewportAxis`; use
+`transformPlanViewport` for multiplicative zoom and pan. Stacking, zero/negative
+known log coordinates and unsupported chart families are explicit errors. See
+the [logarithmic contract](https://github.com/PedroMorenoTrujillo/neural-charts-core/blob/main/docs/logarithmic-contract.md)
+for gaps, clipping, reversed axes, precision and original-unit decorations.
 
 ## Supported planning families
 

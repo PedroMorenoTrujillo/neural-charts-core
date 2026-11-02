@@ -1,4 +1,4 @@
-import {array,fail,number,record,text,ValidationFailure} from '../internal/data/validation.js';
+import {array,choice,fail,number,record,text,ValidationFailure} from '../internal/data/validation.js';
 import {defaultPalette} from '../internal/chart/presentation.js';
 import {createLinearScale} from '../internal/math/linear.js';
 import {withViewportDomains} from '../internal/interaction/viewport-axes.js';
@@ -55,7 +55,9 @@ export function planHierarchy(spec:PlanSunburstSpec|PlanNodeGraphSpec,options:Pl
     if(!['sunburst','treegraph','organization'].includes(family as string))fail('family');
     const input=record(spec,family==='sunburst'?['family','title','description','root']:['family','title','description','nodes','links','groups'],['family','title',...(family==='sunburst'?['root']:['nodes','links'])],'spec');
     const title=text(input.title,'title'),description=Object.hasOwn(input,'description')?text(input.description,'description',4096,true):'';
-    const opts=record(options,['width','height','hiddenSeriesIds','stacking','viewport','references'],['width','height'],'options'),width=number(opts.width,'options.width',64,10000),height=number(opts.height,'options.height',64,10000),plot={x:16,y:14,width:width-32,height:height-28};
+    const opts=record(options,['width','height','hiddenSeriesIds','stacking','viewport','references','hierarchy'],['width','height'],'options'),width=number(opts.width,'options.width',64,10000),height=number(opts.height,'options.height',64,10000),plot={x:16,y:14,width:width-32,height:height-28};
+    const layout=Object.hasOwn(opts,'hierarchy')?record(opts.hierarchy,['orientation'],[],'options.hierarchy'):{};
+    const horizontal=Object.hasOwn(layout,'orientation')?choice(layout.orientation,['horizontal','vertical'],'options.hierarchy.orientation')==='horizontal':false;
     if(Object.hasOwn(opts,'stacking')||Object.hasOwn(opts,'references'))fail('options','UNSUPPORTED_HIERARCHY_OPTION');
     const hidden=Object.hasOwn(opts,'hiddenSeriesIds')?array(opts.hiddenSeriesIds,15,'options.hiddenSeriesIds').map((id,i)=>text(id,'options.hiddenSeriesIds['+i+']',128)):[];if(new Set(hidden).size!==hidden.length)fail('options.hiddenSeriesIds','BAD_VISIBILITY');
     const palette=defaultPalette('light',false).series;
@@ -120,19 +122,20 @@ export function planHierarchy(spec:PlanSunburstSpec|PlanNodeGraphSpec,options:Pl
       const assign=()=>{for(const row of rows)for(const [i,n]of row.entries())positions.set(n.id,{x:(i+1)/(row.length+1),y:(graph.depth.get(n.id)!+.5)/(maxDepth+1)});};assign();
       for(let pass=0;pass<4;pass++){for(let rank=1;rank<rows.length;rank++){const score=(id:string)=>{const parents=graph.incoming.get(id)!;return parents.length?parents.reduce((sum,parent)=>sum+positions.get(parent)!.x,0)/parents.length:positions.get(id)!.x;};rows[rank]!.sort((a,b)=>score(a.id)-score(b.id)||a.index-b.index);assign();}}
     }
+    if(horizontal)for(const [id,position]of positions)positions.set(id,{x:position.y,y:position.x});
     const config=options.viewport??{axes:'xy' as const};if(config.axes!=='xy')fail('options.viewport.axes','NODEGRAPH_XY_VIEWPORT_ONLY');
     const axes={x:{kind:'linear' as const,domain:[0,1] as const,nice:false},y:{kind:'linear' as const,domain:[0,1] as const,nice:false,reversed:true}},domains={x:[0,1] as const,y:[0,1] as const},prepared=preparePlanViewport(axes,domains,config);if(prepared.status==='invalid')return prepared;
     const view=prepared.value,displayed=withViewportDomains(domains,view),xScale=createLinearScale(displayed.x!,[plot.x,plot.x+plot.width],false),yScale=createLinearScale(displayed.y!,[plot.y,plot.y+plot.height],false);if(xScale.status==='invalid')return xScale;if(yScale.status==='invalid')return yScale;
     const map=(id:string):Vertex=>{const p=positions.get(id)!,x=xScale.value.map(p.x),y=yScale.value.map(p.y);if(x===null||y===null)fail('options.viewport','UNREPRESENTABLE_GRAPH_GEOMETRY');return {x,y};};
-    const pixels=new Map(visible.map(n=>[n.id,map(n.id)])),rows=new Map<number,number[]>();for(const n of visible){const p=pixels.get(n.id)!;if(p.x>=plot.x-96&&p.x<=plot.x+plot.width+96&&p.y>=plot.y-32&&p.y<=plot.y+plot.height+32){const rank=graph.depth.get(n.id)!,row=rows.get(rank)??[];row.push(p.x);rows.set(rank,row);}}
+    const pixels=new Map(visible.map(n=>[n.id,map(n.id)])),rows=new Map<number,number[]>();for(const n of visible){const p=pixels.get(n.id)!;if(p.x>=plot.x-96&&p.x<=plot.x+plot.width+96&&p.y>=plot.y-32&&p.y<=plot.y+plot.height+32){const rank=graph.depth.get(n.id)!,row=rows.get(rank)??[];row.push(horizontal?p.y:p.x);rows.set(rank,row);}}
     let horizontalGap=Infinity;for(const row of rows.values()){row.sort((a,b)=>a-b);for(let i=1;i<row.length;i++)horizontalGap=Math.min(horizontalGap,row[i]!-row[i-1]!);}
-    const rankGap=plot.height/(maxDepth+1)/(displayed.y![1]-displayed.y![0]);
-    const radius=Math.min(12,plot.width/3,plot.height/3,horizontalGap/3,rankGap/3),boxWidth=Math.min(96,plot.width*.78,horizontalGap*.78),boxHeight=Math.min(32,plot.height*.6,rankGap*.6);
+    const rankGap=horizontal?plot.width/(maxDepth+1)/(displayed.x![1]-displayed.x![0]):plot.height/(maxDepth+1)/(displayed.y![1]-displayed.y![0]);
+    const radius=Math.min(12,plot.width/3,plot.height/3,horizontalGap/3,rankGap/3),boxWidth=Math.min(96,plot.width*.78,horizontal?rankGap*.6:horizontalGap*.78),boxHeight=Math.min(32,plot.height*.6,horizontal?horizontalGap*.78:rankGap*.6);
     if(!(radius>0)||!(boxWidth>0)||!(boxHeight>0))fail('options.viewport','UNREPRESENTABLE_GRAPH_GEOMETRY');
     const linkCommands:PlanCommand[]=[];
-    for(const l of edges){const from=pixels.get(l.from)!,to=pixels.get(l.to)!,start={x:from.x,y:from.y+(family==='treegraph'?radius:boxHeight/2)},end={x:to.x,y:to.y-(family==='treegraph'?radius:boxHeight/2)},middle=start.y/2+end.y/2;
-      if(family==='treegraph')connector({a:start,b:{x:start.x,y:middle},c:{x:end.x,y:middle},d:end},plot,linkCommands);
-      else{const points=[start,{x:start.x,y:middle},{x:end.x,y:middle},end];for(let i=1;i<points.length;i++){const segment=clip(points[i-1]!,points[i]!,plot);if(segment)linkCommands.push({kind:'M',...segment[0]},{kind:'L',...segment[1]});}}
+    for(const l of edges){const from=pixels.get(l.from)!,to=pixels.get(l.to)!,offset=family==='treegraph'?radius:horizontal?boxWidth/2:boxHeight/2,start=horizontal?{x:from.x+offset,y:from.y}:{x:from.x,y:from.y+offset},end=horizontal?{x:to.x-offset,y:to.y}:{x:to.x,y:to.y-offset},middle=horizontal?start.x/2+end.x/2:start.y/2+end.y/2,first=horizontal?{x:middle,y:start.y}:{x:start.x,y:middle},last=horizontal?{x:middle,y:end.y}:{x:end.x,y:middle};
+      if(family==='treegraph')connector({a:start,b:first,c:last,d:end},plot,linkCommands);
+      else{const points=[start,first,last,end];for(let i=1;i<points.length;i++){const segment=clip(points[i-1]!,points[i]!,plot);if(segment)linkCommands.push({kind:'M',...segment[0]},{kind:'L',...segment[1]});}}
     }
     const legend=[...groups.values()].map((g,i)=>({id:g.id,name:g.label,color:palette[i%palette.length]!,visible:!hidden.includes(g.id)})),marks=new Map<string,{circles:PlanCircle[];bars:PlanBar[]}>(),observations:PlanObservation[]=[],annotations:PlanAnnotation[]=[];for(const g of legend)if(g.visible)marks.set(g.id,{circles:[],bars:[]});
     for(const n of visible){
@@ -141,8 +144,8 @@ export function planHierarchy(spec:PlanSunburstSpec|PlanNodeGraphSpec,options:Pl
       if(family==='treegraph'){if(Math.hypot(p.x-anchor.x,p.y-anchor.y)>=radius)continue;paint.circles.push({pointId:n.id,cx:p.x,cy:p.y,radius});hit={kind:'circle',cx:p.x,cy:p.y,radius};}
       else{const x=Math.max(plot.x,p.x-boxWidth/2),y=Math.max(plot.y,p.y-boxHeight/2),right=Math.min(plot.x+plot.width,p.x+boxWidth/2),bottom=Math.min(plot.y+plot.height,p.y+boxHeight/2);if(right<=x||bottom<=y)continue;paint.bars.push({pointId:n.id,x,y,width:right-x,height:bottom-y});hit={kind:'polygon',vertices:[{x,y},{x:right,y},{x:right,y:bottom},{x,y:bottom}]};}
       const incoming=graph.incoming.get(n.id)!.length,outgoing=graph.outgoing.get(n.id)!.length;observations.push({id:{seriesId:n.groupId,pointId:n.id},label:n.label,seriesName:group.name,value:incoming+outgoing,node:{incoming,outgoing,depth:graph.depth.get(n.id)!},x:anchor.x,y:anchor.y,color:group.color,hit});
-      const labelWidth=family==='organization'?boxWidth-8:Math.min(120,plot.width*.9,horizontalGap*.9),labelHeight=16,labelY=family==='organization'?p.y:p.y+radius+11;
-      const rowGap=plot.height/(maxDepth+1)/(displayed.y![1]-displayed.y![0]);
+      const labelWidth=family==='organization'?boxWidth-8:Math.min(120,plot.width*.9,horizontal?rankGap*.9:horizontalGap*.9),labelHeight=16,labelY=family==='organization'?p.y:p.y+radius+11;
+      const rowGap=horizontal?horizontalGap:plot.height/(maxDepth+1)/(displayed.y![1]-displayed.y![0]);
       if(annotations.length<64&&labelWidth>=32&&(family==='organization'?boxHeight>=20:rowGap>=radius*2+22)&&p.x-labelWidth/2>=plot.x&&p.x+labelWidth/2<=plot.x+plot.width&&labelY-labelHeight/2>=plot.y&&labelY+labelHeight/2<=plot.y+plot.height)annotations.push({x:p.x,y:labelY,text:boundedLabel(n.label,labelWidth),role:'label',box:{width:labelWidth,height:labelHeight,seriesId:n.groupId}});
     }
     const series:PlanSeries[]=[...(linkCommands.length?[{id:'links',name:'Links',color:'#8190A5',commands:linkCommands}]:[]),...legend.filter(g=>g.visible).map(g=>({id:g.id,name:g.name,color:g.color,...(family==='treegraph'?{circles:marks.get(g.id)!.circles}:{bars:marks.get(g.id)!.bars})}))];

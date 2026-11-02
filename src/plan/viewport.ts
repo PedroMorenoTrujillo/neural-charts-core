@@ -1,4 +1,5 @@
 import type {ChartResult} from '../public/chart-types.js';
+import {transformLogViewport} from './log-viewport.js';
 import type {PlanViewportConfig,PlanViewportState,PlanViewportIntent,PlanViewportResult,PlanViewportAxis,PlanViewportValue} from '../public/plan-types.js';
 import type {ChartAxisWindow,ChartNumericWindow} from '../public/viewport-types.js';
 import {cartesianViewportContext,withViewportDomains} from '../internal/interaction/viewport-axes.js';
@@ -60,10 +61,11 @@ export function transformPlanViewport(input:PlanViewportState,intent:PlanViewpor
     const state=ownPlanInput(input) as PlanViewportState,action=ownPlanInput(intent) as PlanViewportIntent;
     if(!state||!action||Object.keys(state).some(key=>!['axes','value','bounds','displayed','reversed','plot'].includes(key))||!state.bounds||!state.displayed||!state.reversed||Object.keys(state.bounds).some(key=>!['x','y'].includes(key))||Object.keys(state.displayed).some(key=>!['x','y'].includes(key))||Object.keys(state.reversed).some(key=>!['x','y'].includes(key))||typeof state.reversed.x!=='boolean'||typeof state.reversed.y!=='boolean')return invalid('INVALID_CONFIG','BAD_VIEWPORT','viewport');
     if(state.plot!==undefined&&(!state.plot||typeof state.plot!=='object'||Object.keys(state.plot).some(key=>!['x','y','width','height'].includes(key))||!['x','y','width','height'].every(key=>typeof state.plot![key as keyof typeof state.plot]==='number'&&Number.isFinite(state.plot![key as keyof typeof state.plot]))||state.plot.x<0||state.plot.y<0||state.plot.width<=0||state.plot.height<=0))return invalid('INVALID_CONFIG','BAD_VIEWPORT_PLOT','viewport.plot');
+    if(state.bounds.x?.kind==='log'||state.bounds.y?.kind==='log')return freezePlan(transformLogViewport(state,action,transformPlanViewport));
     const read=(name:'x'|'y')=>{const axis=state.bounds[name];if(!axis||typeof axis!=='object')return invalid('INVALID_CONFIG','BAD_VIEWPORT_AXIS','viewport.'+name);
       if(axis.kind==='category'){if(Object.keys(axis).some(key=>!['kind','ids','edgeSpacing'].includes(key))||!Array.isArray(axis.ids)||axis.ids.length>256||!Number.isFinite(axis.edgeSpacing)||axis.edgeSpacing<0||axis.edgeSpacing>2)return invalid('INVALID_CONFIG','BAD_VIEWPORT_AXIS','viewport.'+name);return categoryViewportAxis(axis.ids);}
-      if(!['linear','time'].includes(axis.kind)||Object.keys(axis).some(key=>!['kind','domain','limits'].includes(key)))return invalid('INVALID_CONFIG','BAD_VIEWPORT_AXIS','viewport.'+name);
-      if(axis.limits!==undefined&&(!axis.limits||Object.keys(axis.limits).some(key=>key!=='minSpan')||!Number.isFinite(axis.limits.minSpan)||axis.limits.minSpan<=0||!Array.isArray(axis.domain)||axis.domain.length!==2||axis.limits.minSpan>axis.domain[1]!-axis.domain[0]!))return invalid('INVALID_CONFIG','BAD_VIEWPORT_LIMIT','viewport.'+name+'.limits');
+      if(axis.kind!=='linear'&&axis.kind!=='time'||Object.keys(axis).some(key=>!['kind','domain','limits'].includes(key)))return invalid('INVALID_CONFIG','BAD_VIEWPORT_AXIS','viewport.'+name);
+      if('limits' in axis&&axis.limits!==undefined&&(!axis.limits||Object.keys(axis.limits).some(key=>key!=='minSpan')||!Number.isFinite(axis.limits.minSpan)||axis.limits.minSpan<=0||!Array.isArray(axis.domain)||axis.domain.length!==2||axis.limits.minSpan>axis.domain[1]!-axis.domain[0]!))return invalid('INVALID_CONFIG','BAD_VIEWPORT_LIMIT','viewport.'+name+'.limits');
       return numericViewportAxis(axis.kind,axis.domain,state.displayed[name]);};
     const x=read('x');if(x.status==='invalid')return x;const y=read('y');if(y.status==='invalid')return y;
     const context:ViewportContext={x:x.value,y:y.value};
@@ -84,7 +86,7 @@ export function transformPlanViewport(input:PlanViewportState,intent:PlanViewpor
       if(factor>1)for(const name of ['x','y'] as const){
         if(state.axes!==name&&state.axes!=='xy')continue;
         const axis=state.bounds[name],displayed=state.displayed[name];
-        if(axis.kind!=='category'&&axis.limits&&displayed){
+        if(axis.kind!=='category'&&'limits' in axis&&axis.limits&&displayed){
           const span=displayed[1]-displayed[0];
           if(span<axis.limits.minSpan*(1-1e-12))return invalid('INVALID_CONFIG','BAD_VIEWPORT_LIMIT','viewport.'+name+'.limits');
           factor=Math.min(factor,Math.max(1,span/axis.limits.minSpan));

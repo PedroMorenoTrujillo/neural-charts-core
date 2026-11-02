@@ -135,6 +135,8 @@ import type {PlanViolinSpec,PlanViolinValue,PlanViolinLayout} from './violin-pla
 export type {PlanViolinSpec,PlanViolinSample,PlanViolinGroup,PlanViolinValue,PlanViolinDensity,PlanViolinGroupFrame,PlanViolinLayout} from './violin-plan-types.js';
 export type PlanSpec = PlanRegressionSpec | PlanFanSpec | PlanViolinSpec | PlanFlameSpec | PlanDendrogramSpec | PlanParallelSpec | PlanWindRoseSpec | PlanRadialBarSpec | PlanHeatmapSpec | PlanVennSpec | PlanContourSpec | PlanTilemapSpec | PlanPictorialSpec | PlanWordCloudSpec | PlanRelationshipSpec | PlanBulletSpec | PlanVariwideSpec | PlanXRangeSpec | PlanTimelineSpec | PlanSankeySpec | PlanVectorSpec | PlanWindbarbSpec | PlanNetworkgraphSpec | PlanPackedBubbleSpec | PlanSunburstSpec | PlanNodeGraphSpec | PlanVariablePieSpec | PlanItemSpec | PlanPolygonSpec | PlanLollipopSpec | PlanDumbbellSpec | PlanColumnPyramidSpec | PlanBoxplotSpec | PlanErrorbarSpec | PlanStreamgraphSpec | PlanRangeSpec | PlanHistogramSpec | PlanBellcurveSpec | PlanAreaSplineSpec | PlanFunnelSpec | PlanPyramidSpec | PlanParetoSpec | PlanRadarSpec | PlanPolarSpec | PlanWaterfallSpec | PlanTreemapSpec | PlanMixedSpec | PlanAreaSpec | PlanSplineSpec | PlanScatterSpec | PlanLineSpec | PlanColumnSpec | PlanPieSpec | PlanDonutSpec | PlanGaugeSpec | PlanBubbleSpec;
 export interface PlanOptions {
+  readonly hierarchy?:import('./hierarchy-layout-plan-types.js').PlanHierarchyLayoutOptions;
+  readonly scales?:import('./log-plan-types.js').PlanScales;
   readonly circular?:import('./circular-plan-types.js').PlanCircularOptions;
   /** Original column series partition; requires sum/percent stacking. */
   readonly stackGroups?:readonly PlanStackGroup[];
@@ -156,7 +158,7 @@ export type PlanProjectedReference=Readonly<{id:string;axis:'x'|'y';valueAxis?:'
 );
 export type PlanViewportValue=ChartViewportValue;
 export interface PlanViewportConfig {readonly axes:'x'|'y'|'xy';readonly value?:PlanViewportValue;}
-export type PlanViewportAxis=Readonly<{kind:'category';ids:readonly string[];edgeSpacing:number}>|Readonly<{kind:'linear'|'time';domain:ChartNumericWindow|null;limits?:Readonly<{minSpan:number}>}>;
+export type PlanViewportAxis=Readonly<{kind:'category';ids:readonly string[];edgeSpacing:number}>|Readonly<{kind:'linear'|'time';domain:ChartNumericWindow|null;limits?:Readonly<{minSpan:number}>}>|Readonly<{kind:'log';base:10;domain:ChartNumericWindow}>;
 /** Closed, host-neutral state. No internal scale, callback or DOM reference escapes. */
 export interface PlanViewportState {
   readonly axes:'x'|'y'|'xy';readonly value:PlanViewportValue;

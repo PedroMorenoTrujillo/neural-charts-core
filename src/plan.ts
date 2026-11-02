@@ -12,6 +12,8 @@ export type {PlanWordCloudWord,PlanWordCloudGroup,PlanWordCloudRotation,PlanWord
 export type {PlanRelationshipNode,PlanRelationshipLink,PlanRelationshipSource,PlanDependencyWheelSpec,PlanArcDiagramSpec,PlanChordSpec,PlanRelationshipSpec,PlanRelationshipMetadata,PlanRelationshipObservation,PlanRelationshipFrame,PlanRelationshipResult} from './public/relationship-types.js';
 export type {PlanVectorSpec,PlanWindbarbSpec,PlanVectorPoint,PlanWindbarbPoint,PlanDirectionalSeries} from './public/plan-types.js';
 import {planChart as projectPlan} from './plan/plan.js';
+export type {PlanLogScale,PlanScales} from './public/log-plan-types.js';
+export type {PlanHierarchyLayoutOptions} from './public/hierarchy-layout-plan-types.js';
 export type {PlanSankeySpec,PlanSankeyNode,PlanSankeyLink} from './public/plan-types.js';
 import {transformPlanViewport as applyViewport} from './plan/viewport.js';
 import type {PlanSpec,PlanOptions,PlanResult,PlanViewportState,PlanViewportIntent,PlanViewportResult} from './public/plan-types.js';

@@ -1,4 +1,5 @@
 import {planMixedAxes} from './mixed-axes.js';
+import {planLogarithmic} from './logarithmic.js';
 import {planMixedRanges} from './mixed-ranges.js';
 import {planCircularDisplay} from './circular-display.js';
 import {planGroupedStacks} from './grouped-stacks.js';
@@ -74,12 +75,14 @@ const legendFor=(items:readonly Readonly<{id:string;name:string;color?:string}>[
 export function planChart(value:PlanSpec,options:PlanOptions):PlanResult {
   try{
     const ownedOptions=ownPlanInput(options) as PlanOptions;
-    if(!ownedOptions||typeof ownedOptions!=='object'||Object.keys(ownedOptions).some(key=>!['width','height','hiddenSeriesIds','stacking','stackGroups','viewport','references','referenceBands','wordcloudText','circular'].includes(key)))return bad('UNKNOWN_OPTION','options');
+    if(!ownedOptions||typeof ownedOptions!=='object'||Object.keys(ownedOptions).some(key=>!['width','height','hiddenSeriesIds','stacking','stackGroups','viewport','references','referenceBands','scales','hierarchy','wordcloudText','circular'].includes(key)))return bad('UNKNOWN_OPTION','options');
     const {width,height}=ownedOptions,hidden=ownedOptions.hiddenSeriesIds??[];
     if(!Number.isFinite(width)||!Number.isFinite(height)||width<64||height<64||width>10000||height>10000)return bad('BAD_VIEWPORT','options');
     if(!Array.isArray(hidden)||hidden.length>16||hidden.some(id=>typeof id!=='string'||!id||id.length>256)||new Set(hidden).size!==hidden.length)return bad('BAD_VISIBILITY','options.hiddenSeriesIds');
     const spec=ownPlanInput(value) as PlanSpec;
     if(!spec||typeof spec!=='object'||!['regression','fan','violin','flame','dendrogram','parallel','windrose','radialbar','heatmap','venn','contour','tilemap','pictorial','wordcloud','dependencywheel','arcdiagram','chord','bullet','variwide','xrange','timeline','sankey','vector','windbarb','networkgraph','packedbubble','sunburst','treegraph','organization','variablepie','item','polygon','lollipop','dumbbell','columnpyramid','boxplot','errorbar','streamgraph','arearange','areasplinerange','columnrange','histogram','bellcurve','areaspline','funnel','pyramid','pareto','radar','polar','waterfall','treemap','mixed','line','area','spline','scatter','column','pie','donut','gauge','bubble'].includes(spec.family))return bad('UNSUPPORTED_FAMILY','family');
+    if(ownedOptions.hierarchy!==undefined&&spec.family!=='treegraph'&&spec.family!=='organization')return bad('UNSUPPORTED_HIERARCHY_LAYOUT','options.hierarchy');
+    if(ownedOptions.scales!==undefined)return planLogarithmic(spec,ownedOptions);
     const checkedBands=validatePlanReferenceBands(ownedOptions.referenceBands,spec);if(checkedBands.status==='invalid')return checkedBands;
     if(ownedOptions.stacking!==undefined&&(!['column','area','pictorial'].includes(spec.family)||!['sum','percent'].includes(ownedOptions.stacking)))return bad('BAD_STACK_MODE','options.stacking');
     if(ownedOptions.stackGroups!==undefined&&(spec.family!=='column'||!ownedOptions.stacking))return bad('STACK_GROUPS_REQUIRE_STACKED_COLUMNS','options.stackGroups');
