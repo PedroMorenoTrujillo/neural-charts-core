@@ -1,4 +1,5 @@
 import {planMixedAxes} from './mixed-axes.js';
+import {planCircularDisplay} from './circular-display.js';
 import {planGroupedStacks} from './grouped-stacks.js';
 import {planHeatmap} from './heatmap.js';
 import {planVenn} from './venn.js';
@@ -71,7 +72,7 @@ const legendFor=(items:readonly Readonly<{id:string;name:string;color?:string}>[
 export function planChart(value:PlanSpec,options:PlanOptions):PlanResult {
   try{
     const ownedOptions=ownPlanInput(options) as PlanOptions;
-    if(!ownedOptions||typeof ownedOptions!=='object'||Object.keys(ownedOptions).some(key=>!['width','height','hiddenSeriesIds','stacking','stackGroups','viewport','references','wordcloudText'].includes(key)))return bad('UNKNOWN_OPTION','options');
+    if(!ownedOptions||typeof ownedOptions!=='object'||Object.keys(ownedOptions).some(key=>!['width','height','hiddenSeriesIds','stacking','stackGroups','viewport','references','wordcloudText','circular'].includes(key)))return bad('UNKNOWN_OPTION','options');
     const {width,height}=ownedOptions,hidden=ownedOptions.hiddenSeriesIds??[];
     if(!Number.isFinite(width)||!Number.isFinite(height)||width<64||height<64||width>10000||height>10000)return bad('BAD_VIEWPORT','options');
     if(!Array.isArray(hidden)||hidden.length>16||hidden.some(id=>typeof id!=='string'||!id||id.length>256)||new Set(hidden).size!==hidden.length)return bad('BAD_VISIBILITY','options.hiddenSeriesIds');
@@ -80,6 +81,7 @@ export function planChart(value:PlanSpec,options:PlanOptions):PlanResult {
     if(ownedOptions.stacking!==undefined&&(!['column','area','pictorial'].includes(spec.family)||!['sum','percent'].includes(ownedOptions.stacking)))return bad('BAD_STACK_MODE','options.stacking');
     if(ownedOptions.stackGroups!==undefined&&(spec.family!=='column'||!ownedOptions.stacking))return bad('STACK_GROUPS_REQUIRE_STACKED_COLUMNS','options.stackGroups');
     if(ownedOptions.wordcloudText!==undefined&&spec.family!=='wordcloud')return bad('UNSUPPORTED_TEXT_MEASUREMENTS','options.wordcloudText');
+    if(ownedOptions.circular!==undefined&&!['pie','donut','gauge'].includes(spec.family))return bad('UNSUPPORTED_CIRCULAR_LAYOUT','options.circular');
     if(spec.family==='regression')return planRegression(spec,ownedOptions);
     if(spec.family==='fan')return planFan(spec,ownedOptions);
     if(spec.family==='violin')return planViolin(spec,ownedOptions);
@@ -126,6 +128,7 @@ export function planChart(value:PlanSpec,options:PlanOptions):PlanResult {
     if(spec.family==='mixed'&&(spec.axes?.secondaryY!==undefined||Array.isArray(spec.series)&&spec.series.some(s=>s?.yAxis!==undefined)))return planMixedAxes(spec,ownedOptions,references);
     if(spec.family==='mixed')return planMixed(spec,ownedOptions,references);
     if(spec.family==='area'&&ownedOptions.stacking)return planStackedArea(spec,ownedOptions,references);
+    if(ownedOptions.circular!==undefined&&(spec.family==='pie'||spec.family==='donut'||spec.family==='gauge'))return planCircularDisplay(spec,ownedOptions);
     if(spec.family!=='line'&&spec.family!=='area'&&spec.family!=='areaspline'&&spec.family!=='spline'&&spec.family!=='column')return planAdditional(spec,width,height,hidden,ownedOptions.viewport,references);
     if(!Array.isArray(spec.series)||spec.series.length>16||spec.series.reduce((n,s)=>n+(Array.isArray(s?.data)?s.data.length:10001),0)>10000)return bad('INPUT_LIMIT','series');
     if(spec.axes?.x?.kind==='category'&&Array.isArray(spec.axes.x.values)&&spec.axes.x.values.length>64)return bad('LABEL_LIMIT','axes.x.values');

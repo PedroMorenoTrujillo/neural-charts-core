@@ -133,6 +133,7 @@ import type {PlanViolinSpec,PlanViolinValue,PlanViolinLayout} from './violin-pla
 export type {PlanViolinSpec,PlanViolinSample,PlanViolinGroup,PlanViolinValue,PlanViolinDensity,PlanViolinGroupFrame,PlanViolinLayout} from './violin-plan-types.js';
 export type PlanSpec = PlanRegressionSpec | PlanFanSpec | PlanViolinSpec | PlanFlameSpec | PlanDendrogramSpec | PlanParallelSpec | PlanWindRoseSpec | PlanRadialBarSpec | PlanHeatmapSpec | PlanVennSpec | PlanContourSpec | PlanTilemapSpec | PlanPictorialSpec | PlanWordCloudSpec | PlanRelationshipSpec | PlanBulletSpec | PlanVariwideSpec | PlanXRangeSpec | PlanTimelineSpec | PlanSankeySpec | PlanVectorSpec | PlanWindbarbSpec | PlanNetworkgraphSpec | PlanPackedBubbleSpec | PlanSunburstSpec | PlanNodeGraphSpec | PlanVariablePieSpec | PlanItemSpec | PlanPolygonSpec | PlanLollipopSpec | PlanDumbbellSpec | PlanColumnPyramidSpec | PlanBoxplotSpec | PlanErrorbarSpec | PlanStreamgraphSpec | PlanRangeSpec | PlanHistogramSpec | PlanBellcurveSpec | PlanAreaSplineSpec | PlanFunnelSpec | PlanPyramidSpec | PlanParetoSpec | PlanRadarSpec | PlanPolarSpec | PlanWaterfallSpec | PlanTreemapSpec | PlanMixedSpec | PlanAreaSpec | PlanSplineSpec | PlanScatterSpec | PlanLineSpec | PlanColumnSpec | PlanPieSpec | PlanDonutSpec | PlanGaugeSpec | PlanBubbleSpec;
 export interface PlanOptions {
+  readonly circular?:import('./circular-plan-types.js').PlanCircularOptions;
   /** Original column series partition; requires sum/percent stacking. */
   readonly stackGroups?:readonly PlanStackGroup[];
   /** Renderer-only measured-text port, supported by WordCloud. */
@@ -231,6 +232,8 @@ export interface PlanObservation {
   readonly computedKind?:'subtotal'|'total';
 }
 export interface PlanFrame {
+  readonly circular?:import('./circular-plan-types.js').PlanCircularFrame;
+  readonly radialSummary?:import('./circular-plan-types.js').PlanRadialSummary;
   readonly mixedAxes?:PlanMixedAxesLayout;
   readonly stackGroups?:PlanStackGroupsLayout;
   readonly heatmapData?:readonly PlanHeatmapSummary[];

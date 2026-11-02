@@ -45,3 +45,4 @@ export type {PlanVariwidePoint,PlanVariwideSeries,PlanVariwideSpec,PlanVariwideV
 export type {PlanStackGroup,PlanStackGroupsLayout} from './public/stack-group-plan-types.js';
 export type {PlanMixedSeries} from './public/plan-types.js';
 export type {PlanMixedYAxisFrame,PlanMixedAxesLayout} from './public/mixed-axes-plan-types.js';
+export type {PlanCircularOptions,PlanCircularGeometry,PlanSectorCircularFrame,PlanGaugeCircularBase,PlanSolidGaugeFrame,PlanNeedleGaugeFrame,PlanCircularFrame,PlanRadialSummary} from './public/circular-plan-types.js';

@@ -2,14 +2,14 @@
 
 Renderer-independent chart planning and geometry in strict TypeScript. The Core converts source data and a viewport size into a read-only frame that a renderer can paint.
 
-**Version 0.0.21 is experimental.** Public contracts can change before 1.0. Pin the version while integrating a renderer.
+**Version 0.0.22 is experimental.** Public contracts can change before 1.0. Pin the version while integrating a renderer.
 
 Version 0.0.5 reduces repeated work in defensive input copying while preserving validation, ownership and chart geometry. Public data and planning contracts are unchanged.
 
 ## Install
 
 ```sh
-npm install @neural-charts/core@0.0.21
+npm install @neural-charts/core@0.0.22
 ```
 
 The package ships ESM JavaScript and TypeScript declarations. It has no runtime dependencies, framework peer dependencies, browser globals, native bridges or module initialization side effects. Its declarations compile with `lib: ["ES2022"]`, without DOM types. Development and package verification use Node.js 22 or newer.
@@ -116,7 +116,7 @@ Relationship hit polygons remain bounded lookup approximations with at most 34 v
 
 ### Grouped stacks and independent mixed axes
 
-Column series can form adjacent sum/percent stacks with `options.stackGroups`, a strict partition of all original series. Mixed charts can declare `axes.secondaryY` and assign series to `yAxis:'secondary'`, preserving original values and one shared category frame. `frame.stackGroups` and `frame.mixedAxes` carry renderer ownership; these are not overlay shortcuts. See [complete contracts, typed examples, limits and incompatible options](docs/composition-contract.md).
+Column series can form adjacent sum/percent stacks with `options.stackGroups`, a strict partition of all original series. Mixed charts can declare `axes.secondaryY` and assign series to `yAxis:'secondary'`, preserving original values and one shared category frame. `frame.stackGroups` and `frame.mixedAxes` carry renderer ownership; these are not overlay shortcuts. See [complete contracts, typed examples, limits and incompatible options](https://github.com/PedroMorenoTrujillo/neural-charts-core/blob/main/docs/composition-contract.md).
 
 ### `transformPlanViewport(state, intent): PlanViewportResult`
 
@@ -938,4 +938,23 @@ const measured = {
   ]}],
 } as const satisfies PlanRegressionSpec;
 const regressionResult = planChart(measured,{width:390,height:300,viewport:{axes:'x',value:{x:[1.2,2.8]}}});
+```
+
+
+### Circular sweeps and original scalar needles
+
+The optional `options.circular` envelope adds a bounded clockwise sweep to pie/donut and a true scalar needle to gauges. Original values, missing data and overflow semantics remain explicit. Wrapped hit regions and a uniform fitting extent are supplied in `frame.circular`; `frame.radialSummary` identifies complete totals versus known subtotals. Needle metadata supports renderer rotation without projecting data on animation frames. See [typed examples, angle limits, missing values, tick density and incompatible options](https://github.com/PedroMorenoTrujillo/neural-charts-core/blob/main/docs/circular-contract.md).
+
+```ts
+import {planChart, type PlanPieSpec, type PlanGaugeSpec} from '@neural-charts/core/plan';
+
+const shares = {family:'pie',title:'Original shares',
+  data:[{id:'a',label:'A',value:1},{id:'b',label:'B',value:3}],
+} as const satisfies PlanPieSpec;
+const measurement = {family:'gauge',title:'Original measurement',
+  value:72,domain:[0,100],unit:'%',
+} as const satisfies PlanGaugeSpec;
+
+const half = planChart(shares, {width:390,height:260,circular:{startAngle:-90,endAngle:90}});
+const needle = planChart(measurement, {width:390,height:300,circular:{gaugeStyle:'needle',tickCount:7}});
 ```
