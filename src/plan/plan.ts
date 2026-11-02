@@ -1,3 +1,5 @@
+import {planMixedAxes} from './mixed-axes.js';
+import {planGroupedStacks} from './grouped-stacks.js';
 import {planHeatmap} from './heatmap.js';
 import {planVenn} from './venn.js';
 import {planContour} from './contour.js';
@@ -69,13 +71,14 @@ const legendFor=(items:readonly Readonly<{id:string;name:string;color?:string}>[
 export function planChart(value:PlanSpec,options:PlanOptions):PlanResult {
   try{
     const ownedOptions=ownPlanInput(options) as PlanOptions;
-    if(!ownedOptions||typeof ownedOptions!=='object'||Object.keys(ownedOptions).some(key=>!['width','height','hiddenSeriesIds','stacking','viewport','references','wordcloudText'].includes(key)))return bad('UNKNOWN_OPTION','options');
+    if(!ownedOptions||typeof ownedOptions!=='object'||Object.keys(ownedOptions).some(key=>!['width','height','hiddenSeriesIds','stacking','stackGroups','viewport','references','wordcloudText'].includes(key)))return bad('UNKNOWN_OPTION','options');
     const {width,height}=ownedOptions,hidden=ownedOptions.hiddenSeriesIds??[];
     if(!Number.isFinite(width)||!Number.isFinite(height)||width<64||height<64||width>10000||height>10000)return bad('BAD_VIEWPORT','options');
     if(!Array.isArray(hidden)||hidden.length>16||hidden.some(id=>typeof id!=='string'||!id||id.length>256)||new Set(hidden).size!==hidden.length)return bad('BAD_VISIBILITY','options.hiddenSeriesIds');
     const spec=ownPlanInput(value) as PlanSpec;
     if(!spec||typeof spec!=='object'||!['regression','fan','violin','flame','dendrogram','parallel','windrose','radialbar','heatmap','venn','contour','tilemap','pictorial','wordcloud','dependencywheel','arcdiagram','chord','bullet','variwide','xrange','timeline','sankey','vector','windbarb','networkgraph','packedbubble','sunburst','treegraph','organization','variablepie','item','polygon','lollipop','dumbbell','columnpyramid','boxplot','errorbar','streamgraph','arearange','areasplinerange','columnrange','histogram','bellcurve','areaspline','funnel','pyramid','pareto','radar','polar','waterfall','treemap','mixed','line','area','spline','scatter','column','pie','donut','gauge','bubble'].includes(spec.family))return bad('UNSUPPORTED_FAMILY','family');
     if(ownedOptions.stacking!==undefined&&(!['column','area','pictorial'].includes(spec.family)||!['sum','percent'].includes(ownedOptions.stacking)))return bad('BAD_STACK_MODE','options.stacking');
+    if(ownedOptions.stackGroups!==undefined&&(spec.family!=='column'||!ownedOptions.stacking))return bad('STACK_GROUPS_REQUIRE_STACKED_COLUMNS','options.stackGroups');
     if(ownedOptions.wordcloudText!==undefined&&spec.family!=='wordcloud')return bad('UNSUPPORTED_TEXT_MEASUREMENTS','options.wordcloudText');
     if(spec.family==='regression')return planRegression(spec,ownedOptions);
     if(spec.family==='fan')return planFan(spec,ownedOptions);
@@ -119,6 +122,8 @@ export function planChart(value:PlanSpec,options:PlanOptions):PlanResult {
     if(spec.family==='radar'||spec.family==='polar')return planPolar(spec,ownedOptions);
     if(spec.family==='waterfall')return planWaterfall(spec,ownedOptions,references);
     if(spec.family==='treemap')return planTreemap(spec,ownedOptions);
+    if(spec.family==='column'&&ownedOptions.stackGroups)return planGroupedStacks(spec,ownedOptions,references);
+    if(spec.family==='mixed'&&(spec.axes?.secondaryY!==undefined||Array.isArray(spec.series)&&spec.series.some(s=>s?.yAxis!==undefined)))return planMixedAxes(spec,ownedOptions,references);
     if(spec.family==='mixed')return planMixed(spec,ownedOptions,references);
     if(spec.family==='area'&&ownedOptions.stacking)return planStackedArea(spec,ownedOptions,references);
     if(spec.family!=='line'&&spec.family!=='area'&&spec.family!=='areaspline'&&spec.family!=='spline'&&spec.family!=='column')return planAdditional(spec,width,height,hidden,ownedOptions.viewport,references);

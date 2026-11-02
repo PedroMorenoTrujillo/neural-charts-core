@@ -42,3 +42,6 @@ export type {PlanTimelineSpec,PlanTimelineSeries,PlanTimelinePoint,PlanTimelineF
 
 export type {PlanBulletPoint,PlanBulletSeries,PlanBulletBand,PlanBulletSpec,PlanBulletValue,PlanBulletSummary,PlanBulletBandGeometry,PlanBulletTargetGeometry,PlanBulletObservation,PlanBulletFrame,PlanBulletResult} from './public/bullet-plan-types.js';
 export type {PlanVariwidePoint,PlanVariwideSeries,PlanVariwideSpec,PlanVariwideValue,PlanVariwideCategoryBand,PlanVariwideSummary,PlanVariwideObservation,PlanVariwideFrame,PlanVariwideResult} from './public/variwide-plan-types.js';
+export type {PlanStackGroup,PlanStackGroupsLayout} from './public/stack-group-plan-types.js';
+export type {PlanMixedSeries} from './public/plan-types.js';
+export type {PlanMixedYAxisFrame,PlanMixedAxesLayout} from './public/mixed-axes-plan-types.js';

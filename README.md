@@ -2,14 +2,14 @@
 
 Renderer-independent chart planning and geometry in strict TypeScript. The Core converts source data and a viewport size into a read-only frame that a renderer can paint.
 
-**Version 0.0.20 is experimental.** Public contracts can change before 1.0. Pin the version while integrating a renderer.
+**Version 0.0.21 is experimental.** Public contracts can change before 1.0. Pin the version while integrating a renderer.
 
 Version 0.0.5 reduces repeated work in defensive input copying while preserving validation, ownership and chart geometry. Public data and planning contracts are unchanged.
 
 ## Install
 
 ```sh
-npm install @neural-charts/core@0.0.20
+npm install @neural-charts/core@0.0.21
 ```
 
 The package ships ESM JavaScript and TypeScript declarations. It has no runtime dependencies, framework peer dependencies, browser globals, native bridges or module initialization side effects. Its declarations compile with `lib: ["ES2022"]`, without DOM types. Development and package verification use Node.js 22 or newer.
@@ -113,6 +113,10 @@ For relationship diagrams, `series.areaCommands` contains link ribbons and `seri
 Handle every `PlanCommand` variant explicitly: `M`, `L`, `A`, `Q` and `Z`. A `Q` command has the quadratic control point `cx, cy` and endpoint `x, y`. An `A` command uses `radius` on X and optional `radiusY` on Y; when `radiusY` is absent, use `radius` on both axes. Ellipse rotation is zero. Renderers that previously handled only circular `A` commands and straight segments must support these fields before consuming the new relationship frames. Radial ribbons use circular ports and quadratic connectors; arc diagrams use exact elliptical band sides instead of drawing sampled polygon edges.
 
 Relationship hit polygons remain bounded lookup approximations with at most 34 vertices. They retain the same source identities and sampled boundaries, but are not the visible analytic curves. Do not render them as the ribbon or assume subpixel agreement at every viewport size; a broad radial port can differ visibly from its low-resolution hit polygon. Device touch acceptance and any requirement for exact curved-edge hit testing must be verified by the renderer separately. This change does not certify mobile frame time or physical-device behavior.
+
+### Grouped stacks and independent mixed axes
+
+Column series can form adjacent sum/percent stacks with `options.stackGroups`, a strict partition of all original series. Mixed charts can declare `axes.secondaryY` and assign series to `yAxis:'secondary'`, preserving original values and one shared category frame. `frame.stackGroups` and `frame.mixedAxes` carry renderer ownership; these are not overlay shortcuts. See [complete contracts, typed examples, limits and incompatible options](docs/composition-contract.md).
 
 ### `transformPlanViewport(state, intent): PlanViewportResult`
 
@@ -496,7 +500,7 @@ if (result.status !== 'invalid') {
 }
 ```
 
-Variwide accepts one series and up to 64 categories/points. `z` controls width and must be nonnegative or `null`; `y` controls signed height. Zero width, unknown width, a missing category point and geometry below drawing precision have explicit states in `categoryBands`. Unknown widths set `variwideLayout.incomplete`; a chart without positive known width reports `no-positive-width`. Only numeric Y zoom/pan and Y reference lines are supported. X zoom, multiple series and stacking are rejected.
+Variwide accepts one series and up to 64 categories/points. `z` controls width and must be nonnegative or `null`; `y` controls signed height. Zero width, unknown width, a missing category point and geometry below drawing precision have explicit states in `categoryBands`. Unknown widths set `variwideLayout.incomplete`; a chart without positive known width reports `no-positive-width`. Only numeric Y zoom/pan is supported. References accept original category X IDs or numeric Y values. X zoom, multiple series and stacking are rejected.
 
 ### Sankey data and constraints
 

@@ -1,4 +1,8 @@
 import type {PlanContourSpec,PlanContourValue,PlanContourLayout} from './contour-types.js';
+import type {PlanStackGroup,PlanStackGroupsLayout} from './stack-group-plan-types.js';
+import type {PlanMixedAxesLayout} from './mixed-axes-plan-types.js';
+export type {PlanMixedYAxisFrame,PlanMixedAxesLayout} from './mixed-axes-plan-types.js';
+export type {PlanStackGroup,PlanStackGroupsLayout} from './stack-group-plan-types.js';
 import type {PlanTilemapSpec,PlanTilemapValue,PlanTilemapSummary,PlanTilemapLayout} from './tilemap-types.js';
 import type {PlanColorAxisFrame} from './color-axis-types.js';
 import type {PlanCellPaint} from './cell-types.js';
@@ -77,7 +81,12 @@ export interface PlanPackedBubbleSpec{readonly family:'packedbubble';readonly ti
 export interface PlanHistogramSpec{readonly family:'histogram';readonly title:string;readonly description?:string;readonly samples:readonly number[];readonly binCount?:number;}
 export interface PlanBellcurveSpec{readonly family:'bellcurve';readonly title:string;readonly description?:string;readonly samples:readonly number[];readonly intervals?:number;readonly standardDeviations?:number;}
 export interface PlanDistributionSummary{readonly derived:true;readonly sampleCount:number;readonly mean?:number;readonly sampleStandardDeviation?:number;}
-export type PlanMixedSpec=Pick<MixedChartSpec,'family'|'title'|'description'|'axes'|'series'|'groupGap'|'barGap'|'maxBarWidth'>;
+type MixedPlanBase=Pick<MixedChartSpec,'family'|'title'|'description'|'groupGap'|'barGap'|'maxBarWidth'>;
+export type PlanMixedSeries=MixedChartSpec['series'][number]&Readonly<{yAxis?:'primary'|'secondary'}>;
+export type PlanMixedSpec=MixedPlanBase&(
+  |Readonly<{axes:MixedChartSpec['axes']&Readonly<{secondaryY?:never}>;series:readonly (MixedChartSpec['series'][number]&Readonly<{yAxis?:'primary'}>)[]}>
+  |Readonly<{axes:MixedChartSpec['axes']&Readonly<{secondaryY:MixedChartSpec['axes']['y']}>;series:readonly PlanMixedSeries[]}>
+);
 export type PlanTreemapNode=Readonly<{id:string;label?:string}>&(Readonly<{value:number|null;children?:never}>|Readonly<{children:readonly PlanTreemapNode[];value?:never}>);
 export interface PlanTreemapSpec {readonly family:'treemap';readonly title:string;readonly description?:string;readonly root:PlanTreemapNode;}
 export type PlanScatterSpec=Pick<ScatterChartSpec,'family'|'title'|'description'|'axes'>&{readonly series:readonly Pick<ScatterChartSpec['series'][number],'id'|'name'|'color'|'data'>[]};
@@ -124,6 +133,8 @@ import type {PlanViolinSpec,PlanViolinValue,PlanViolinLayout} from './violin-pla
 export type {PlanViolinSpec,PlanViolinSample,PlanViolinGroup,PlanViolinValue,PlanViolinDensity,PlanViolinGroupFrame,PlanViolinLayout} from './violin-plan-types.js';
 export type PlanSpec = PlanRegressionSpec | PlanFanSpec | PlanViolinSpec | PlanFlameSpec | PlanDendrogramSpec | PlanParallelSpec | PlanWindRoseSpec | PlanRadialBarSpec | PlanHeatmapSpec | PlanVennSpec | PlanContourSpec | PlanTilemapSpec | PlanPictorialSpec | PlanWordCloudSpec | PlanRelationshipSpec | PlanBulletSpec | PlanVariwideSpec | PlanXRangeSpec | PlanTimelineSpec | PlanSankeySpec | PlanVectorSpec | PlanWindbarbSpec | PlanNetworkgraphSpec | PlanPackedBubbleSpec | PlanSunburstSpec | PlanNodeGraphSpec | PlanVariablePieSpec | PlanItemSpec | PlanPolygonSpec | PlanLollipopSpec | PlanDumbbellSpec | PlanColumnPyramidSpec | PlanBoxplotSpec | PlanErrorbarSpec | PlanStreamgraphSpec | PlanRangeSpec | PlanHistogramSpec | PlanBellcurveSpec | PlanAreaSplineSpec | PlanFunnelSpec | PlanPyramidSpec | PlanParetoSpec | PlanRadarSpec | PlanPolarSpec | PlanWaterfallSpec | PlanTreemapSpec | PlanMixedSpec | PlanAreaSpec | PlanSplineSpec | PlanScatterSpec | PlanLineSpec | PlanColumnSpec | PlanPieSpec | PlanDonutSpec | PlanGaugeSpec | PlanBubbleSpec;
 export interface PlanOptions {
+  /** Original column series partition; requires sum/percent stacking. */
+  readonly stackGroups?:readonly PlanStackGroup[];
   /** Renderer-only measured-text port, supported by WordCloud. */
   readonly wordcloudText?:PlanWordCloudTextInput;
   readonly width: number;
@@ -134,8 +145,8 @@ export interface PlanOptions {
   readonly viewport?:PlanViewportConfig;
   readonly references?:readonly PlanReference[];
 }
-export type PlanReference=Readonly<{id:string;axis:'x';value:string|number}>|Readonly<{id:string;axis:'y';value:number}>;
-export type PlanProjectedReference=Readonly<{id:string;axis:'x'|'y'}>&(
+export type PlanReference=Readonly<{id:string;axis:'x';value:string|number;yAxis?:never}>|Readonly<{id:string;axis:'y';value:number;yAxis?:'secondary'}>;
+export type PlanProjectedReference=Readonly<{id:string;axis:'x'|'y';valueAxis?:'secondary'}>&(
   Readonly<{status:'visible';line:Readonly<{x1:number;y1:number;x2:number;y2:number}>}>
   |Readonly<{status:'outside'|'unavailable';line?:never}>
 );
@@ -184,6 +195,7 @@ export interface PlanSeries {
 }
 export interface PlanLegendItem {readonly id:string;readonly name:string;readonly color:string;readonly visible:boolean;}
 export interface PlanObservation {
+  readonly valueAxis?:'primary'|'secondary';
   readonly regression?:PlanRegressionValue;
   readonly fan?:PlanFanValue;
   readonly violin?:PlanViolinValue;
@@ -219,6 +231,8 @@ export interface PlanObservation {
   readonly computedKind?:'subtotal'|'total';
 }
 export interface PlanFrame {
+  readonly mixedAxes?:PlanMixedAxesLayout;
+  readonly stackGroups?:PlanStackGroupsLayout;
   readonly heatmapData?:readonly PlanHeatmapSummary[];
   readonly heatmapLayout?:PlanHeatmapLayout;
   readonly vennData?:readonly PlanVennSummary[];
