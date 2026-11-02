@@ -1,4 +1,7 @@
 export type {PlanRegressionSpec,PlanRegressionModel,PlanRegressionValue,PlanRegressionLayout} from './public/regression-plan-types.js';
+export {financialFamilies,financialParameterKeys} from './public/financial-plan-types.js';
+export {planFinancialChart} from './plan/financial.js';
+export type {PlanFinancialSpec,PlanFinancialFamily,PlanFinancialPoint,PlanFinancialSeries,PlanFinancialParameters,PlanFinancialValue} from './public/financial-plan-types.js';
 export type {PlanFanSpec,PlanFanBand,PlanFanInterval,PlanFanPoint,PlanFanValue,PlanFanLayout} from './public/fan-plan-types.js';
 export type {PlanHeatmapCategory,PlanHeatmapAxis,PlanHeatmapCell,PlanHeatmapSpec,PlanHeatmapValue,PlanHeatmapSummary,PlanHeatmapBand,PlanHeatmapLayout,PlanHeatmapFrame,PlanHeatmapObservation,PlanHeatmapResult,PlanHeatmapOptions} from './public/heatmap-plan-types.js';
 export type {PlanVennSpec,PlanVennSet,PlanVennMeasure,PlanVennCircle,PlanVennValue,PlanVennSummary,PlanVennAreaError,PlanVennLayout,PlanVennFrame,PlanVennResult} from './public/venn-types.js';

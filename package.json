@@ -18,6 +18,16 @@
       "import": "./dist/plan.js",
       "default": "./dist/plan.js"
     },
+    "./cartesian": {
+      "types": "./dist/cartesian.d.ts",
+      "import": "./dist/cartesian.js",
+      "default": "./dist/cartesian.js"
+    },
+    "./financial": {
+      "types": "./dist/financial.d.ts",
+      "import": "./dist/financial.js",
+      "default": "./dist/financial.js"
+    },
     "./package.json": "./package.json"
   },
   "files": [

@@ -1,0 +1,32 @@
+import assert from 'node:assert/strict';
+import {planFinancialChart,financialFamilies,financialParameterKeys} from '../../dist/financial.js';
+import {planChart} from '../../dist/plan.js';
+import {financialIndicators} from '../../dist/plan/financial-indicators.js';
+import {movingAverage,weightedAverage,meanAbsoluteDeviation,regression} from '../../dist/plan/financial-statistics.js';
+
+assert.deepEqual(movingAverage([1,2,3,4,5],3),[null,null,2,3,4]);
+assert.deepEqual(movingAverage([1,2,3,4,5],3,'exponential'),[null,null,2,3,4]);
+assert.deepEqual(movingAverage([1,2,null,3,4,5],3),[null,null,null,null,null,4]);
+assert.equal(weightedAverage([1,2,3],3)[2],14/6);
+assert(Math.abs(meanAbsoluteDeviation([1,2,3],3)[2]-2/3)<1e-12);
+assert.deepEqual(regression([5,7,11,17],3,[0,1,3,6]).slope,[null,null,2,2]);
+const source=Array.from({length:256},(_,i)=>{const middle=100+i*.1+Math.sin(i/6)*8,open=middle+Math.sin(i)*.7,close=middle+Math.cos(i)*.7;return {id:'p:'+i,x:i*2+(i%5===0?.5:0),open,high:Math.max(open,close)+1,low:Math.min(open,close)-1,close,volume:1000+i*3,title:'F'+i};});
+const axes={x:{kind:'linear'},y:{kind:'linear'}};
+const receipts=[];
+for(const family of financialFamilies)for(const variant of ['basic','zero','gaps']){
+  const data=source.map((p,i)=>variant==='zero'?{...p,open:0,high:0,low:0,close:0,volume:0}:variant==='gaps'&&i%80===20?{...p,open:null,high:null,low:null,close:null}:p),spec={family,title:family,axes,series:[{id:'asset',name:'Asset',data}]},before=JSON.stringify(spec),result=planFinancialChart(spec,{width:900,height:420});
+  assert.notEqual(result.status,'invalid',family+'/'+variant+': '+JSON.stringify(result));
+  assert.equal(JSON.stringify(spec),before,'Immutable source');
+  if(variant==='basic')assert(result.frame.observations.length>0,family+' must produce real observations');
+  for(const o of result.frame.observations)assert(Number.isFinite(o.x)&&Number.isFinite(o.y)&&Number.isFinite(o.value),family+' finite');
+  for(const s of result.frame.series)for(const b of [...s.bars??[],...s.parts?.flatMap(p=>p.bars??[])??[]])assert(b.width>=0&&b.height>=0);
+  assert.equal(planChart(spec,{width:900,height:420}).status,result.status,'Public dispatch');
+  receipts.push({family,variant,observations:result.frame.observations.length});
+}
+const increasing=source.map((p,i)=>({...p,x:i,open:i+1,high:i+2,low:i,close:i+1}));
+assert.equal(financialIndicators('rsi',increasing,{period:14}).components.rsi.at(-1),100);
+assert.equal(financialIndicators('linearregressionslope',increasing,{period:14}).components.linearregressionslope.at(-1),1);
+const candle=planFinancialChart({family:'candlestick',title:'Original',axes,series:[{id:'a',name:'A',data:source.slice(0,5)}]},{width:640,height:360});assert.equal(candle.status,'ok');assert.equal(candle.frame.series[0].bars.length,5);assert.equal(candle.frame.observations[0].financial.close,source[0].close);
+const bad=planFinancialChart({family:'ohlc',title:'Invalid',axes,series:[{id:'a',name:'A',data:[{...source[0],high:0}]}]},{width:640,height:360});assert.equal(bad.status,'invalid');
+assert(!financialParameterKeys.ohlc.includes('period'));
+console.log(JSON.stringify({status:'PASS',families:financialFamilies.length,cases:receipts.length,receipts}));

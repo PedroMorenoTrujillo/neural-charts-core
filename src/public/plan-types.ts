@@ -1,4 +1,5 @@
 import type {PlanContourSpec,PlanContourValue,PlanContourLayout} from './contour-types.js';
+import type {PlanFinancialSpec,PlanFinancialValue,PlanFinancialPart} from './financial-plan-types.js';
 import type {PlanStackGroup,PlanStackGroupsLayout} from './stack-group-plan-types.js';
 import type {PlanMixedAxesLayout} from './mixed-axes-plan-types.js';
 export type {PlanMixedYAxisFrame,PlanMixedAxesLayout} from './mixed-axes-plan-types.js';
@@ -133,8 +134,10 @@ import type {PlanFlameSpec,PlanFlameValue,PlanFlameLayout} from './flame-plan-ty
 export type {PlanFlameSpec,PlanFlameSpan,PlanFlameValue,PlanFlameLayout} from './flame-plan-types.js';
 import type {PlanViolinSpec,PlanViolinValue,PlanViolinLayout} from './violin-plan-types.js';
 export type {PlanViolinSpec,PlanViolinSample,PlanViolinGroup,PlanViolinValue,PlanViolinDensity,PlanViolinGroupFrame,PlanViolinLayout} from './violin-plan-types.js';
-export type PlanSpec = PlanRegressionSpec | PlanFanSpec | PlanViolinSpec | PlanFlameSpec | PlanDendrogramSpec | PlanParallelSpec | PlanWindRoseSpec | PlanRadialBarSpec | PlanHeatmapSpec | PlanVennSpec | PlanContourSpec | PlanTilemapSpec | PlanPictorialSpec | PlanWordCloudSpec | PlanRelationshipSpec | PlanBulletSpec | PlanVariwideSpec | PlanXRangeSpec | PlanTimelineSpec | PlanSankeySpec | PlanVectorSpec | PlanWindbarbSpec | PlanNetworkgraphSpec | PlanPackedBubbleSpec | PlanSunburstSpec | PlanNodeGraphSpec | PlanVariablePieSpec | PlanItemSpec | PlanPolygonSpec | PlanLollipopSpec | PlanDumbbellSpec | PlanColumnPyramidSpec | PlanBoxplotSpec | PlanErrorbarSpec | PlanStreamgraphSpec | PlanRangeSpec | PlanHistogramSpec | PlanBellcurveSpec | PlanAreaSplineSpec | PlanFunnelSpec | PlanPyramidSpec | PlanParetoSpec | PlanRadarSpec | PlanPolarSpec | PlanWaterfallSpec | PlanTreemapSpec | PlanMixedSpec | PlanAreaSpec | PlanSplineSpec | PlanScatterSpec | PlanLineSpec | PlanColumnSpec | PlanPieSpec | PlanDonutSpec | PlanGaugeSpec | PlanBubbleSpec;
+export type PlanSpec = PlanFinancialSpec | PlanRegressionSpec | PlanFanSpec | PlanViolinSpec | PlanFlameSpec | PlanDendrogramSpec | PlanParallelSpec | PlanWindRoseSpec | PlanRadialBarSpec | PlanHeatmapSpec | PlanVennSpec | PlanContourSpec | PlanTilemapSpec | PlanPictorialSpec | PlanWordCloudSpec | PlanRelationshipSpec | PlanBulletSpec | PlanVariwideSpec | PlanXRangeSpec | PlanTimelineSpec | PlanSankeySpec | PlanVectorSpec | PlanWindbarbSpec | PlanNetworkgraphSpec | PlanPackedBubbleSpec | PlanSunburstSpec | PlanNodeGraphSpec | PlanVariablePieSpec | PlanItemSpec | PlanPolygonSpec | PlanLollipopSpec | PlanDumbbellSpec | PlanColumnPyramidSpec | PlanBoxplotSpec | PlanErrorbarSpec | PlanStreamgraphSpec | PlanRangeSpec | PlanHistogramSpec | PlanBellcurveSpec | PlanAreaSplineSpec | PlanFunnelSpec | PlanPyramidSpec | PlanParetoSpec | PlanRadarSpec | PlanPolarSpec | PlanWaterfallSpec | PlanTreemapSpec | PlanMixedSpec | PlanAreaSpec | PlanSplineSpec | PlanScatterSpec | PlanLineSpec | PlanColumnSpec | PlanPieSpec | PlanDonutSpec | PlanGaugeSpec | PlanBubbleSpec;
 export interface PlanOptions {
+  /** Explicit opt-in resource budget. Existing default limits are preserved. */
+  readonly capacity?:Readonly<{points?:number;categories?:number}>;
   readonly hierarchy?:import('./hierarchy-layout-plan-types.js').PlanHierarchyLayoutOptions;
   readonly scales?:import('./log-plan-types.js').PlanScales;
   readonly circular?:import('./circular-plan-types.js').PlanCircularOptions;
@@ -180,13 +183,14 @@ export type PlanCommand =
   /** Quadratic Bézier in plot-local logical coordinates. */
   | Readonly<{kind:'Q';cx:number;cy:number;x:number;y:number}>
   | Readonly<{kind:'Z'}>;
-export interface PlanBar {readonly pointId?:string;readonly x:number;readonly y:number;readonly width:number;readonly height:number;}
+export interface PlanBar {readonly pointId?:string;readonly x:number;readonly y:number;readonly width:number;readonly height:number;readonly direction?:'rising'|'falling';readonly hollow?:boolean;}
 export interface PlanCircle {readonly pointId?:string;readonly cx:number;readonly cy:number;readonly radius:number;}
 export type PlanHitRegion = Readonly<{kind:'polygon';vertices:readonly Readonly<{x:number;y:number}>[]}> | Readonly<{kind:'circle';cx:number;cy:number;radius:number}>
   | Readonly<{kind:'sector';cx:number;cy:number;radius:number;innerRadius:number;start:number;end:number}>
   | PlanCompoundPolygonHit;
 export interface PlanAnnotation {readonly x:number;readonly y:number;readonly text:string;readonly role:'value'|'label';readonly box?:Readonly<{width:number;height:number;seriesId:string}>;readonly stackTotal?:Readonly<{value:number;sign:'positive'|'negative';percentage?:true}>;}
 export interface PlanSeries {
+  readonly parts?:readonly PlanFinancialPart[];
   readonly cells?:readonly PlanCellPaint[];
   readonly pictorialFills?:readonly PlanPictorialFill[];
   readonly textGlyphs?:readonly PlanWordCloudTextGlyph[];
@@ -201,6 +205,7 @@ export interface PlanSeries {
 }
 export interface PlanLegendItem {readonly id:string;readonly name:string;readonly color:string;readonly visible:boolean;}
 export interface PlanObservation {
+  readonly financial?:PlanFinancialValue;
   readonly valueAxis?:'primary'|'secondary';
   readonly regression?:PlanRegressionValue;
   readonly fan?:PlanFanValue;
@@ -237,6 +242,7 @@ export interface PlanObservation {
   readonly computedKind?:'subtotal'|'total';
 }
 export interface PlanFrame {
+  readonly financial?:Readonly<{layout:'price'|'indicator'|'ordinal'|'volume-profile'}>;
   readonly circular?:import('./circular-plan-types.js').PlanCircularFrame;
   readonly radialSummary?:import('./circular-plan-types.js').PlanRadialSummary;
   readonly mixedAxes?:PlanMixedAxesLayout;

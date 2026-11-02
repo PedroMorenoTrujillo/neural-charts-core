@@ -1,10 +1,10 @@
 /** Own a bounded JSON value before passing it to existing family validators. */
-export function ownPlanInput(value:unknown):unknown {
+export function ownPlanInput(value:unknown,limits:Readonly<{nodes:number;characters:number}>={nodes:200000,characters:1000000}):unknown {
   const seen=new WeakSet<object>();let count=0,characters=0;
   const visit=(v:unknown,depth:number):unknown=>{
-    if(++count>200000||depth>32)throw Error('INPUT_LIMIT');
+    if(++count>limits.nodes||depth>32)throw Error('INPUT_LIMIT');
     if(v===null||typeof v==='boolean')return v;
-    if(typeof v==='string'){characters+=v.length;if(characters>1000000)throw Error('INPUT_LIMIT');return v;}
+    if(typeof v==='string'){characters+=v.length;if(characters>limits.characters)throw Error('INPUT_LIMIT');return v;}
     if(typeof v==='number'&&Number.isFinite(v))return v;
     if(typeof v!=='object'||seen.has(v))throw Error('BAD_JSON');
     const array=Array.isArray(v);
@@ -14,7 +14,7 @@ export function ownPlanInput(value:unknown):unknown {
       const length=Object.getOwnPropertyDescriptor(v,'length')?.value;
       // Empty slots are not nulls. Copying only enumerable keys used to drop a
       // sparse array's length and silently turn missing input into no data.
-      if(!Number.isSafeInteger(length)||length>200000||keys.length!==length||keys.some((key,index)=>key!==String(index)))throw Error('BAD_ARRAY');
+      if(!Number.isSafeInteger(length)||length>limits.nodes||keys.length!==length||keys.some((key,index)=>key!==String(index)))throw Error('BAD_ARRAY');
     }
     seen.add(v);
     if(array){
