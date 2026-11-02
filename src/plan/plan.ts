@@ -182,7 +182,8 @@ export function planChart(value:PlanSpec,options:PlanOptions):PlanResult {
     const input=checked.value,data=normalizeColumn(input),domain=stacking?stackedDomain(data,state,stacking):columnDomain(data,state),legend=legendFor(input.series,palette,hidden);
     if(domain.status==='invalid')return domain;
     if(hidden.some(id=>!input.series.some(s=>s.id===id)))return bad('UNKNOWN_SERIES','options.hiddenSeriesIds');
-    const base={schema:'nc-plan/1' as const,family:input.orientation==='horizontal'?'bar' as const:'column' as const,width,height,title:input.title,description:input.description??'',unit:input.axes.y.title??'',legend};
+    // A normalized percentage-axis caption is not a unit of the raw values.
+    const base={schema:'nc-plan/1' as const,family:input.orientation==='horizontal'?'bar' as const:'column' as const,width,height,title:input.title,description:input.description??'',unit:spec.axes.y.title??'',legend};
     if(!domain.value)return finish({...base,series:[],observations:[],labels:[],grid:[]});
     let ticks=selectNumericTicks(domain.value,{nice:input.axes.y.nice??!input.axes.y.domain,targetCount:input.axes.y.ticks?.targetCount??5});if(ticks.status==='invalid')return ticks;
     const prepared=preparePlanViewport(input.axes,{x:null,y:ticks.value.domain},ownedOptions.viewport);if(prepared.status==='invalid')return prepared;

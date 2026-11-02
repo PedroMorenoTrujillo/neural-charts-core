@@ -52,6 +52,9 @@ describe('style-free represented-axis reference bands',()=>{
     const source:PlanColumnSpec={...column,series:column.series.map((series,index)=>({...series,data:series.data.map(point=>({...point,y:index===0?1000:3000}))}))};
     const band={id:'middle-percent',axis:'y' as const,from:25,to:75},f=frame(source,{stacking:'percent',referenceBands:[band]});
     expect(f.observations.filter(point=>point.id.pointId==='a').map(point=>[point.value,point.percentage])).toEqual([[1000,25],[3000,75]]);
+    expect(f.unit).toBe('');
+    const withUnit=frame({...source,axes:{...source.axes,y:{...source.axes.y,title:'kg'}}},{stacking:'percent',referenceBands:[band]});
+    expect(withUnit.unit).toBe('kg');expect(withUnit.observations.filter(point=>point.id.pointId==='a').map(point=>[point.value,point.percentage])).toEqual([[1000,25],[3000,75]]);
     expect(Math.max(...f.grid.map(tick=>Number(tick.label)))).toBe(100);expect(bandBox(f)).toEqual({x:16,y:82,width:288,height:136});expect(f.referenceBands?.[0]).toMatchObject(band);
     const zoomed=frame(source,{stacking:'percent',viewport:{axes:'y',value:{y:[25,75]}},referenceBands:[band]});
     expect(bandBox(zoomed)).toEqual({x:16,y:14,width:288,height:272});expect(zoomed.referenceBands?.[0]).toMatchObject(band);expect(zoomed.observations.every(point=>point.value===1000||point.value===3000)).toBe(true);
