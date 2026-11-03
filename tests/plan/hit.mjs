@@ -1,0 +1,18 @@
+import assert from 'node:assert/strict';
+import {containsPlanHit,hitTestPlanRegion,preparePlanRegionHit,planChart} from '../../dist/plan.js';
+const square={kind:'polygon',vertices:[{x:0,y:0},{x:10,y:0},{x:10,y:10},{x:0,y:10}]};
+assert(containsPlanHit(square,5,5));assert(containsPlanHit(square,0,5));assert(!containsPlanHit(square,11,5));assert(!containsPlanHit(square,NaN,0));
+assert(containsPlanHit({kind:'compoundPolygon',polygons:[square.vertices]},5,5));assert(containsPlanHit({kind:'circle',cx:0,cy:0,radius:2},1,1));assert(!containsPlanHit({kind:'circle',cx:0,cy:0,radius:2},2,2));
+const sector={kind:'sector',cx:0,cy:0,radius:10,innerRadius:2,start:0,end:Math.PI/2};assert(containsPlanHit(sector,5,5));assert(!containsPlanHit(sector,-5,5));assert(!containsPlanHit(sector,1,0));assert(!containsPlanHit({...sector,end:0},5,0));
+const observations=[1,2,3,7].map(mask=>({id:{seriesId:'venn',pointId:String(mask)},venn:{mask}}));
+const frame={family:'venn',observations,vennLayout:{circles:[{cx:0,cy:0,radius:10,bit:1},{cx:8,cy:0,radius:10,bit:2},{cx:8,cy:8,radius:5,bit:4}]}};
+for(const [x,y,mask]of [[-5,0,1],[15,0,2],[4,0,3],[7,5,7]])assert.equal(hitTestPlanRegion(frame,x,y)?.venn.mask,mask);
+assert.equal(hitTestPlanRegion(frame,30,30),undefined);
+const contour={family:'contour',observations:[{id:{seriesId:'c',pointId:'low'},hit:square},{id:{seriesId:'c',pointId:'high'},hit:{kind:'circle',cx:5,cy:5,radius:1}}]};
+assert.equal(hitTestPlanRegion(contour,5,5)?.id.pointId,'high');assert.equal(hitTestPlanRegion(contour,2,2)?.id.pointId,'low');
+const actual=planChart({family:'venn',title:'Membership',sets:[{id:'a',label:'A'},{id:'b',label:'B'}],data:[{id:'a',sets:['a'],value:100},{id:'b',sets:['b'],value:80},{id:'ab',sets:['a','b'],value:30}]},{width:600,height:400});
+assert.equal(actual.status,'ok');for(const observation of actual.frame.observations)assert.deepEqual(hitTestPlanRegion(actual.frame,observation.x,observation.y)?.id,observation.id);
+const indexed=preparePlanRegionHit(actual.frame);for(const observation of actual.frame.observations)assert.deepEqual(indexed.query(observation.x,observation.y)?.id,observation.id);
+let probes=0;const many={family:'pictorial',observations:Array.from({length:1000},(_,i)=>({id:{seriesId:'s',pointId:String(i)},hit:{get kind(){probes++;return 'circle';},cx:i*3,cy:0,radius:1}}))};
+const accelerated=preparePlanRegionHit(many);probes=0;assert.equal(accelerated.query(1500,0)?.id.pointId,'500');assert(probes<16,'Region lookup does not scan all1000 source regions');assert.equal(accelerated.query(1500,10),undefined);
+console.log('PASS exact region membership, overlap identity, boundaries and real Venn frame');
