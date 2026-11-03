@@ -29,4 +29,7 @@ assert.equal(financialIndicators('linearregressionslope',increasing,{period:14})
 const candle=planFinancialChart({family:'candlestick',title:'Original',axes,series:[{id:'a',name:'A',data:source.slice(0,5)}]},{width:640,height:360});assert.equal(candle.status,'ok');assert.equal(candle.frame.series[0].bars.length,5);assert.equal(candle.frame.observations[0].financial.close,source[0].close);
 const bad=planFinancialChart({family:'ohlc',title:'Invalid',axes,series:[{id:'a',name:'A',data:[{...source[0],high:0}]}]},{width:640,height:360});assert.equal(bad.status,'invalid');
 assert(!financialParameterKeys.ohlc.includes('period'));
+const momentum=planFinancialChart({family:'ao',title:'Positive oscillator',axes,series:[{id:'a',name:'A',data:increasing}]},{width:640,height:360});
+assert.equal(momentum.status,'ok');assert(momentum.frame.viewport.displayed.y[0]<=0,'Histogram includes the real zero baseline');
+assert.equal(planFinancialChart({family:'flags',title:'Invalid text',axes,series:[{id:'a',name:'A',data:[{...source[0],title:42}]}]},{width:640,height:360}).status,'invalid');
 console.log(JSON.stringify({status:'PASS',families:financialFamilies.length,cases:receipts.length,receipts}));

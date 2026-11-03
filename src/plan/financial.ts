@@ -21,6 +21,7 @@ function validate(spec:PlanFinancialSpec,options:PlanOptions):void {
       const values=[p.open,p.high,p.low,p.close];if(values.some(v=>v!==null&&!Number.isFinite(v))||values.some(v=>v===null)&&!values.every(v=>v===null))throw Error('BAD_OHLC');
       if(p.close!==null&&(p.high!<Math.max(p.open!,p.close)||p.low!>Math.min(p.open!,p.close)||p.high!<p.low!))throw Error('BAD_OHLC_RANGE');
       if(p.volume!==undefined&&p.volume!==null&&(!Number.isFinite(p.volume)||p.volume<0))throw Error('BAD_VOLUME');
+      for(const key of ['title','text'] as const)if(p[key]!==undefined&&(typeof p[key]!=='string'||p[key]!.length>4096))throw Error('BAD_FINANCIAL_TEXT');
     }
   }
   const parameters=spec.parameters??{};
@@ -70,6 +71,7 @@ export function planFinancialChart(input:PlanFinancialSpec,configuration:PlanOpt
     for(const row of computed){for(const [i,p] of row.points.entries()){xs.add(ordinal?i:p.x);if(!row.calculation&&p.close!==null){minimum=Math.min(minimum,p.low!);maximum=Math.max(maximum,p.high!);}}
       if(row.calculation)for(const [key,values] of Object.entries(row.calculation.components))for(const [i,value] of values.entries())if(value!==null){if(!Number.isFinite(value))throw Error('UNREPRESENTABLE_FINANCIAL_VALUE');minimum=Math.min(minimum,value);maximum=Math.max(maximum,value);const shift=row.calculation.shifts?.[key]??0;if(shift){const interval=row.points.length>1?row.points.at(-1)!.x-row.points.at(-2)!.x:1;xs.add(row.points[i+shift]?.x??row.points[i]!.x+shift*interval);}}
     }
+    if(Number.isFinite(minimum)&&computed.some(row=>row.calculation?.columns?.length)){minimum=Math.min(0,minimum);maximum=Math.max(0,maximum);}
     const sorted=[...xs].sort((a,b)=>a-b),yAxis={...spec.axes.y,...(spec.axes.y.domain===undefined&&minimum<maximum?{domain:[minimum,maximum] as const}:{})},helper={family:'line' as const,title:spec.title,...(spec.description?{description:spec.description}:{}),axes:{x:ordinal?{kind:'linear' as const}:spec.axes.x,y:yAxis},series:[{id:'financial-layout',name:spec.title,data:sorted.map((x,i)=>({id:'x'+i,x,y:Number.isFinite(minimum)?minimum:null}))}]};
     const projected=planCartesianChart(helper as PlanLineSpec,{...options,hiddenSeriesIds:[],viewport:options.viewport??{axes:'xy'},capacity:{...options.capacity,points:Math.max(sorted.length,capacity.points)}});
     if(projected.status==='invalid')return projected;

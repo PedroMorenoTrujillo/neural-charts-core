@@ -28,7 +28,7 @@ export function financialIndicators(family:PlanFinancialFamily,data:readonly Pla
     case 'atr':return one(atr());
     case 'natr':return one(zip(atr(),close,(a,b)=>ratio(a*100,b)));
     case 'keltnerchannels':return bands(movingAverage(price,period,'exponential'),atr(params.shortPeriod??10),params.multiplier??2);
-    case 'ao':return one(zip(movingAverage(median,params.shortPeriod??5),movingAverage(median,params.longPeriod??34),(a,b)=>a-b));
+    case 'ao':return {...one(zip(movingAverage(median,params.shortPeriod??5),movingAverage(median,params.longPeriod??34),(a,b)=>a-b)),columns:['ao']};
     case 'momentum':case 'roc':return one(price.map((v,i)=>i<period||v===null||price[i-period]===null?null:family==='momentum'?v-price[i-period]!:ratio((v-price[i-period]!)*100,price[i-period]!)));
     case 'disparityindex':return one(zip(price,movingAverage(price,period),(v,a)=>ratio((v-a)*100,a)));
     case 'dpo':{const average=movingAverage(price,period),shift=Math.floor(period/2)+1;return one(average.map((v,i)=>i<shift||v===null||price[i-shift]===null?null:price[i-shift]!-v));}
