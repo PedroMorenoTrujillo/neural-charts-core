@@ -26,6 +26,9 @@ for(const family of financialFamilies)for(const variant of ['basic','zero','gaps
 const increasing=source.map((p,i)=>({...p,x:i,open:i+1,high:i+2,low:i,close:i+1}));
 assert.equal(financialIndicators('rsi',increasing,{period:14}).components.rsi.at(-1),100);
 assert.equal(financialIndicators('linearregressionslope',increasing,{period:14}).components.linearregressionslope.at(-1),1);
+const pricedGap=[10,20,null,30,40].map((value,i)=>({id:'v'+i,x:i,open:value,high:value,low:value,close:value,volume:1}));
+assert.deepEqual(financialIndicators('vwap',pricedGap).components.vwap,[10,15,null,30,35],'A price gap resets the cumulative numerator and denominator together');
+assert.deepEqual(financialIndicators('vwap',pricedGap,{period:2}).components.vwap,[null,15,null,null,35]);
 const candle=planFinancialChart({family:'candlestick',title:'Original',axes,series:[{id:'a',name:'A',data:source.slice(0,5)}]},{width:640,height:360});assert.equal(candle.status,'ok');assert.equal(candle.frame.series[0].bars.length,5);assert.equal(candle.frame.observations[0].financial.close,source[0].close);
 const bad=planFinancialChart({family:'ohlc',title:'Invalid',axes,series:[{id:'a',name:'A',data:[{...source[0],high:0}]}]},{width:640,height:360});assert.equal(bad.status,'invalid');
 assert(!financialParameterKeys.ohlc.includes('period'));
@@ -35,4 +38,7 @@ assert.equal(planFinancialChart({family:'flags',title:'Invalid text',axes,series
 const zigzag=planFinancialChart({family:'zigzag',title:'Connected pivots',axes,series:[{id:'a',name:'A',data:source}]},{width:640,height:360});assert.equal(zigzag.status,'ok');assert(zigzag.frame.series[0].parts[0].commands.some(command=>command.kind==='L'),'Derived pivot nulls do not break ZigZag');
 const psar=planFinancialChart({family:'psar',title:'SAR dots',axes,series:[{id:'a',name:'A',data:source}]},{width:640,height:360});assert.equal(psar.status,'ok');assert(psar.frame.series[0].circles.length>0);assert(!psar.frame.series[0].parts.some(part=>part.commands?.length),'PSAR is not a connected line');
 const ichimoku=planFinancialChart({family:'ikh',title:'Cloud',axes,series:[{id:'a',name:'A',data:source}]},{width:640,height:360});assert.equal(ichimoku.status,'ok');assert(ichimoku.frame.series[0].parts.some(part=>part.key==='cloud'&&part.fill&&part.commands.some(command=>command.kind==='Z')),'Ichimoku includes its actual shifted cloud area');
+const stationary=planFinancialChart({family:'pointandfigure',title:'No price movement',axes,series:[{id:'a',name:'A',data:source.map(point=>({...point,open:0,high:0,low:0,close:0}))}]},{width:640,height:360});assert.equal(stationary.status,'empty');assert.equal(stationary.frame.observations.length,0,'No selectable phantom box when there is no price movement');
+const grouped=planFinancialChart({family:'candlestick',title:'Two identical price streams',axes,series:[{id:'a',name:'A',data:source.slice(0,5)},{id:'b',name:'B',data:source.slice(0,5)}]},{width:640,height:360});assert.equal(grouped.status,'ok');const left=grouped.frame.series[0].bars[2],right=grouped.frame.series[1].bars[2];assert(left.x+left.width<=right.x,'Financial series must not obscure identical candles from another series');
+assert.equal(grouped.frame.observations.length,10,'Automatic end padding preserves the first and last candle of every series');
 console.log(JSON.stringify({status:'PASS',families:financialFamilies.length,cases:receipts.length,receipts}));
