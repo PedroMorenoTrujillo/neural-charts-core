@@ -1,5 +1,5 @@
 import {planMixedAxes} from './mixed-axes.js';
-import {planCartesianChart} from './cartesian.js';
+import {planOwnedCartesianChart} from './cartesian.js';
 import {planCapacity} from './capacity.js';
 import {financialFamilies,type PlanFinancialSpec} from '../public/financial-plan-types.js';
 import {planFinancialChart} from './financial.js';
@@ -143,6 +143,6 @@ export function planChart(value:PlanSpec,options:PlanOptions):PlanResult {
     if(spec.family==='area'&&ownedOptions.stacking)return planStackedArea(spec,ownedOptions,references);
     if(ownedOptions.circular!==undefined&&(spec.family==='pie'||spec.family==='donut'||spec.family==='gauge'))return planCircularDisplay(spec,ownedOptions);
     if(spec.family!=='line'&&spec.family!=='area'&&spec.family!=='areaspline'&&spec.family!=='spline'&&spec.family!=='column')return planAdditional(spec,width,height,hidden,ownedOptions.viewport,references,undefined,checkedBands.value);
-    return planCartesianChart(spec,ownedOptions);
+    return planOwnedCartesianChart(spec,ownedOptions);
   }catch(error){return bad(error instanceof Error?error.message:'UNREADABLE_INPUT','spec');}
 }

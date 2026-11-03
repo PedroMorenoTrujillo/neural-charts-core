@@ -33,10 +33,18 @@ const legendFor=(items:readonly Readonly<{id:string;name:string;color?:string}>[
 
 /** Cartesian-only public entry. It shares the certified planners without retaining radial/graph families. */
 export function planCartesianChart(value:PlanSpec,options:PlanOptions):PlanResult {
+  return planCartesian(value,options,false);
+}
+/** Internal dispatcher boundary: both inputs have already passed ownPlanInput.
+ * Not exported by the package's public Cartesian or plan entrypoints. */
+export function planOwnedCartesianChart(value:PlanSpec,options:PlanOptions):PlanResult {
+  return planCartesian(value,options,true);
+}
+function planCartesian(value:PlanSpec,options:PlanOptions,owned:boolean):PlanResult {
   try {
-    const ownedOptions=ownPlanInput(options) as PlanOptions;
+    const ownedOptions=owned?options:ownPlanInput(options) as PlanOptions;
     if(!ownedOptions||typeof ownedOptions!=='object'||Object.keys(ownedOptions).some(k=>!['width','height','hiddenSeriesIds','stacking','stackGroups','viewport','references','referenceBands','scales','capacity'].includes(k)))return bad('UNKNOWN_OPTION','options');
-    const capacity=planCapacity(ownedOptions.capacity),spec=ownPlanInput(value,capacity) as PlanSpec,{width,height}=ownedOptions,hidden=ownedOptions.hiddenSeriesIds??[];
+    const capacity=planCapacity(ownedOptions.capacity),spec=owned?value:ownPlanInput(value,capacity) as PlanSpec,{width,height}=ownedOptions,hidden=ownedOptions.hiddenSeriesIds??[];
     if(!Number.isFinite(width)||!Number.isFinite(height)||width<64||height<64||width>10000||height>10000)return bad('BAD_VIEWPORT','options');
     if(!Array.isArray(hidden)||hidden.length>16||hidden.some(id=>typeof id!=='string'||!id||id.length>256)||new Set(hidden).size!==hidden.length)return bad('BAD_VISIBILITY','options.hiddenSeriesIds');
     if(!spec||!['line','area','areaspline','spline','column'].includes(spec.family))return bad('UNSUPPORTED_FAMILY','family');
