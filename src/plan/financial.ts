@@ -1,5 +1,5 @@
 import type {PlanFinancialSpec,PlanFinancialPoint,PlanFinancialSeries,PlanFinancialParameters,PlanFinancialValue} from '../public/financial-plan-types.js';
-import type {PlanOptions,PlanResult,PlanFrame,PlanSeries,PlanObservation,PlanCommand,PlanBar,PlanLineSpec} from '../public/plan-types.js';
+import type {PlanOptions,PlanResult,PlanFrame,PlanSeries,PlanObservation,PlanCommand,PlanBar,PlanCircle,PlanLineSpec} from '../public/plan-types.js';
 import {financialFamilies,financialParameterKeys} from '../public/financial-plan-types.js';
 import {planCartesianChart} from './cartesian.js';
 import {ownPlanInput,freezePlan} from './input.js';
@@ -82,13 +82,21 @@ export function planFinancialChart(input:PlanFinancialSpec,configuration:PlanOpt
     const x=(v:number)=>xScale.value.map(v),y=(v:number)=>yScale.value.map(v),series:PlanSeries[]=[],observations:PlanObservation[]=[];
     let spacing=24;for(let i=1;i<sorted.length;i++)spacing=Math.min(spacing,Math.abs(x(sorted[i]!)!-x(sorted[i-1]!)!));const width=Math.max(1,Math.min(18,spacing*.7));
     for(const [rank,row] of computed.entries()){
-      const color=legend.find(s=>s.id===row.source.id)!.color,commands:PlanCommand[]=[],bars:PlanBar[]=[],parts:NonNullable<PlanSeries['parts']>[number][]=[];
+      const color=legend.find(s=>s.id===row.source.id)!.color,commands:PlanCommand[]=[],bars:PlanBar[]=[],circles:PlanCircle[]=[],parts:NonNullable<PlanSeries['parts']>[number][]=[];
       const originals=new Map(row.source.data.map(p=>[p.id,p]));
       if(row.calculation){
-        for(const [key,values] of Object.entries(row.calculation.components)){const path:PlanCommand[]=[],columns:PlanBar[]=[];let open=false;for(let i=0;i<values.length;i++){const value=values[i];if(value===null||value===undefined){open=false;continue;}const point=row.points[i]!,shift=row.calculation.shifts?.[key]??0,interval=row.points.length>1?row.points.at(-1)!.x-row.points.at(-2)!.x:1,coordinate=row.points[i+shift]?.x??point.x+shift*interval,px=x(coordinate),py=y(value);if(px===null||py===null){open=false;continue;}
-            if(row.calculation.columns?.includes(key)){const baseline=y(0);if(baseline!==null)columns.push({pointId:point.id,x:px-width/2,y:Math.min(py,baseline),width,height:Math.max(1,Math.abs(baseline-py)),direction:value>=0?'rising':'falling'});}
+        for(const [key,values] of Object.entries(row.calculation.components)){const path:PlanCommand[]=[],columns:PlanBar[]=[];let open=false;for(let i=0;i<values.length;i++){const value=values[i];if(value===null||value===undefined){if(spec.family!=='zigzag'||row.points[i]!.close===null)open=false;continue;}const point=row.points[i]!,shift=row.calculation.shifts?.[key]??0,interval=row.points.length>1?row.points.at(-1)!.x-row.points.at(-2)!.x:1,coordinate=row.points[i+shift]?.x??point.x+shift*interval,px=x(coordinate),py=y(value);if(px===null||py===null){open=false;continue;}
+            if(spec.family==='psar'){circles.push({pointId:point.id,cx:px,cy:py,radius:2.5});}
+            else if(row.calculation.columns?.includes(key)){const baseline=y(0);if(baseline!==null)columns.push({pointId:point.id,x:px-width/2,y:Math.min(py,baseline),width,height:Math.max(1,Math.abs(baseline-py)),direction:value>=0?'rising':'falling'});}
             else {path.push({kind:open?'L':'M',x:px,y:py});open=true;}
           }parts.push({key,...(columns.length?{bars:columns}:{}),...(path.length?{commands:path}:{}),...(key!==row.calculation.primary?{dash:'dashed' as const}:{} )});
+        }
+        if(spec.family==='ikh'){
+          const a=row.calculation.components.spanA!,b=row.calculation.components.spanB!,shift=row.calculation.shifts!.spanA!,interval=row.points.length>1?row.points.at(-1)!.x-row.points.at(-2)!.x:1,cloud:PlanCommand[]=[];
+          let upper:{x:number;y:number}[]=[],lower:{x:number;y:number}[]=[];
+          const flush=()=>{if(upper.length>1){upper.forEach((point,i)=>cloud.push({kind:i?'L':'M',...point}));for(let i=lower.length-1;i>=0;i--)cloud.push({kind:'L',...lower[i]!});cloud.push({kind:'Z'});}upper=[];lower=[];};
+          for(let i=0;i<a.length;i++){if(a[i]===null||b[i]===null||a[i]===undefined||b[i]===undefined){flush();continue;}const px=x(row.points[i+shift]?.x??row.points[i]!.x+shift*interval),ay=y(a[i]!),by=y(b[i]!);if(px===null||ay===null||by===null){flush();continue;}upper.push({x:px,y:ay});lower.push({x:px,y:by});}flush();
+          if(cloud.length)parts.unshift({key:'cloud',commands:cloud,fill:true,opacity:.14});
         }
       }
       for(const [i,p] of row.points.entries()){
@@ -102,7 +110,7 @@ export function planFinancialChart(input:PlanFinancialSpec,configuration:PlanOpt
         }
         if(px>=plot.x&&px<=plot.x+plot.width&&py>=plot.y&&py<=plot.y+plot.height){const raw=p.original??originals.get(p.id)??p,components=row.calculation?Object.fromEntries(Object.entries(row.calculation.components).map(([key,values])=>[key,values[i]??null])):undefined,financial:PlanFinancialValue={open:raw.open,high:raw.high,low:raw.low,close:raw.close,...(raw.volume!==undefined?{volume:raw.volume}:{}),...(components?{components}:{}),...(ordinal?{originalId:raw.id}:{})};observations.push({id:{seriesId:row.source.id,pointId:p.id},seriesName:row.source.name,label:p.title??(spec.axes.x.kind==='time'?new Date(p.x).toISOString():String(p.x)),value,x:px,y:py,color,xValue:p.x,group:{key:JSON.stringify(['financial',p.x]),label:String(p.x),coordinate:px},financial});}
       }
-      series.push({id:row.source.id,name:row.source.name,color,...(commands.length?{commands}:{}),...(bars.length?{bars}:{}),...(parts.length?{parts}:{} )});void rank;
+      series.push({id:row.source.id,name:row.source.name,color,...(commands.length?{commands}:{}),...(bars.length?{bars}:{}),...(circles.length?{circles}:{}),...(parts.length?{parts}:{} )});void rank;
     }
     const frame:PlanFrame={...base,family:spec.family,legend,series,observations,financial:{layout:ordinal?'ordinal':rawFamilies.has(spec.family)?'price':'indicator'},...(spec.family==='flags'?{annotations:computed.flatMap(row=>row.points.flatMap(p=>p.close===null?[]:[{x:x(p.x)!+10,y:y(p.close)!-26,text:p.title??'•',role:'label' as const}]))}:{})};
     return freezePlan({status:observations.length?'ok':'empty',frame});
