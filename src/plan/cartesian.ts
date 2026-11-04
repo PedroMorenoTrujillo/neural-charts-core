@@ -98,7 +98,7 @@ function planCartesian(value:PlanSpec,options:PlanOptions,owned:boolean):PlanRes
         if(spec.family==='areaspline'&&(baseline===null||!Number.isFinite(baseline)))return bad('UNREPRESENTABLE_GEOMETRY','area.baseline');
         const fill=spec.family==='areaspline'?splineAreaCommands(commands,Math.max(plot.y,Math.min(plot.y+plot.height,baseline!))):areaCommands;
         series.push({id:s.series.spec.id,name:s.series.spec.name,color,commands,...(filled?{areaCommands:fill}:{})});
-        const metadata=spec.family==='line'&&data.nonnullCount>2048?lineObservationMetadata(s.series,xa.kind):undefined;
+        const metadata=spec.family==='line'&&data.nonnullCount>2048&&s.eligible.length?lineObservationMetadata(s.series,xa.kind):undefined;
         for(const point of s.eligible){
           const label=data.labels.get(String(point.point.x))??formatAxis(point.point.x,xa.kind,interval,data.labels);
           const id=metadata?.ids[point.index]??Object.freeze({seriesId:s.series.spec.id,pointId:point.point.id}),groupKey=metadata?.keys[point.index]??JSON.stringify([xa.kind,point.point.x]);
