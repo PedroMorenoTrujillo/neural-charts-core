@@ -103,7 +103,7 @@ for (const name of ['window', 'document', 'HTMLElement', 'SVGElement', 'navigato
 }
 const root = await import('@neural-charts/core');
 const seam = await import('@neural-charts/core/plan');
-assert.deepEqual(Object.keys(root).sort(), ['planChart', 'prepareWordCloudMeasurements', 'transformPlanViewport']);
+assert.deepEqual(Object.keys(root).sort(), ['containsPlanHit', 'financialFamilies', 'financialParameterKeys', 'hitTestPlanRegion', 'planChart', 'planFinancialChart', 'preparePlanRegionHit', 'prepareWordCloudMeasurements', 'transformPlanViewport']);
 assert.equal(root.planChart, seam.planChart);
 assert.equal(root.prepareWordCloudMeasurements, seam.prepareWordCloudMeasurements);
 const input = {family: 'line', title: 'Source', axes: {x: {kind: 'linear'}, y: {kind: 'linear'}}, series: [{id: 's', name: 'Series', data: [{id: 'a', x: 0, y: 0}, {id: 'gap', x: 1, y: null}, {id: 'b', x: 2, y: 8}]}]};
