@@ -4,8 +4,8 @@ import type {Domain} from '../internal/math/domain.js';
 import type {PathCommand} from '../internal/geometry/path.js';
 import {validateLine} from '../line/validate.js';
 import {normalizeLine,lineDomains} from '../line/normalize.js';
-import {validateScatter} from '../scatter/validate.js';
-import {normalizeScatter,scatterDomains,type NormalizedScatter} from '../scatter/data.js';
+import type {NormalizedScatter} from '../scatter/data.js';
+import type {prepareLogScatter} from './log-scatter-source.js';
 import {createLinearScale} from '../internal/math/linear.js';
 import {selectNumericTicks} from '../internal/math/numeric-ticks.js';
 import {selectTimeTicks} from '../internal/math/time.js';
@@ -28,7 +28,7 @@ function selectTicks(domain:Domain,axis:AxisInput,nice:boolean){return axis.kind
 const key=(seriesId:string,pointId:string)=>JSON.stringify([seriesId,pointId]);
 /** Log projection is an isolated /plan owner. Validators and source normalization
  * are reused; original observations are never replaced with logged values. */
-export function planLogarithmic(spec:PlanSpec,options:PlanOptions):PlanResult{
+export function planLogarithmic(spec:PlanSpec,options:PlanOptions,prepareScatter?:typeof prepareLogScatter):PlanResult{
  try{
   if(spec.family!=='line'&&spec.family!=='scatter'&&spec.family!=='bubble')fail('UNSUPPORTED_LOG_FAMILY','options.scales');
   // Keep narrowing explicit: incompatible families cannot become a scalar line.
@@ -52,7 +52,7 @@ export function planLogarithmic(spec:PlanSpec,options:PlanOptions):PlanResult{
   // Safe explicit placeholders only for frozen linear validation/domain helpers.
   // Their output for a logarithmic axis is discarded, never sent to the host.
   const axes={x:logs.x?{...spec.axes.x,domain:[1,10] as Domain,nice:false}:spec.axes.x,y:logs.y?{...spec.axes.y,domain:[1,10] as Domain,nice:false,includeZero:false}:spec.axes.y};
-  const sizes=new Map<string,{z:number;label:string}>();let maximum=0;
+  let sizes=new Map<string,{z:number;label:string}>(),maximum=0;
   let line:ReturnType<typeof normalizeLine>|null=null;
   let scatter:NormalizedScatter<unknown>|null=null;
   let domains:Readonly<{x:Domain|null;y:Domain|null}>;
@@ -60,17 +60,8 @@ export function planLogarithmic(spec:PlanSpec,options:PlanOptions):PlanResult{
   if(spec.family==='line'){
    const input=must(validateLine({...spec,axes}));line=normalizeLine(input);domains=must(lineDomains(line,state));sourceAxes=input.axes;
   }else{
-   for(const series of spec.series){
-    if(Object.keys(series).some(k=>!['id','name','color','data'].includes(k)))fail('UNKNOWN_OPTION','series');
-    for(const p of series.data){
-     if(Object.keys(p).some(k=>!(spec.family==='bubble'?['id','x','y','z','label']:['id','x','y']).includes(k)))fail('UNKNOWN_OPTION','series.data');
-     const z='z' in p?p.z:0;if(spec.family==='bubble'&&!(typeof z==='number'&&Number.isFinite(z)&&z>=0))fail('BAD_BUBBLE_SIZE','series.data.z');
-     const label='label' in p?p.label:undefined;if(label!==undefined&&(typeof label!=='string'||label.length>200))fail('BAD_BUBBLE_LABEL','series.data.label');
-     sizes.set(key(series.id,p.id),{z:z as number,label:label??p.id});if(!hidden.includes(series.id)&&p.x!==null&&p.y!==null)maximum=Math.max(maximum,z as number);
-    }
-   }
-   const input=must(validateScatter({family:'scatter',title:spec.title,...(spec.description===undefined?{}:{description:spec.description}),axes,series:spec.series.map(s=>({...s,data:s.data.map((p:PlanScatterSpec['series'][number]['data'][number])=>({id:p.id,x:p.x,y:p.y}))}))}));
-   scatter=must(normalizeScatter(input));domains=must(scatterDomains(scatter,state));sourceAxes=input.axes;
+   if(!prepareScatter)return {status:'invalid',diagnostic:{code:'INVALID_CONFIG',reason:'UNSUPPORTED_LOG_FAMILY',path:'family',message:'A Cartesian logarithmic planner requires an ordered line source.'}};
+   const prepared=prepareScatter(spec,axes,state);scatter=prepared.scatter;domains=prepared.domains;sourceAxes=prepared.sourceAxes;sizes=prepared.sizes;maximum=prepared.maximum;
   }
   const sources=line?.series.map(s=>({spec:s.spec,valid:s.valid,runs:s.runs}))??scatter!.series.map(s=>({spec:s.spec,valid:s.paired.map(p=>p.point),runs:[]}));
   if(hidden.some(id=>!sources.some(s=>s.spec.id===id)))fail('UNKNOWN_SERIES','options.hiddenSeriesIds');

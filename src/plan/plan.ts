@@ -3,7 +3,7 @@ import {planOwnedCartesianChart} from './cartesian.js';
 import {planCapacity} from './capacity.js';
 import {financialFamilies,type PlanFinancialSpec} from '../public/financial-plan-types.js';
 import {planFinancialChart} from './financial.js';
-import {planLogarithmic} from './logarithmic.js';
+import {planGeneralLogarithmic as planLogarithmic} from './logarithmic-generic.js';
 import {planMixedRanges} from './mixed-ranges.js';
 import {planCircularDisplay} from './circular-display.js';
 import {planGroupedStacks} from './grouped-stacks.js';
