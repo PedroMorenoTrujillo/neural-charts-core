@@ -122,7 +122,7 @@ export function temporalProjection(axis: PlanTemporalAxis, values: readonly numb
   const range: readonly [number, number] = axis.reversed ? [plot.x + plot.width, plot.x] : [plot.x, plot.x + plot.width];
   const scale = axis.kind === 'time' ? createTimeScale(domain, range, true) : createLinearScale(domain, range, true);
   if (scale.status === 'invalid') fail(scale.diagnostic.path, scale.diagnostic.reason, scale.diagnostic.code);
-  const labels = ticks.value.ticks.map(value => ({x: scale.value.map(value)!, label: formatAxis(value, axis.kind, 'interval' in ticks.value ? ticks.value.interval : null, new Map())}));
+  const labels = ticks.value.ticks.map(value => ({x: scale.value.map(value)!, label: formatAxis(value, axis.kind, 'interval' in ticks.value ? ticks.value.interval : null, new Map()), value, kind: axis.kind === 'time' ? 'time' as const : 'number' as const}));
   const references: PlanProjectedReference[] = options.references.map(reference => {
     if (reference.axis !== 'x' || typeof reference.value !== 'number') fail('options.references', 'X_REFERENCE_ONLY');
     const value = reference.value;

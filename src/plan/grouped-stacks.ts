@@ -67,8 +67,8 @@ export function planGroupedStacks(spec:PlanColumnSpec,options:PlanOptions,refere
     annotations.push(...planStackLabels(p.stack.categories.values(),mode,ticks.value.domain,id=>slot(id)?.center??null,p.mapValue,horizontal).slice(0,Math.max(0,64-annotations.length)));
   }
   const p=first!,order=new Map(input.series.map((s,i)=>[s.id,i]));series.sort((a,b)=>order.get(a.id)!-order.get(b.id)!);observations.sort((a,b)=>order.get(a.id.seriesId)!-order.get(b.id.seriesId)!);
-  const labels=horizontal?ticks.value.ticks.map(v=>({x:p.mapValue(v)!,label:String(v)})):input.axes.x.values.flatMap(c=>{const x=p.bands.center(c.id);return x===null?[]:[{x,label:c.label??c.id}];});
+  const labels=horizontal?ticks.value.ticks.map(v=>({x:p.mapValue(v)!,label:String(v),value:v,kind:'number' as const})):input.axes.x.values.flatMap(c=>{const x=p.bands.center(c.id);return x===null?[]:[{x,label:c.label??c.id}];});
   const yLabels=horizontal?input.axes.x.values.flatMap(c=>{const y=p.bands.center(c.id);return y===null?[]:[{id:c.id,y,label:c.label??c.id}];}):undefined;
-  const frame={...base,series,observations,labels,annotations,grid:horizontal?[]:ticks.value.ticks.map(v=>({y:p.mapValue(v)!,label:String(v)})),...(yLabels?{yLabels}:{}),...(view?{viewport:planViewportState(view,{x:null,y:ticks.value.domain},input.axes,plot)!}:{})};
+  const frame={...base,series,observations,labels,annotations,grid:horizontal?[]:ticks.value.ticks.map(v=>({y:p.mapValue(v)!,label:String(v),value:v,kind:'number' as const})),...(yLabels?{yLabels}:{}),...(view?{viewport:planViewportState(view,{x:null,y:ticks.value.domain},input.axes,plot)!}:{})};
   return freezePlan({status:observations.length?'ok':'empty',frame:withPlanReferences(frame,references,{plot,domains:{x:null,y:ticks.value.domain},mapY:p.mapValue,horizontal,bandSourceAxes:input.axes,categorySlot:id=>{const band=p.bands.band(id);return band?[band.start,band.end]:null;}},options.referenceBands)});
 }

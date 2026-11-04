@@ -97,6 +97,6 @@ export function planAdditional(spec:PlanPieSpec|PlanDonutSpec|PlanGaugeSpec|Plan
     }
     series.push({id:s.series.spec.id,name:s.series.spec.name,color,circles});
   }
-  const plot={x:px,y:py,width:width-2*px,height:height-2*py},frame:PlanFrame={...base,series,observations,labels:xt.value.ticks.map(v=>({x:x.value.map(v)!,label:String(v)})),grid:yt.value.ticks.map(v=>({y:y.value.map(v)!,label:String(v)})),...(view?{viewport:planViewportState(view,{x:xt.value.domain,y:yt.value.domain},input.axes,plot)!}:{})};
+  const plot={x:px,y:py,width:width-2*px,height:height-2*py},frame:PlanFrame={...base,series,observations,labels:xt.value.ticks.map(v=>({x:x.value.map(v)!,label:String(v),value:v,kind:'number' as const})),grid:yt.value.ticks.map(v=>({y:y.value.map(v)!,label:String(v),value:v,kind:'number' as const})),...(view?{viewport:planViewportState(view,{x:xt.value.domain,y:yt.value.domain},input.axes,plot)!}:{})};
   return finish(transform?transform(frame,{plot,xDomain:xt.value.domain,yDomain:yt.value.domain,mapX:x.value.map,mapY:y.value.map}):frame,references,!data.value.series.some(series=>!hidden.includes(series.spec.id)&&series.paired.length>0)?undefined:{plot,domains:{x:xt.value.domain,y:yt.value.domain},mapX:value=>typeof value==='number'?x.value.map(value):null,mapY:y.value.map,bandSourceAxes:input.axes},bands);
 }

@@ -13,10 +13,11 @@ import {preparePlanViewport,planViewportState,planLineViewportScales} from './vi
 import {withPlanReferences,referenceCategories} from './references.js';
 import {freezePlan} from './input.js';
 import {planStackLabels} from './stack-labels.js';
-import type {PlanAreaSpec,PlanOptions,PlanReference,PlanResult,PlanSeries,PlanObservation} from '../public/plan-types.js';
+import type {PlanAreaSpec,PlanAreaSplineSpec,PlanOptions,PlanReference,PlanResult,PlanSeries,PlanObservation} from '../public/plan-types.js';
+import {smoothStackBands} from './smooth-stack.js';
 
 /** Public orchestration only; stacking, signed bands and projection use their owners. */
-export function planStackedArea(spec:PlanAreaSpec,options:PlanOptions,references?:readonly PlanReference[]):PlanResult{
+export function planStackedArea(spec:PlanAreaSpec|PlanAreaSplineSpec,options:PlanOptions,references?:readonly PlanReference[]):PlanResult{
   const checked=validateStackedArea({...spec,family:'stacked-area',stacking:options.stacking,...(references?{references}:{})});
   if(checked.status==='invalid')return checked;
   const input=checked.value,hidden=options.hiddenSeriesIds??[],state={hiddenSeriesIds:[...hidden]};
@@ -26,7 +27,7 @@ export function planStackedArea(spec:PlanAreaSpec,options:PlanOptions,references
   const domains=stackAreaDomains(data,stack.value);if(domains.status==='invalid')return domains;
   const {width,height}=options,plot={x:16,y:14,width:width-32,height:height-28},palette=defaultPalette('light',false).series;
   const legend=input.series.map((s,i)=>({id:s.id,name:s.name,color:s.color??palette[i%palette.length]!,visible:!hidden.includes(s.id)}));
-  const base={schema:'nc-plan/1' as const,family:'area' as const,width,height,title:input.title,description:input.description??'',unit:input.axes.y.title??'',legend};
+  const base={schema:'nc-plan/1' as const,family:spec.family,width,height,title:input.title,description:input.description??'',unit:input.axes.y.title??'',legend};
   if(!domains.value.y)return freezePlan({status:'empty',frame:withPlanReferences({...base,series:[],observations:[],labels:[],grid:[]},references,undefined,options.referenceBands)});
   const xa=input.axes.x;
   let yt=selectNumericTicks(domains.value.y,{nice:input.axes.y.nice??!input.axes.y.domain,targetCount:input.axes.y.ticks?.targetCount??5});if(yt.status==='invalid')return yt;
@@ -52,16 +53,18 @@ export function planStackedArea(spec:PlanAreaSpec,options:PlanOptions,references
   const axes:AxesPlan={plot,tooSmall:false,...maps,x:{domain:xDomain,ticks:xt?.value.ticks??[],labels:[],interval,target:6},y:{domain:yDomain,ticks:yt.value.ticks,labels:[],interval:null,target:5},xTitle:null,yTitle:null,font:{family:'sans-serif',size:12,weight:400},direction:'ltr'};
   const projected=projectStackedArea(data,state,stack.value,axes);if(projected.status==='invalid')return projected;
   const p=projected.value,series:PlanSeries[]=[],observations:PlanObservation[]=[];
+  const smooth=spec.family==='areaspline'?smoothStackBands(p.fills):undefined;
   for(const s of p.series){
     const color=legend.find(item=>item.id===s.series.spec.id)!.color;
-    series.push({id:s.series.spec.id,name:s.series.spec.name,color,commands:s.commands,areaCommands:p.fills.get(s.series.spec.id)??[]});
+    const band=smooth?.get(s.series.spec.id);
+    series.push({id:s.series.spec.id,name:s.series.spec.name,color,commands:band?.commands??s.commands,areaCommands:band?.areaCommands??p.fills.get(s.series.spec.id)??[]});
     for(const point of s.eligible){
       const label=formatAxis(point.point.x,xa.kind,interval,data.line.labels),segment=p.segments.get(pointKey(s.series.spec.id,point.point.id))!;
       observations.push({id:{seriesId:s.series.spec.id,pointId:point.point.id},label,seriesName:s.series.spec.name,value:point.point.y!,x:point.x,y:point.y,color,...(segment.percentage===null?{}:{percentage:segment.percentage}),group:{key:JSON.stringify([xa.kind,point.point.x]),label,coordinate:point.x}});
     }
   }
-  const values=xa.kind==='category'?xa.values.map(c=>c.id):(xt?.value.ticks??[]),labels=values.flatMap(value=>{const x=p.mapX(value);return x===null||x<plot.x||x>plot.x+plot.width?[]:[{x,label:formatAxis(value,xa.kind,interval,data.line.labels)}];});
+  const values=xa.kind==='category'?xa.values.map(c=>c.id):(xt?.value.ticks??[]),labels=values.flatMap(value=>{const x=p.mapX(value);return x===null||x<plot.x||x>plot.x+plot.width?[]:[{x,label:formatAxis(value,xa.kind,interval,data.line.labels),...(typeof value==='number'?{value,kind:xa.kind==='time'?'time' as const:'number' as const}:{})}];});
   const annotations=planStackLabels(stack.value.categories.values(),stack.value.mode,yDomain,id=>p.mapX(data.coordinates[Number(id.slice(1))]!),p.mapY).filter(label=>label.x>=plot.x&&label.x<=plot.x+plot.width);
-  const frame=withPlanReferences({...base,series,observations,labels,annotations,grid:yt.value.ticks.map(value=>({y:p.mapY(value)!,label:String(value)})),...(view?{viewport:planViewportState(view,{x:xDomain,y:yDomain},input.axes,plot)!}:{})},references,{plot,domains:{x:xDomain,y:yDomain},mapX:p.mapX,mapY:p.mapY,bandSourceAxes:input.axes,...(xa.kind==='category'?{categories:referenceCategories(xa.values,plot,p.mapX)}:{})},options.referenceBands);
+  const frame=withPlanReferences({...base,series,observations,labels,annotations,grid:yt.value.ticks.map(value=>({y:p.mapY(value)!,label:String(value),value:value,kind:'number' as const})),...(view?{viewport:planViewportState(view,{x:xDomain,y:yDomain},input.axes,plot)!}:{})},references,{plot,domains:{x:xDomain,y:yDomain},mapX:p.mapX,mapY:p.mapY,bandSourceAxes:input.axes,...(xa.kind==='category'?{categories:referenceCategories(xa.values,plot,p.mapX)}:{})},options.referenceBands);
   return freezePlan({status:observations.length?'ok':'empty',frame});
 }

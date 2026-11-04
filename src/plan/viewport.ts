@@ -7,6 +7,7 @@ import {prepareViewport,categoryViewportAxis,numericViewportAxis,type Viewport,t
 import {zoomDisplayedViewport,panDisplayedViewport,type ViewportDomains} from '../internal/interaction/viewport-display.js';
 import {invalid,ok} from '../internal/diagnostics.js';
 import {ownPlanInput,freezePlan} from './input.js';
+import {MAX_PLAN_CATEGORIES} from './capacity.js';
 import {createCategoryFrame,createPointScale} from '../internal/math/category.js';
 import {createLinearScale} from '../internal/math/linear.js';
 import {createTimeScale} from '../internal/math/time.js';
@@ -63,7 +64,7 @@ export function transformPlanViewport(input:PlanViewportState,intent:PlanViewpor
     if(state.plot!==undefined&&(!state.plot||typeof state.plot!=='object'||Object.keys(state.plot).some(key=>!['x','y','width','height'].includes(key))||!['x','y','width','height'].every(key=>typeof state.plot![key as keyof typeof state.plot]==='number'&&Number.isFinite(state.plot![key as keyof typeof state.plot]))||state.plot.x<0||state.plot.y<0||state.plot.width<=0||state.plot.height<=0))return invalid('INVALID_CONFIG','BAD_VIEWPORT_PLOT','viewport.plot');
     if(state.bounds.x?.kind==='log'||state.bounds.y?.kind==='log')return freezePlan(transformLogViewport(state,action,transformPlanViewport));
     const read=(name:'x'|'y')=>{const axis=state.bounds[name];if(!axis||typeof axis!=='object')return invalid('INVALID_CONFIG','BAD_VIEWPORT_AXIS','viewport.'+name);
-      if(axis.kind==='category'){if(Object.keys(axis).some(key=>!['kind','ids','edgeSpacing'].includes(key))||!Array.isArray(axis.ids)||axis.ids.length>256||!Number.isFinite(axis.edgeSpacing)||axis.edgeSpacing<0||axis.edgeSpacing>2)return invalid('INVALID_CONFIG','BAD_VIEWPORT_AXIS','viewport.'+name);return categoryViewportAxis(axis.ids);}
+      if(axis.kind==='category'){if(Object.keys(axis).some(key=>!['kind','ids','edgeSpacing'].includes(key))||!Array.isArray(axis.ids)||axis.ids.length>(name==='x'?MAX_PLAN_CATEGORIES:256)||!Number.isFinite(axis.edgeSpacing)||axis.edgeSpacing<0||axis.edgeSpacing>2)return invalid('INVALID_CONFIG','BAD_VIEWPORT_AXIS','viewport.'+name);return categoryViewportAxis(axis.ids);}
       if(axis.kind!=='linear'&&axis.kind!=='time'||Object.keys(axis).some(key=>!['kind','domain','limits'].includes(key)))return invalid('INVALID_CONFIG','BAD_VIEWPORT_AXIS','viewport.'+name);
       if('limits' in axis&&axis.limits!==undefined&&(!axis.limits||Object.keys(axis.limits).some(key=>key!=='minSpan')||!Number.isFinite(axis.limits.minSpan)||axis.limits.minSpan<=0||!Array.isArray(axis.domain)||axis.domain.length!==2||axis.limits.minSpan>axis.domain[1]!-axis.domain[0]!))return invalid('INVALID_CONFIG','BAD_VIEWPORT_LIMIT','viewport.'+name+'.limits');
       return numericViewportAxis(axis.kind,axis.domain,state.displayed[name]);};

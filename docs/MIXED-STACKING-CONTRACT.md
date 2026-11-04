@@ -1,0 +1,9 @@
+# Mixed column stacking
+
+`planChart` accepts `options.stacking: 'sum' | 'percent'` for scalar `mixed` charts. Stacking applies to column series; line and area series retain their original, independent values. Every series still shares the category frame. Raw values are never implicitly converted to percentages. At least one column is required; percent columns reject negative values and incomplete displayed categories as before. Zero-total known measurements remain inspectable without an invented percentage. Range-combination recipes do not acquire scalar stacking implicitly.
+
+The existing column stack computation/projection supplies signed accumulators and rectangles. The mixed owner combines its accumulated domain with the non-column domain and uses that shared value scale. The mixed keyboard/hit index consumes the resulting rectangle anchors. Source IDs, duplicate display labels, nulls, legend visibility, clipping, references and category viewport preserve their existing contracts. Stack totals describe columns only.
+
+Dual Y axes calculate stacks independently within each assigned axis. When both axes contain visible columns, their stacks occupy separate category subslots, with stable axis order and the configured spacing/maximum width. Line/area anchors retain the common category center. Observations retain valueAxis, raw value and optional segment percentage; stack labels use their axis's projection and actual subslot.
+
+No second chart renderer or independent overlaid chart owner. The shared legacy mixed projection receives an optional already-projected column geometry; its existing callers retain their original behavior. No edits to frozen NC-01A mathematics/Scene and no runtime dependencies. `npm run check` passes, including new tests for signs, zero, missing/percent policy, raw identity, domain stacking, viewport/visibility and coordinated stacks on both Y axes.

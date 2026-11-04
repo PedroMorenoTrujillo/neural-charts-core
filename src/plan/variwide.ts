@@ -110,7 +110,7 @@ export function planVariwide(input: PlanVariwideSpec, inputOptions: PlanOptions)
     const frame: PlanVariwideFrame = {schema: 'nc-plan/1', family: 'variwide', title: spec.title, description: spec.description ?? '', unit: spec.axes.y.unit ?? '', width: options.width, height: options.height,
       legend: spec.series.map(series => ({id: series.id, name: series.name, color: series.color, visible: !options.hidden.has(series.id)})), series, observations,
       labels: layout.bands.flatMap(band => band.left === null || band.right === null ? [] : [{x: band.left / 2 + band.right / 2, label: band.label}]),
-      grid: projection.ticks.map(tick => ({y: tick.position, label: tick.label})), references,
+      grid: projection.ticks.map(tick => ({y: tick.position, label: tick.label, value: tick.value, kind: 'number' as const})), references,
       categoryBands: layout.bands, variwideData: spec.series.flatMap(series => series.data.map(point => ({id: {seriesId: series.id, pointId: point.id}, categoryId: point.x, y: point.y, z: point.z, visible: !options.hidden.has(series.id), missingValue: point.y === null, missingWidth: point.z === null}))),
       variwideLayout: {status: layout.ready ? 'ready' : 'no-positive-width', incomplete: layout.incomplete},
       ...(projection.viewport === undefined ? {} : {viewport: projection.viewport})};

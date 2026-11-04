@@ -86,7 +86,7 @@ export function comparisonOptions(input: PlanOptions, seriesIds: ReadonlySet<str
 export interface ComparisonProjection {
   readonly domain: Domain;
   readonly map: (value: number) => number | null;
-  readonly ticks: readonly Readonly<{position: number; label: string}>[];
+  readonly ticks: readonly Readonly<{position: number; label: string; value: number}>[];
   readonly viewport?: PlanViewportState;
 }
 
@@ -105,6 +105,6 @@ export function comparisonProjection(axes: Readonly<{x: ComparisonCategoryAxis; 
   const scale = createLinearScale(ticks.value.domain, range, true);
   if (scale.status === 'invalid') fail(scale.diagnostic.path, scale.diagnostic.reason, scale.diagnostic.code);
   const viewport = planViewportState(prepared.value, {x: null, y: ticks.value.domain}, axes, plot);
-  return {domain: ticks.value.domain, map: scale.value.map, ticks: ticks.value.ticks.map(value => ({position: scale.value.map(value)!, label: String(value)})),
+  return {domain: ticks.value.domain, map: scale.value.map, ticks: ticks.value.ticks.map(value => ({position: scale.value.map(value)!, label: String(value), value})),
     ...(viewport === undefined ? {} : {viewport})};
 }

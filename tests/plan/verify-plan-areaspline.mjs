@@ -15,7 +15,8 @@ const curved=planChart({...spec,series:[{...spec.series[0],data:[2,8,4,12,5].map
 assert.equal(curved.status,'ok');assert(curved.frame.series[0].commands.length>6,'Genuine flattened smooth outline');
 assert.equal(planChart({...spec,axes:{...axes,y:{kind:'linear',includeZero:false}}},size).status,'invalid');
 assert.equal(planChart({...spec,series:[{...spec.series[0],curve:'step-after'}]},size).status,'invalid');
-assert.equal(planChart(spec,{...size,stacking:'sum'}).status,'invalid');
+const stacked=planChart(spec,{...size,stacking:'sum'});assert.equal(stacked.status,'ok');assert.equal(stacked.frame.family,'areaspline');assert(stacked.frame.series[0].areaCommands.length>5);
+assert.equal(planChart(spec,{...size,stacking:'percent'}).status,'invalid','The existing nonnegative percent contract remains enforced');
 assert.equal(planChart(spec,{...size,hiddenSeriesIds:['r']}).status,'empty');
 assert.equal(planChart(spec,{...size,references:[{id:'threshold',axis:'y',value:0}]}).status,'ok');
 assert.equal(planChart(spec,{...size,viewport:{axes:'x',value:{x:{firstId:'d',lastId:'e'}}}}).status,'ok');
