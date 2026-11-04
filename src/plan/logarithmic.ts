@@ -139,7 +139,7 @@ export function planLogarithmic(spec:PlanSpec,options:PlanOptions):PlanResult{
    for(const axis of ['x','y'] as const)if(logs[axis]){bounds[axis]={kind:'log',base:10,domain:full[axis]!};const raw=value[axis];if(Array.isArray(raw))value[axis]=rawDomains[axis]!;}
    view={...encodedState,bounds,value,displayed:rawDomains};
   }
-  const frame:PlanFrame={...base,series,observations,labels,grid:ticks('y').map(v=>({y:mapY(v)!,label:String(v)})),...(view?{viewport:view}:{})};
+  const frame:PlanFrame={...base,series,observations,labels,grid:ticks('y').map(v=>({y:mapY(v)!,label:String(v),value:v,kind:'number' as const})),...(view?{viewport:view}:{})};
   return freezePlan({status:observations.length?'ok':'empty',frame:withPlanReferences(frame,refs,{plot,domains:rawDomains,mapX,mapY,bandSourceAxes:sourceAxes,...(categories.length?{categories:referenceCategories(categories,plot,mapX)}:{})},bands)});
  }catch(error){if(error&&typeof error==='object'&&'code' in error&&'reason' in error&&'path' in error&&'message' in error)return {status:'invalid',diagnostic:error as Extract<PlanResult,{status:'invalid'}>['diagnostic']};return {status:'invalid',diagnostic:{code:'INVALID_CONFIG',reason:'BAD_LOG_SCALE',path:'options.scales',message:error instanceof Error?error.message:'Invalid log projection.'}};}
 }

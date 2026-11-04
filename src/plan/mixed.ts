@@ -51,6 +51,6 @@ export function planMixed(spec:PlanMixedSpec,options:PlanOptions,references?:rea
   // Preserve semantic/legend order while matching the owner's paint precedence.
   const rank=(id:string)=>data.kinds.get(id)==='area'?0:data.kinds.get(id)==='column'?1:2;
   series.sort((a,b)=>rank(a.id)-rank(b.id));
-  const frame=withPlanReferences({...base,series,observations,labels:visible.map(c=>({x:maps.mapX(c.id)!,label:c.label??c.id})),grid:yt.value.ticks.map(value=>({y:maps.mapY(value)!,label:String(value)})),...(view?{viewport:planViewportState(view,{x:null,y:yt.value.domain},input.axes,plot)!}:{})},references,{plot,domains:{x:null,y:yt.value.domain},...maps,bandSourceAxes:input.axes,categories:referenceCategories(all,plot,maps.mapX)},options.referenceBands);
+  const frame=withPlanReferences({...base,series,observations,labels:visible.map(c=>({x:maps.mapX(c.id)!,label:c.label??c.id})),grid:yt.value.ticks.map(value=>({y:maps.mapY(value)!,label:String(value),value:value,kind:'number' as const})),...(view?{viewport:planViewportState(view,{x:null,y:yt.value.domain},input.axes,plot)!}:{})},references,{plot,domains:{x:null,y:yt.value.domain},...maps,bandSourceAxes:input.axes,categories:referenceCategories(all,plot,maps.mapX)},options.referenceBands);
   return freezePlan({status:observations.length?'ok':'empty',frame});
 }

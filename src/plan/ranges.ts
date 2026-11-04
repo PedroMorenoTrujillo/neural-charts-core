@@ -177,8 +177,8 @@ export function planRanges(spec:PlanRangeSpec,options:PlanOptions,references?:re
       }
       flush();series.push({id:s.id,name:s.name,color:s.color,...(columns?{bars,...(commands.length?{commands}:{})}:{commands,areaCommands})});
     }
-    const values=xa.kind==='category'?xa.values.map(c=>c.id):xt?.value.ticks??[],labels=values.flatMap(v=>{const x=p.mapX(v);return x===null||x<plot.x||x>plot.x+plot.width?[]:[{x,label:formatAxis(v,xa.kind,interval,normalized.labels)}];});
-    const frame:PlanFrame={...base,series,observations,labels,grid:yt.value.ticks.map(v=>({y:p.mapY(v)!,label:String(v)})),...(view?{viewport:planViewportState(view,{x:xt?.value.domain??initialX,y:yt.value.domain},validated.axes,plot)!}:{})};
+    const values=xa.kind==='category'?xa.values.map(c=>c.id):xt?.value.ticks??[],labels=values.flatMap(v=>{const x=p.mapX(v);return x===null||x<plot.x||x>plot.x+plot.width?[]:[{x,label:formatAxis(v,xa.kind,interval,normalized.labels),...(typeof v==='number'?{value:v,kind:xa.kind==='time'?'time' as const:'number' as const}:{})}];});
+    const frame:PlanFrame={...base,series,observations,labels,grid:yt.value.ticks.map(v=>({y:p.mapY(v)!,label:String(v),value:v,kind:'number' as const})),...(view?{viewport:planViewportState(view,{x:xt?.value.domain??initialX,y:yt.value.domain},validated.axes,plot)!}:{})};
     return finish(transform?transform(frame,{plot,yDomain:yt.value.domain,mapX:p.mapX,mapY:p.mapY,slots}):frame,{plot,domains:{x:xt?.value.domain??initialX,y:yt.value.domain},mapX:p.mapX,mapY:p.mapY,bandSourceAxes:validated.axes,...(xa.kind==='category'?{categories:referenceCategories(xa.values,plot,p.mapX)}:{})});
   }catch(error){return error instanceof ValidationFailure?{status:'invalid',diagnostic:error.diagnostic}:{status:'invalid',diagnostic:{code:'INVALID_CONFIG',reason:'BAD_SPEC',path:'spec',message:'BAD_SPEC'}};}
 }

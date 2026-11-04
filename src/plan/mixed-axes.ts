@@ -79,7 +79,7 @@ export function planMixedAxes(spec:PlanMixedSpec,options:PlanOptions,references?
       else paint.push({id,name:s.series.spec.name,color,commands:s.commands,...(kind==='area'?{areaCommands:layers.marks.flatMap(mark=>mark.kind==='path'&&mark.key.startsWith(key+'|area:')?mark.commands:[])}:{})});
     }
     for(const row of p.index.targets)for(const target of row){const s=target.series.series.spec,point=target.point,label=d.line.labels.get(String(point.point.x))??String(point.point.x),bar=bars.get(JSON.stringify([s.id,point.point.id]));observations.push({id:{seriesId:s.id,pointId:point.point.id},label,seriesName:s.name,value:point.point.y!,valueAxis:index===0?'primary':'secondary',x:bar?bar.x+bar.width/2:point.x,y:point.y,color:byId.get(s.id)!.color,group:{key:JSON.stringify(['category',point.point.x]),label,coordinate:maps.mapX(point.point.x)!}});}
-    grids[index]=ticks.value.ticks.map(v=>({y:maps.mapY(v)!,label:String(v)}));
+    grids[index]=ticks.value.ticks.map(v=>({y:maps.mapY(v)!,label:String(v),value:v,kind:'number' as const}));
   }
   const rank=(id:string)=>globalData.kinds.get(id)==='area'?0:globalData.kinds.get(id)==='column'?1:2,order=new Map(schema.value.series.map((s,i)=>[s.id,i]));paint.sort((a,b)=>rank(a.id)-rank(b.id)||order.get(a.id)!-order.get(b.id)!);observations.sort((a,b)=>order.get(a.id.seriesId)!-order.get(b.id.seriesId)!);
   const frame={...base,mixedAxes,series:paint,observations,labels:visible.map(c=>({x:categoryMap(c.id)!,label:c.label??c.id})),grid:grids[0]!,...(full[1]?{secondaryGrid:grids[1]!}:{}),...(view?{viewport:planViewportState(view,{x:null,y:displayed[0]!},primary.value.axes,plot)!}:{})};

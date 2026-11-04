@@ -78,8 +78,8 @@ export function planStreamgraph(spec:PlanStreamgraphSpec,options:PlanOptions,ref
         observations.push({id:{seriesId:s.series.spec.id,pointId:point.point.id},label,seriesName:s.series.spec.name,value:point.point.y!,x:point.x,y:point.y,color,...(typeof point.point.x==='number'?{xValue:point.point.x}:{}),group:{key:JSON.stringify([xa.kind,point.point.x]),label,coordinate:point.x}});
       }
     }
-    const values=xa.kind==='category'?xa.values.map(c=>c.id):xt?.value.ticks??[],labels=values.flatMap(value=>{const x=p.mapX(value);return x===null||x<plot.x||x>plot.x+plot.width?[]:[{x,label:formatAxis(value,xa.kind,interval,data.line.labels)}];});
+    const values=xa.kind==='category'?xa.values.map(c=>c.id):xt?.value.ticks??[],labels=values.flatMap(value=>{const x=p.mapX(value);return x===null||x<plot.x||x>plot.x+plot.width?[]:[{x,label:formatAxis(value,xa.kind,interval,data.line.labels),...(typeof value==='number'?{value,kind:xa.kind==='time'?'time' as const:'number' as const}:{})}];});
     const context=p.series.some(s=>s.series.valid.length>0)?{plot,domains:{x:xDomain,y:yDomain},mapX:p.mapX,mapY:p.mapY,...(xa.kind==='category'?{categories:referenceCategories(xa.values,plot,p.mapX)}:{})}:undefined;
-    return freezePlan({status:observations.length?'ok':'empty',frame:withPlanReferences({...base,series,observations,labels,grid:yt.value.ticks.map(value=>({y:p.mapY(value)!,label:String(value)})),...(view?{viewport:planViewportState(view,{x:xDomain,y:yDomain},validated.axes,plot)!}:{})},references,context)});
+    return freezePlan({status:observations.length?'ok':'empty',frame:withPlanReferences({...base,series,observations,labels,grid:yt.value.ticks.map(value=>({y:p.mapY(value)!,label:String(value),value:value,kind:'number' as const})),...(view?{viewport:planViewportState(view,{x:xDomain,y:yDomain},validated.axes,plot)!}:{})},references,context)});
   }catch(error){return error instanceof ValidationFailure?{status:'invalid',diagnostic:error.diagnostic}:{status:'invalid',diagnostic:{code:'INVALID_CONFIG',reason:'BAD_SPEC',path:'spec',message:'BAD_SPEC'}};}
 }

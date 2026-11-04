@@ -58,6 +58,6 @@ export function planWaterfall(spec:PlanWaterfallSpec,options:PlanOptions,referen
     const label=categories.find(c=>c.id===row.point.x)!.label??row.point.x,pointColor=row.point.kind==='delta'?(row.value<0?'#CC4F55':'#2F8C5A'):'#2C6DCD';
     observations.push({id:{seriesId:flow.id,pointId:row.point.id},label,seriesName:flow.name,value:row.value,x:band.center,y:end,color:pointColor,...(row.point.kind==='delta'?{}:{computedKind:row.point.kind})});
   }
-  const result=withPlanReferences({...base,series:[{id:flow.id,name:flow.name,color,bars,commands}],observations,grid:ticks.value.ticks.map(value=>({y:y.value.map(value)!,label:String(value)})),labels:visible.map(c=>({x:frame.value.points.center(c.id)!,label:c.label??c.id})),...(view?{viewport:planViewportState(view,{x:null,y:ticks.value.domain},axes,plot)!}:{})},references,{plot,domains:{x:null,y:ticks.value.domain},mapY:y.value.map});
+  const result=withPlanReferences({...base,series:[{id:flow.id,name:flow.name,color,bars,commands}],observations,grid:ticks.value.ticks.map(value=>({y:y.value.map(value)!,label:String(value),value:value,kind:'number' as const})),labels:visible.map(c=>({x:frame.value.points.center(c.id)!,label:c.label??c.id})),...(view?{viewport:planViewportState(view,{x:null,y:ticks.value.domain},axes,plot)!}:{})},references,{plot,domains:{x:null,y:ticks.value.domain},mapY:y.value.map});
   return freezePlan({status:observations.length?'ok':'empty',frame:result});
 }

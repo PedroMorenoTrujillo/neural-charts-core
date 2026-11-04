@@ -272,7 +272,7 @@ export interface PlanFrame {
   readonly intervals?:readonly PlanIntervalSummary[];
   readonly events?:readonly PlanTimelineSummary[];
   readonly distribution?:PlanDistributionSummary;
-  readonly secondaryGrid?:readonly Readonly<{y:number;label:string}>[];
+  readonly secondaryGrid?:readonly Readonly<{y:number;label:string;value?:number;kind?:'number'|'time'}>[];
   readonly schema:'nc-plan/1';
   readonly family:PlanSpec['family']|'bar';
   readonly title:string;readonly description:string;readonly unit:string;
@@ -280,8 +280,8 @@ export interface PlanFrame {
   readonly legend:readonly PlanLegendItem[];
   readonly series:readonly PlanSeries[];
   readonly observations:readonly PlanObservation[];
-  readonly grid:readonly Readonly<{y:number;label:string}>[];
-  readonly labels:readonly Readonly<{x:number;label:string}>[];
+  readonly grid:readonly Readonly<{y:number;label:string;value?:number;kind?:'number'|'time'}>[];
+  readonly labels:readonly Readonly<{x:number;label:string;value?:number;kind?:'number'|'time'}>[];
   readonly yLabels?:readonly Readonly<{id:string;y:number;label:string}>[];
   readonly annotations?:readonly PlanAnnotation[];
   readonly viewport?:PlanViewportState;
