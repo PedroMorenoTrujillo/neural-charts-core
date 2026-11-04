@@ -1,5 +1,7 @@
 /** Own a bounded JSON value before passing it to existing family validators. */
 const immutableInputs = new WeakMap<object, Readonly<{value: unknown; nodes: number; characters: number; height: number}>>();
+/** Private cache seam: shallow freezing alone does not establish ownership. */
+export const isReusablePlanArray = (value: unknown): value is readonly unknown[] => Array.isArray(value) && immutableInputs.has(value);
 export function ownPlanInput(value:unknown,limits:Readonly<{nodes:number;characters:number}>={nodes:200000,characters:1000000}):unknown {
   const seen=new WeakSet<object>();let count=0,characters=0,lastHeight=0,lastImmutable=true;
   const visit=(v:unknown,depth:number):unknown=>{
@@ -23,7 +25,7 @@ export function ownPlanInput(value:unknown,limits:Readonly<{nodes:number;charact
     seen.add(v);
     let immutable=Object.isFrozen(v),height=0;
     const child=(value:unknown):unknown=>{const owned=visit(value,depth+1);height=Math.max(height,lastHeight+1);immutable=immutable&&lastImmutable;return owned;};
-    const finish=<T>(copy:T):T=>{seen.delete(v);lastHeight=height;lastImmutable=immutable;if(immutable){Object.freeze(copy);if(cacheable&&(depth===0||count-beforeCount>=64))immutableInputs.set(v,{value:copy,nodes:count-beforeCount,characters:characters-beforeCharacters,height});}return copy;};
+    const finish=<T>(copy:T):T=>{seen.delete(v);lastHeight=height;lastImmutable=immutable;if(immutable){Object.freeze(copy);if(cacheable&&(depth===0||count-beforeCount>=64)){const entry={value:copy,nodes:count-beforeCount,characters:characters-beforeCharacters,height};immutableInputs.set(v,entry);immutableInputs.set(copy as object,entry);}}return copy;};
     if(array){
       const copy:unknown[]=[];
       for(const key of keys){

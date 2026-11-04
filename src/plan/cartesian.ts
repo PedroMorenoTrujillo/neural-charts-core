@@ -2,8 +2,7 @@ import {areaScene} from '../area/scene.js';
 import {splineScene} from '../spline/scene.js';
 import {splineAreaCommands} from './areaspline.js';
 import {emptyLayers} from '../internal/axes/scene.js';
-import {seriesKey,normalizeLine,lineDomains} from '../line/normalize.js';
-import {validateLine} from '../line/validate.js';
+import {seriesKey,lineDomains} from '../line/normalize.js';
 import {projectLine} from '../line/geometry.js';
 import {validateColumn} from '../column/validate.js';
 import {normalizeColumn,columnDomain} from '../column/normalize.js';
@@ -26,6 +25,7 @@ import {planStackLabels} from './stack-labels.js';
 import {planStackedArea} from './stacked-area.js';
 import {planGroupedStacks} from './grouped-stacks.js';
 import {planLogarithmic} from './logarithmic.js';
+import {prepareOwnedLine} from './prepared-line.js';
 const bad=(reason:string,path:string,message=reason):PlanResult=>({status:'invalid',diagnostic:{code:'INVALID_CONFIG',reason,path,message}});
 const legendFor=(items:readonly Readonly<{id:string;name:string;color?:string}>[],palette:readonly string[],hidden:readonly string[]):readonly PlanLegendItem[]=>
   items.map((item,i)=>({id:item.id,name:item.name,color:item.color??palette[i%palette.length]!,visible:!hidden.includes(item.id)}));
@@ -65,8 +65,8 @@ function planCartesian(value:PlanSpec,options:PlanOptions,owned:boolean):PlanRes
       if(filled&&Object.getOwnPropertyDescriptor(spec.axes.y,'includeZero')?.value===false)return bad('AREA_REQUIRES_ZERO','axes.y.includeZero');
       if((spec.family==='spline'||spec.family==='areaspline')&&spec.series.some(s=>s.curve!==undefined))return bad('SPLINE_HAS_FIXED_CURVE','series.curve');
       const lineSpec={...spec,family:'line' as const,...(filled?{axes:{...spec.axes,y:{...spec.axes.y,includeZero:true}}}:{})};
-      const checked=validateLine(references===undefined?lineSpec:{...lineSpec,references});if(checked.status==='invalid')return checked;
-      const input=checked.value,data=normalizeLine(input),domains=lineDomains(data,state),legend=legendFor(input.series,palette,hidden);
+      const checked=prepareOwnedLine(references===undefined?lineSpec:{...lineSpec,references});if(checked.status==='invalid')return checked;
+      const {input,data}=checked.value,domains=lineDomains(data,state),legend=legendFor(input.series,palette,hidden);
       if(domains.status==='invalid')return domains;
       if(hidden.some(id=>!input.series.some(s=>s.id===id)))return bad('UNKNOWN_SERIES','options.hiddenSeriesIds');
       const base={schema:'nc-plan/1' as const,family:spec.family,width,height,title:input.title,description:input.description??'',unit:input.axes.y.title??'',legend};
