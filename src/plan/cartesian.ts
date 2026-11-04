@@ -26,6 +26,7 @@ import {planStackedArea} from './stacked-area.js';
 import {planGroupedStacks} from './grouped-stacks.js';
 import {planLogarithmic} from './logarithmic.js';
 import {prepareOwnedLine} from './prepared-line.js';
+import {projectPlanLine, type PlanLineProjection} from './line-projection.js';
 const bad=(reason:string,path:string,message=reason):PlanResult=>({status:'invalid',diagnostic:{code:'INVALID_CONFIG',reason,path,message}});
 const legendFor=(items:readonly Readonly<{id:string;name:string;color?:string}>[],palette:readonly string[],hidden:readonly string[]):readonly PlanLegendItem[]=>
   items.map((item,i)=>({id:item.id,name:item.name,color:item.color??palette[i%palette.length]!,visible:!hidden.includes(item.id)}));
@@ -79,10 +80,14 @@ function planCartesian(value:PlanSpec,options:PlanOptions,owned:boolean):PlanRes
       if(view?.value.x&&xa.kind!=='category'&&scoped.x){xt=(xa.kind==='time'?selectTimeTicks:selectNumericTicks)(scoped.x,{nice:false,targetCount:xa.ticks?.targetCount??6});if(xt.status==='invalid')return xt;}
       const interval=xt&&'interval' in xt.value?xt.value.interval:null;
       const scales=planLineViewportScales(input.axes,plot,xt?.value.domain??domains.value.x,yt.value.domain,view);if(scales.status==='invalid')return scales;
-      const projected=projectLine(data,state,plot,xt?.value.domain??domains.value.x,yt.value.domain,scales.value);if(projected.status==='invalid')return projected;
-      const p=projected.value,series:PlanSeries[]=[],observations:PlanObservation[]=[];
+      let p: PlanLineProjection<unknown>;const series:PlanSeries[]=[],observations:PlanObservation[]=[];
       const layers=emptyLayers();
-      if(spec.family==='area'||spec.family==='spline'||spec.family==='areaspline'){const painted=spec.family==='area'?areaScene(p,defaultPalette('light',false),layers,new Map()):splineScene(p,defaultPalette('light',false),layers,new Map());if(painted.status==='invalid')return painted;}
+      if(spec.family==='line'){
+        const projected=projectPlanLine(data,state,plot,xt?.value.domain??domains.value.x,yt.value.domain,scales.value);if(projected.status==='invalid')return projected;p=projected.value;
+      }else{
+        const projected=projectLine(data,state,plot,xt?.value.domain??domains.value.x,yt.value.domain,scales.value);if(projected.status==='invalid')return projected;p=projected.value;
+        const painted=spec.family==='area'?areaScene(projected.value,defaultPalette('light',false),layers,new Map()):splineScene(projected.value,defaultPalette('light',false),layers,new Map());if(painted.status==='invalid')return painted;
+      }
       for(const s of p.series){
         const color=legend.find(item=>item.id===s.series.spec.id)!.color;
         const key=seriesKey(s.series.spec.id),outline=layers.marks.find(mark=>mark.kind==='path'&&mark.key===key);

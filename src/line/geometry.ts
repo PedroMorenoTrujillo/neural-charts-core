@@ -13,18 +13,22 @@ export type { Plot } from '../internal/layout/frame.js';
 export type ProjectedPoint<T> = Readonly<{ point: LinePoint<T>; x: number; y: number; index: number }>;
 export type ProjectedSeries<T> = Readonly<{ series: NormalizedSeries<T>; points: readonly ProjectedPoint<T>[]; eligible: readonly ProjectedPoint<T>[]; markers: readonly ProjectedPoint<T>[]; commands: readonly PathCommand[] }>;
 export type LineProjection<T> = Readonly<{ plot: Plot; series: readonly ProjectedSeries<T>[]; mapX(value: string | number): number | null; mapY(value: number): number | null }>;
+/** Shared segment writer; callers own their command array. */
+function appendLine(commands: PathCommand[], x: number, y: number): void { commands.push(Object.freeze({kind: 'L', x, y})); }
+export function appendLineSegment(commands: PathCommand[], x0: number, y0: number, x1: number, y1: number, curve: 'straight' | 'step-before' | 'step-after' | 'step-mid'): void {
+  if (curve === 'step-before') appendLine(commands, x0, y1);
+  else if (curve === 'step-after') appendLine(commands, x1, y0);
+  else if (curve === 'step-mid') { const mid = x0 / 2 + x1 / 2; appendLine(commands, mid, y0); appendLine(commands, mid, y1); }
+  appendLine(commands, x1, y1);
+}
 export function runCommands<T>(runs: readonly (readonly ProjectedPoint<T>[])[], curve: 'straight' | 'step-before' | 'step-after' | 'step-mid'): readonly PathCommand[] {
   const commands: PathCommand[] = [];
-  const line = (x: number, y: number): void => { commands.push(Object.freeze({ kind: 'L', x, y })); };
   for (const run of runs) {
     if (run.length < 2) continue;
     const first = run[0]!; commands.push(Object.freeze({ kind: 'M', x: first.x, y: first.y }));
     for (let i = 1; i < run.length; i++) {
       const p0 = run[i - 1]!, p1 = run[i]!;
-      if (curve === 'step-before') line(p0.x, p1.y);
-      else if (curve === 'step-after') line(p1.x, p0.y);
-      else if (curve === 'step-mid') { const mid = p0.x / 2 + p1.x / 2; line(mid, p0.y); line(mid, p1.y); }
-      line(p1.x, p1.y);
+      appendLineSegment(commands, p0.x, p0.y, p1.x, p1.y, curve);
     }
   }
   return Object.freeze(commands);
