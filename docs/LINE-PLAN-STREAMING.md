@@ -8,4 +8,6 @@ Every raw vertex is still mapped and validated, including offscreen values. Full
 
 Differential tests compare exact commands, eligibility, source identities, hidden series, all four curve modes, connected/broken gaps, isolated category points with repeated labels and offscreen error paths. Follow with the full Core/package gate and same-scenario packed Web/browser timings before retaining the change.
 
+The first same-scenario measurement showed regressions with a generic `for in` frame freezer. Restore the original generic freezer rather than retain an unproven micro-optimization. Construct Line observation IDs/groups/records already deeply frozen (their children are known immutable primitives/identities), and cache stable identity/group-key arrays weakly by normalized series. Never cache viewport coordinates or formatted labels. Preserve the unfavorable first candidate timings as separate evidence.
+
 Rejected optimization: borrowing arbitrary frozen caller objects to remove the ownership copy. Frozen proxies, non-enumerable properties and prototype semantics prevent a general safe ownership guarantee. Existing bounded copying and mutation/alias protections remain intact.

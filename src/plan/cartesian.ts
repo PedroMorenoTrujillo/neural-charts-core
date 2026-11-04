@@ -27,6 +27,7 @@ import {planGroupedStacks} from './grouped-stacks.js';
 import {planLogarithmic} from './logarithmic.js';
 import {prepareOwnedLine} from './prepared-line.js';
 import {projectPlanLine, type PlanLineProjection} from './line-projection.js';
+import {lineObservationMetadata} from './line-observation.js';
 const bad=(reason:string,path:string,message=reason):PlanResult=>({status:'invalid',diagnostic:{code:'INVALID_CONFIG',reason,path,message}});
 const legendFor=(items:readonly Readonly<{id:string;name:string;color?:string}>[],palette:readonly string[],hidden:readonly string[]):readonly PlanLegendItem[]=>
   items.map((item,i)=>({id:item.id,name:item.name,color:item.color??palette[i%palette.length]!,visible:!hidden.includes(item.id)}));
@@ -97,7 +98,16 @@ function planCartesian(value:PlanSpec,options:PlanOptions,owned:boolean):PlanRes
         if(spec.family==='areaspline'&&(baseline===null||!Number.isFinite(baseline)))return bad('UNREPRESENTABLE_GEOMETRY','area.baseline');
         const fill=spec.family==='areaspline'?splineAreaCommands(commands,Math.max(plot.y,Math.min(plot.y+plot.height,baseline!))):areaCommands;
         series.push({id:s.series.spec.id,name:s.series.spec.name,color,commands,...(filled?{areaCommands:fill}:{})});
-        for(const point of s.eligible){const label=data.labels.get(String(point.point.x))??formatAxis(point.point.x,xa.kind,interval,data.labels);observations.push({id:{seriesId:s.series.spec.id,pointId:point.point.id},label,seriesName:s.series.spec.name,value:point.point.y!,x:point.x,y:point.y,color,group:{key:JSON.stringify([xa.kind,point.point.x]),label,coordinate:point.x}});}
+        const metadata=spec.family==='line'&&data.nonnullCount>2048?lineObservationMetadata(s.series,xa.kind):undefined;
+        for(const point of s.eligible){
+          const label=data.labels.get(String(point.point.x))??formatAxis(point.point.x,xa.kind,interval,data.labels);
+          const id=metadata?.ids[point.index]??Object.freeze({seriesId:s.series.spec.id,pointId:point.point.id}),groupKey=metadata?.keys[point.index]??JSON.stringify([xa.kind,point.point.x]);
+          if(metadata){metadata.ids[point.index]=id;metadata.keys[point.index]=groupKey;}
+          // All children are owned immutable identities or primitives. Freeze
+          // here rather than allocating traversal arrays for every tiny record.
+          const group=Object.freeze({key:groupKey,label,coordinate:point.x});
+          observations.push(Object.freeze({id,label,seriesName:s.series.spec.name,value:point.point.y!,x:point.x,y:point.y,color,group}));
+        }
       }
       const values=xa.kind==='category'?xa.values.map(c=>c.id):(xt?.value.ticks??[]);
       const labels=values.flatMap(v=>{const x=p.mapX(v);return x===null||x<plot.x||x>plot.x+plot.width?[]:[{x,label:formatAxis(v,xa.kind,interval,data.labels),...(typeof v==='number'?{value:v,kind:xa.kind==='time'?'time' as const:'number' as const}:{})}];});

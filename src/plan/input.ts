@@ -50,9 +50,7 @@ export function ownPlanInput(value:unknown,limits:Readonly<{nodes:number;charact
 }
 export function freezePlan<T>(value:T):T {
   if(value&&typeof value==='object'&&!Object.isFrozen(value)){
-    // Frame observations contain many tiny records. Avoid allocating a values
-    // array for each record while preserving own-enumerable traversal exactly.
-    for(const key in value)if(Object.hasOwn(value,key))freezePlan(value[key]);
+    for(const child of Object.values(value))freezePlan(child);
     Object.freeze(value);
   }
   return value;
