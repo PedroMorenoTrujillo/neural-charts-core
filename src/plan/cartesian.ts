@@ -52,10 +52,10 @@ function planCartesian(value:PlanSpec,options:PlanOptions,owned:boolean):PlanRes
     if(ownedOptions.scales)return planLogarithmic(spec,ownedOptions);
     const checkedBands=validatePlanReferenceBands(ownedOptions.referenceBands,spec);if(checkedBands.status==='invalid')return checkedBands;
     const checkedReferences=validatePlanReferences(ownedOptions.references,spec);if(checkedReferences.status==='invalid')return checkedReferences;const references=checkedReferences.value;
-    if(ownedOptions.stacking!==undefined&&(!['column','area'].includes(spec.family)||!['sum','percent'].includes(ownedOptions.stacking)))return bad('BAD_STACK_MODE','options.stacking');
+    if(ownedOptions.stacking!==undefined&&(!['column','area','areaspline'].includes(spec.family)||!['sum','percent'].includes(ownedOptions.stacking)))return bad('BAD_STACK_MODE','options.stacking');
     if(ownedOptions.stackGroups!==undefined&&(spec.family!=='column'||!ownedOptions.stacking))return bad('STACK_GROUPS_REQUIRE_STACKED_COLUMNS','options.stackGroups');
     if(spec.family==='column'&&ownedOptions.stackGroups)return planGroupedStacks(spec,ownedOptions,references);
-    if(spec.family==='area'&&ownedOptions.stacking)return planStackedArea(spec,ownedOptions,references);
+    if((spec.family==='area'||spec.family==='areaspline')&&ownedOptions.stacking)return planStackedArea(spec,ownedOptions,references);
     if(!Array.isArray(spec.series)||spec.series.length>16||spec.series.reduce((n,s)=>n+(Array.isArray(s?.data)?s.data.length:capacity.points+1),0)>capacity.points)return bad('INPUT_LIMIT','series');
     if(spec.axes?.x?.kind==='category'&&Array.isArray(spec.axes.x.values)&&spec.axes.x.values.length>capacity.categories)return bad('LABEL_LIMIT','axes.x.values');
     const state={hiddenSeriesIds:[...hidden]},plot={x:16,y:14,width:width-32,height:height-28},palette=defaultPalette('light',false).series;

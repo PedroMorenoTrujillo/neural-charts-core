@@ -90,7 +90,7 @@ export function planChart(value:PlanSpec,options:PlanOptions):PlanResult {
     if(ownedOptions.hierarchy!==undefined&&spec.family!=='treegraph'&&spec.family!=='organization')return bad('UNSUPPORTED_HIERARCHY_LAYOUT','options.hierarchy');
     if(ownedOptions.scales!==undefined)return planLogarithmic(spec,ownedOptions);
     const checkedBands=validatePlanReferenceBands(ownedOptions.referenceBands,spec);if(checkedBands.status==='invalid')return checkedBands;
-    if(ownedOptions.stacking!==undefined&&(!['column','area','pictorial'].includes(spec.family)||!['sum','percent'].includes(ownedOptions.stacking)))return bad('BAD_STACK_MODE','options.stacking');
+    if(ownedOptions.stacking!==undefined&&(!['column','area','areaspline','pictorial'].includes(spec.family)||!['sum','percent'].includes(ownedOptions.stacking)))return bad('BAD_STACK_MODE','options.stacking');
     if(ownedOptions.stackGroups!==undefined&&(spec.family!=='column'||!ownedOptions.stacking))return bad('STACK_GROUPS_REQUIRE_STACKED_COLUMNS','options.stackGroups');
     if(ownedOptions.wordcloudText!==undefined&&spec.family!=='wordcloud')return bad('UNSUPPORTED_TEXT_MEASUREMENTS','options.wordcloudText');
     if(ownedOptions.circular!==undefined&&!['pie','donut','gauge'].includes(spec.family))return bad('UNSUPPORTED_CIRCULAR_LAYOUT','options.circular');
@@ -140,7 +140,7 @@ export function planChart(value:PlanSpec,options:PlanOptions):PlanResult {
     if(spec.family==='mixed'&&Array.isArray(spec.series)&&spec.series.some(s=>s?.kind==='arearange'||s?.kind==='areasplinerange'))return planMixedRanges(spec,ownedOptions,references);
     if(spec.family==='mixed'&&(spec.axes?.secondaryY!==undefined||Array.isArray(spec.series)&&spec.series.some(s=>s?.yAxis!==undefined)))return planMixedAxes(spec,ownedOptions,references);
     if(spec.family==='mixed')return planMixed(spec,ownedOptions,references);
-    if(spec.family==='area'&&ownedOptions.stacking)return planStackedArea(spec,ownedOptions,references);
+    if((spec.family==='area'||spec.family==='areaspline')&&ownedOptions.stacking)return planStackedArea(spec,ownedOptions,references);
     if(ownedOptions.circular!==undefined&&(spec.family==='pie'||spec.family==='donut'||spec.family==='gauge'))return planCircularDisplay(spec,ownedOptions);
     if(spec.family!=='line'&&spec.family!=='area'&&spec.family!=='areaspline'&&spec.family!=='spline'&&spec.family!=='column')return planAdditional(spec,width,height,hidden,ownedOptions.viewport,references,undefined,checkedBands.value);
     return planOwnedCartesianChart(spec,ownedOptions);
