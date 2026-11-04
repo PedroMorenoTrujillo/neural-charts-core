@@ -22,3 +22,13 @@ it('never trusts shallow freezing, executes accessors or caches mutable descenda
   const cycle: {child?: unknown} = {}; cycle.child = cycle; Object.freeze(cycle);
   expect(() => ownPlanInput(cycle)).toThrow('BAD_JSON');
 });
+
+it('reuses a coarse immutable array without retaining a cache record per datum', () => {
+  const series = Object.freeze(Array.from({length: 100}, (_, i) => Object.freeze({id: String(i), value: i})));
+  const first = ownPlanInput({series}) as {series: readonly unknown[]};
+  const second = ownPlanInput({series}) as {series: readonly unknown[]};
+  expect(second).not.toBe(first); expect(second.series).toBe(first.series);
+  expect(() => ownPlanInput({series}, {nodes: 100, characters: 10000})).toThrow('INPUT_LIMIT');
+  const changed = [...series]; changed[99] = Object.freeze({id: '99', value: 101}); Object.freeze(changed);
+  expect((ownPlanInput({series: changed}) as {series: {value: number}[]}).series[99]!.value).toBe(101);
+});

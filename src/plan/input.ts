@@ -1,15 +1,15 @@
 /** Own a bounded JSON value before passing it to existing family validators. */
 const immutableInputs = new WeakMap<object, Readonly<{value: unknown; nodes: number; characters: number; height: number}>>();
 export function ownPlanInput(value:unknown,limits:Readonly<{nodes:number;characters:number}>={nodes:200000,characters:1000000}):unknown {
-  const seen=new WeakSet<object>();let count=0,characters=0,lastHeight=0;
+  const seen=new WeakSet<object>();let count=0,characters=0,lastHeight=0,lastImmutable=true;
   const visit=(v:unknown,depth:number):unknown=>{
-    const beforeCount=count,beforeCharacters=characters;lastHeight=0;
+    const beforeCount=count,beforeCharacters=characters;lastHeight=0;lastImmutable=true;
     if(++count>limits.nodes||depth>32)throw Error('INPUT_LIMIT');
     if(v===null||typeof v==='boolean')return v;
     if(typeof v==='string'){characters+=v.length;if(characters>limits.characters)throw Error('INPUT_LIMIT');return v;}
     if(typeof v==='number'&&Number.isFinite(v))return v;
     if(typeof v!=='object'||seen.has(v))throw Error('BAD_JSON');
-    const cached=immutableInputs.get(v);
+    const cacheable=depth===0||Array.isArray(v),cached=cacheable?immutableInputs.get(v):undefined;
     if(cached){count+=cached.nodes-1;characters+=cached.characters;lastHeight=cached.height;if(count>limits.nodes||characters>limits.characters||depth+cached.height>32)throw Error('INPUT_LIMIT');return cached.value;}
     const array=Array.isArray(v);
     if(!array&&Object.getPrototypeOf(v)!==Object.prototype&&Object.getPrototypeOf(v)!==null)throw Error('BAD_JSON');
@@ -22,8 +22,8 @@ export function ownPlanInput(value:unknown,limits:Readonly<{nodes:number;charact
     }
     seen.add(v);
     let immutable=Object.isFrozen(v),height=0;
-    const child=(value:unknown):unknown=>{const owned=visit(value,depth+1);height=Math.max(height,lastHeight+1);if(value!==null&&typeof value==='object'&&!immutableInputs.has(value))immutable=false;return owned;};
-    const finish=<T>(copy:T):T=>{seen.delete(v);lastHeight=height;if(immutable){Object.freeze(copy);immutableInputs.set(v,{value:copy,nodes:count-beforeCount,characters:characters-beforeCharacters,height});}return copy;};
+    const child=(value:unknown):unknown=>{const owned=visit(value,depth+1);height=Math.max(height,lastHeight+1);immutable=immutable&&lastImmutable;return owned;};
+    const finish=<T>(copy:T):T=>{seen.delete(v);lastHeight=height;lastImmutable=immutable;if(immutable){Object.freeze(copy);if(cacheable&&(depth===0||count-beforeCount>=64))immutableInputs.set(v,{value:copy,nodes:count-beforeCount,characters:characters-beforeCharacters,height});}return copy;};
     if(array){
       const copy:unknown[]=[];
       for(const key of keys){
