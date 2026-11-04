@@ -9,18 +9,20 @@ import { pointKey } from '../line/normalize.js';
 import { projectColumn, pickColumn, type ColumnProjection } from '../column/geometry.js';
 import { invalid, ok } from '../internal/diagnostics.js';
 export type MixedProjection<T> = Readonly<{ plot: AxesPlan['plot']; line: LineProjection<T>; column: ColumnProjection<T> | null; index: HitIndex<T>; pointIndex: HitIndex<T>; areaIndex: HitIndex<T>; data: MixedData<T>; frame: MixedCategoryFrame | null }>;
-export function projectMixed<T>(data: MixedData<T>, state: ChartState, axes: AxesPlan, frame: MixedCategoryFrame | null, window?: ChartCategoryWindow): ChartResult<MixedProjection<T>> {
+export function projectMixed<T>(data: MixedData<T>, state: ChartState, axes: AxesPlan, frame: MixedCategoryFrame | null, window?: ChartCategoryWindow, columnOverride?: ColumnProjection<T>, preserveZero = false): ChartResult<MixedProjection<T>> {
   if (axes.tooSmall) { const line = { plot: axes.plot, series: [], mapX: axes.mapX, mapY: axes.mapY }, index = buildHitIndex<T>(line, () => 0); return ok({ plot: axes.plot, line, column: null, index, pointIndex: index, areaIndex: index, data, frame: null }); }
   if (!frame || !axes.y.domain) return invalid('INTERNAL_INVARIANT', 'MISSING_MIXED_FRAME', 'plot');
   const projected = projectLine(data.line, state, axes.plot, null, axes.y.domain, { mapX: axes.mapX, mapY: axes.mapY }); if (projected.status === 'invalid') return projected;
-  const domain = axes.y.domain, columns = projectColumn(data.column, state, axes.plot, domain, window, { bands: frame.bands, mapValue: value => axes.mapY(Math.max(domain[0], Math.min(domain[1], value))) }); if (columns.status === 'invalid') return columns;
+  const domain = axes.y.domain, columns = columnOverride ? ok(columnOverride) : projectColumn(data.column, state, axes.plot, domain, window, { bands: frame.bands, mapValue: value => axes.mapY(Math.max(domain[0], Math.min(domain[1], value))) }); if (columns.status === 'invalid') return columns;
   // One navigable index preserves the consumer's series order. Column anchors
   // are the actual grouped rectangles, not the common category center.
   const line = projected.value;
   const hitProjection: LineProjection<T> = { ...line, series: line.series.map(series => {
     if (data.kinds.get(series.series.spec.id) !== 'column') return series;
     const eligible: ProjectedPoint<T>[] = [];
-    for (const point of series.points) { const rect = columns.value.byId.get(pointKey(series.series.spec.id, point.point.id)); if (rect) eligible.push(Object.freeze({ ...point, x: rect.anchor.x, y: rect.anchor.y })); }
+    for (const point of series.points) { const rect = columns.value.byId.get(pointKey(series.series.spec.id, point.point.id)); if (rect) eligible.push(Object.freeze({ ...point, x: rect.anchor.x, y: rect.anchor.y }));
+      else if(preserveZero&&point.point.y===0&&domain[0]<=0&&domain[1]>=0){const x=frame.points.center(String(point.point.x)),y=axes.mapY(0);if(x!==null&&y!==null)eligible.push(Object.freeze({...point,x,y}));}
+    }
     return Object.freeze({ ...series, eligible: Object.freeze(eligible) });
   }) };
   const rank = (value: string | number) => data.line.ranks.get(String(value)) ?? 0, index = buildHitIndex(hitProjection, rank);

@@ -1,5 +1,8 @@
 import {validateMixed} from '../mixed/validate.js';
-import {normalizeMixed,mixedDomains} from '../mixed/data.js';
+import {normalizeMixed} from '../mixed/data.js';
+import {mixedStackDomain} from './mixed-stack.js';
+import {projectStacked} from '../stacked/geometry.js';
+import {planStackLabels} from './stack-labels.js';
 import {createMixedCategoryFrame} from '../mixed/frame.js';
 import {projectMixed} from '../mixed/geometry.js';
 import {mixedScene} from '../mixed/scene.js';
@@ -17,7 +20,7 @@ import {withPlanReferences,referenceCategories} from './references.js';
 import {freezePlan} from './input.js';
 import {planMixed} from './mixed.js';
 import type {MixedChartSpec} from '../public/mixed-types.js';
-import type {PlanMixedSpec,PlanOptions,PlanReference,PlanResult,PlanSeries,PlanObservation,PlanMixedAxesLayout} from '../public/plan-types.js';
+import type {PlanMixedSpec,PlanOptions,PlanReference,PlanResult,PlanSeries,PlanObservation,PlanMixedAxesLayout,PlanFrame} from '../public/plan-types.js';
 
 /** Independent value scales inside one coordinated category/column-placement owner. */
 export function planMixedAxes(spec:PlanMixedSpec,options:PlanOptions,references?:readonly PlanReference[]):PlanResult{
@@ -30,6 +33,7 @@ export function planMixedAxes(spec:PlanMixedSpec,options:PlanOptions,references?
   // unrelated columns on another value scale.
   const {domain,...schemaY}=axes.y;
   const schema=validateMixed({...clean,axes:{...axes,y:schemaY}});if(schema.status==='invalid')return schema;
+  if(options.stacking&&!schema.value.series.some(s=>s.kind==='column'))return bad('STACKING_REQUIRES_COLUMNS','options.stacking');
   if(schema.value.axes.x.values.length>64)return bad('LABEL_LIMIT','axes.x.values');
   const assignment=new Map(spec.series.map(s=>[s.id,s.yAxis??'primary'])),ids=new Set(schema.value.series.map(s=>s.id)),hidden=options.hiddenSeriesIds??[];
   if(hidden.some(id=>!ids.has(id)))return bad('UNKNOWN_SERIES','options.hiddenSeriesIds');
@@ -39,8 +43,8 @@ export function planMixedAxes(spec:PlanMixedSpec,options:PlanOptions,references?
   if(primary.status==='invalid')return primary;if(secondary.status==='invalid')return secondary;
   const inputs=[primary.value,secondary.value],data=inputs.map(normalizeMixed),state={hiddenSeriesIds:[...hidden]},full:((readonly[number,number])|null)[]=[];
   for(const [index,d]of data.entries()){
-    let domains=mixedDomains(d,state);if(domains.status==='invalid')return domains;
-    if(!domains.value.y&&inputs[index]!.series.every(s=>hidden.includes(s.id))){domains=mixedDomains(d,{hiddenSeriesIds:[]});if(domains.status==='invalid')return domains;}
+    let domains=mixedStackDomain(d,state,options.stacking);if(domains.status==='invalid')return domains;
+    if(!domains.value.y&&inputs[index]!.series.every(s=>hidden.includes(s.id))){domains=mixedStackDomain(d,{hiddenSeriesIds:[]},options.stacking);if(domains.status==='invalid')return domains;}
     if(!domains.value.y){full.push(null);continue;}
     const y=inputs[index]!.axes.y,t=selectNumericTicks(domains.value.y,{nice:y.nice??!y.domain,targetCount:y.ticks?.targetCount??5});if(t.status==='invalid')return t;full.push(t.value.domain);
   }
@@ -62,7 +66,8 @@ export function planMixedAxes(spec:PlanMixedSpec,options:PlanOptions,references?
   const shared=createMixedCategoryFrame(visible.map(c=>c.id),plot,spec.groupGap);if(shared.status==='invalid')return shared;
   // The original column owner allocates every visible series slot once, across
   // both value axes. Its temporary Y is irrelevant; only X/width are consumed.
-  const globalData=normalizeMixed(schema.value),slots=projectColumn(globalData.column,state,plot,[0,1],window,{bands:shared.value.bands,mapValue:()=>plot.y+plot.height});if(slots.status==='invalid')return slots;
+  const globalData=normalizeMixed(schema.value),slots=options.stacking?undefined:projectColumn(globalData.column,state,plot,[0,1],window,{bands:shared.value.bands,mapValue:()=>plot.y+plot.height});if(slots?.status==='invalid')return slots;
+  const stackAxes=data.flatMap((d,i)=>d.column.series.some(s=>!hidden.includes(s.spec.id))?[i]:[]),annotations:NonNullable<PlanFrame['annotations']>[number][]=[];
   const paint:PlanSeries[]=[],observations:PlanObservation[]=[],grids:Readonly<{y:number;label:string}>[][]=[[],[]];
   let primaryMap:((v:number)=>number|null)|undefined,secondaryMap:((v:number)=>number|null)|undefined,categoryMap:(v:string|number)=>number|null=v=>typeof v==='string'?shared.value.points.center(v):null;
   for(const [index,d]of data.entries()){
@@ -71,17 +76,22 @@ export function planMixedAxes(spec:PlanMixedSpec,options:PlanOptions,references?
     const extended=planLineViewportScales(input.axes,plot,null,domain,view);if(extended.status==='invalid')return extended;
     const maps=extended.value??{mapX:categoryMap,mapY:y.value.map};categoryMap=maps.mapX;if(index===0)primaryMap=maps.mapY;else secondaryMap=maps.mapY;
     const axisPlan:AxesPlan={plot,tooSmall:false,...maps,x:{domain:null,ticks:visible.map(c=>c.id),labels:[],interval:null,target:6},y:{domain,ticks:ticks.value.ticks,labels:[],interval:null,target:5},xTitle:null,yTitle:null,font:{family:'sans-serif',size:12,weight:400},direction:'ltr'};
-    const projected=projectMixed(d,state,axisPlan,shared.value,window);if(projected.status==='invalid')return projected;
+    const stacked=options.stacking&&d.column.series.length?projectStacked(d.column,state,plot,domain,options.stacking,window):undefined;if(stacked?.status==='invalid')return stacked;
+    if(stacked?.status==='ok'&&options.stacking==='percent')for(const row of stacked.value.stack.categories.values())if(!row.complete&&shared.value.points.center(row.id)!==null)return bad('INCOMPLETE_PERCENT_CATEGORY','series');
+    const stackSlot=(category:string)=>{const band=shared.value.bands.band(category);if(!band)return null;const count=Math.max(1,stackAxes.length),slot=band.width/count,width=Math.min(slot*(count>1?1-(input.barGap??.12):1),input.maxBarWidth??Infinity);return {x:band.start+Math.max(0,stackAxes.indexOf(index))*slot+(slot-width)/2,width};};
+    if(stacked?.status==='ok'&&options.stacking)annotations.push(...planStackLabels(stacked.value.stack.categories.values(),options.stacking,domain,id=>{const slot=stackSlot(id);return slot?slot.x+slot.width/2:null},maps.mapY));
+    const projected=projectMixed(d,state,axisPlan,shared.value,window,stacked?.status==='ok'?stacked.value:undefined,options.stacking==='percent');if(projected.status==='invalid')return projected;
     const p=projected.value,layers=emptyLayers(),scene=mixedScene(p,palette,layers,new Map());if(scene.status==='invalid')return scene;
+    const percentages=new Map<string,number>();if(stacked?.status==='ok')for(const s of stacked.value.stack.series)for(const segment of s.segments)if(segment.percentage!==null)percentages.set(JSON.stringify([s.id,segment.point.id]),segment.percentage);
     const bars=new Map<string,Readonly<{pointId:string;x:number;y:number;width:number;height:number}>>();
     for(const s of p.line.series){const id=s.series.spec.id,color=byId.get(id)!.color,key=seriesKey(id),kind=d.kinds.get(id);
-      if(kind==='column'){const rects=(p.column?.rects??[]).filter(r=>r.series.spec.id===id).map(r=>{const slot=slots.value.byId.get(r.key);if(!slot)throw Error('Missing coordinated column slot');const bar={pointId:r.point.id,x:slot.x,y:r.y,width:slot.width,height:r.height};bars.set(JSON.stringify([id,r.point.id]),bar);return bar;});paint.push({id,name:s.series.spec.name,color,bars:rects});}
+      if(kind==='column'){const rects=(p.column?.rects??[]).filter(r=>r.series.spec.id===id).map(r=>{const slot=options.stacking?stackSlot(r.point.x):slots?.status==='ok'?slots.value.byId.get(r.key):undefined;if(!slot)throw Error('Missing coordinated column slot');const bar={pointId:r.point.id,x:slot.x,y:r.y,width:slot.width,height:r.height};bars.set(JSON.stringify([id,r.point.id]),bar);return bar;});paint.push({id,name:s.series.spec.name,color,bars:rects});}
       else paint.push({id,name:s.series.spec.name,color,commands:s.commands,...(kind==='area'?{areaCommands:layers.marks.flatMap(mark=>mark.kind==='path'&&mark.key.startsWith(key+'|area:')?mark.commands:[])}:{})});
     }
-    for(const row of p.index.targets)for(const target of row){const s=target.series.series.spec,point=target.point,label=d.line.labels.get(String(point.point.x))??String(point.point.x),bar=bars.get(JSON.stringify([s.id,point.point.id]));observations.push({id:{seriesId:s.id,pointId:point.point.id},label,seriesName:s.name,value:point.point.y!,valueAxis:index===0?'primary':'secondary',x:bar?bar.x+bar.width/2:point.x,y:point.y,color:byId.get(s.id)!.color,group:{key:JSON.stringify(['category',point.point.x]),label,coordinate:maps.mapX(point.point.x)!}});}
+    for(const row of p.index.targets)for(const target of row){const s=target.series.series.spec,point=target.point,percentage=percentages.get(JSON.stringify([s.id,point.point.id])),zeroSlot=options.stacking&&d.kinds.get(s.id)==='column'?stackSlot(String(point.point.x)):null,label=d.line.labels.get(String(point.point.x))??String(point.point.x),bar=bars.get(JSON.stringify([s.id,point.point.id]));observations.push({id:{seriesId:s.id,pointId:point.point.id},label,seriesName:s.name,value:point.point.y!,...(percentage===undefined?{}:{percentage}),valueAxis:index===0?'primary':'secondary',x:bar?bar.x+bar.width/2:zeroSlot?zeroSlot.x+zeroSlot.width/2:point.x,y:point.y,color:byId.get(s.id)!.color,group:{key:JSON.stringify(['category',point.point.x]),label,coordinate:maps.mapX(point.point.x)!}});}
     grids[index]=ticks.value.ticks.map(v=>({y:maps.mapY(v)!,label:String(v),value:v,kind:'number' as const}));
   }
   const rank=(id:string)=>globalData.kinds.get(id)==='area'?0:globalData.kinds.get(id)==='column'?1:2,order=new Map(schema.value.series.map((s,i)=>[s.id,i]));paint.sort((a,b)=>rank(a.id)-rank(b.id)||order.get(a.id)!-order.get(b.id)!);observations.sort((a,b)=>order.get(a.id.seriesId)!-order.get(b.id.seriesId)!);
-  const frame={...base,mixedAxes,series:paint,observations,labels:visible.map(c=>({x:categoryMap(c.id)!,label:c.label??c.id})),grid:grids[0]!,...(full[1]?{secondaryGrid:grids[1]!}:{}),...(view?{viewport:planViewportState(view,{x:null,y:displayed[0]!},primary.value.axes,plot)!}:{})};
+  const frame={...base,mixedAxes,...(options.stacking?{annotations}:{}),series:paint,observations,labels:visible.map(c=>({x:categoryMap(c.id)!,label:c.label??c.id})),grid:grids[0]!,...(full[1]?{secondaryGrid:grids[1]!}:{}),...(view?{viewport:planViewportState(view,{x:null,y:displayed[0]!},primary.value.axes,plot)!}:{})};
   return freezePlan({status:observations.length?'ok':'empty',frame:withPlanReferences(frame,references,{plot,domains:{x:null,y:displayed[0]!},mapX:categoryMap,...(primaryMap?{mapY:primaryMap}:{}),...(secondaryMap?{secondaryY:{domain:displayed[1]!,map:secondaryMap}}:{}),bandSourceAxes:primary.value.axes,categories:referenceCategories(all,plot,categoryMap)},options.referenceBands)});
 }

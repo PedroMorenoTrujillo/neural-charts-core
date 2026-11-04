@@ -90,7 +90,7 @@ export function planChart(value:PlanSpec,options:PlanOptions):PlanResult {
     if(ownedOptions.hierarchy!==undefined&&spec.family!=='treegraph'&&spec.family!=='organization')return bad('UNSUPPORTED_HIERARCHY_LAYOUT','options.hierarchy');
     if(ownedOptions.scales!==undefined)return planLogarithmic(spec,ownedOptions);
     const checkedBands=validatePlanReferenceBands(ownedOptions.referenceBands,spec);if(checkedBands.status==='invalid')return checkedBands;
-    if(ownedOptions.stacking!==undefined&&(!['column','area','areaspline','pictorial'].includes(spec.family)||!['sum','percent'].includes(ownedOptions.stacking)))return bad('BAD_STACK_MODE','options.stacking');
+    if(ownedOptions.stacking!==undefined&&(!['column','area','areaspline','mixed','pictorial'].includes(spec.family)||!['sum','percent'].includes(ownedOptions.stacking)))return bad('BAD_STACK_MODE','options.stacking');
     if(ownedOptions.stackGroups!==undefined&&(spec.family!=='column'||!ownedOptions.stacking))return bad('STACK_GROUPS_REQUIRE_STACKED_COLUMNS','options.stackGroups');
     if(ownedOptions.wordcloudText!==undefined&&spec.family!=='wordcloud')return bad('UNSUPPORTED_TEXT_MEASUREMENTS','options.wordcloudText');
     if(ownedOptions.circular!==undefined&&!['pie','donut','gauge'].includes(spec.family))return bad('UNSUPPORTED_CIRCULAR_LAYOUT','options.circular');
