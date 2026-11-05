@@ -16,7 +16,7 @@ function curve(from:Vertex,to:Vertex,center:Vertex):Vertex[] {
 }
 function nodeArcCommands(cx:number,cy:number,radius:number,inner:number,start:number,end:number):PlanCommand[]{
   const first=at(cx,cy,radius,start),last=at(cx,cy,radius,end),insideLast=at(cx,cy,inner,end),insideFirst=at(cx,cy,inner,start),largeArc=end-start>Math.PI?1:0;
-  return [{kind:'M',...first},{kind:'A',radius,largeArc,sweep:1,...last},{kind:'L',...insideLast},{kind:'A',radius:inner,largeArc,sweep:0,...insideFirst},{kind:'Z'}];
+  return [{type:'M',...first},{type:'A',radius,largeArc,sweep:1,...last},{type:'L',...insideLast},{type:'A',radius:inner,largeArc,sweep:0,...insideFirst},{type:'Z'}];
 }
 
 /** Port allocation is shared; direction remains explicit in the public semantic metadata. */
@@ -47,15 +47,15 @@ export function planRadialRelationships(spec:PlanDependencyWheelSpec|PlanChordSp
         // The bounded polygon remains an independent touch approximation; it
         // must not turn the visible ribbon into a faceted 32-segment outline.
         if(visible)areaCommands.push(
-          {kind:'M',...source[0]!},
-          {kind:'A',radius:inner,largeArc:port.from.end-port.from.start>Math.PI?1:0,sweep:1,...source.at(-1)!},
-          {kind:'Q',cx:center.x,cy:center.y,...target[0]!},
-          {kind:'A',radius:inner,largeArc:port.to.end-port.to.start>Math.PI?1:0,sweep:1,...target.at(-1)!},
-          {kind:'Q',cx:center.x,cy:center.y,...source[0]!},
-          {kind:'Z'},
+          {type:'M',...source[0]!},
+          {type:'A',radius:inner,largeArc:port.from.end-port.from.start>Math.PI?1:0,sweep:1,...source.at(-1)!},
+          {type:'Q',cx:center.x,cy:center.y,...target[0]!},
+          {type:'A',radius:inner,largeArc:port.to.end-port.to.start>Math.PI?1:0,sweep:1,...target.at(-1)!},
+          {type:'Q',cx:center.x,cy:center.y,...source[0]!},
+          {type:'Z'},
         );
         const from=at(cx,cy,inner,(port.from.start+port.from.end)/2),to=at(cx,cy,inner,(port.to.start+port.to.end)/2),anchor=vertex((from.x+to.x)/4+cx/2,(from.y+to.y)/4+cy/2);
-        observations.push({id:{seriesId:group.id,pointId:edge.id},label:edge.from.label+(family==='chord'?' ↔ ':' → ')+edge.to.label,seriesName:group.label,value:edge.value,...anchor,color:group.color,...(visible?{hit:{kind:'polygon' as const,vertices:shape}}:{}),relationship:{kind:'link',from:edge.from.id,to:edge.to.id,fromLabel:edge.from.label,toLabel:edge.to.label,directed:family!=='chord',...(!visible?{geometryOmitted:true as const}:{})}});
+        observations.push({id:{seriesId:group.id,pointId:edge.id},label:edge.from.label+(family==='chord'?' ↔ ':' → ')+edge.to.label,seriesName:group.label,value:edge.value,...anchor,color:group.color,...(visible?{hit:{type:'polygon' as const,vertices:shape}}:{}),relationship:{type:'link',from:edge.from.id,to:edge.to.id,fromLabel:edge.from.label,toLabel:edge.to.label,directed:family!=='chord',...(!visible?{geometryOmitted:true as const}:{})}});
       }
       // Append nodes after ribbons so their actual sectors win visual/hit priority.
       for(const node of nodes.filter(node=>node.groupId===group.id)){
@@ -64,8 +64,8 @@ export function planRadialRelationships(spec:PlanDependencyWheelSpec|PlanChordSp
         if(zero)circles.push({pointId:node.id,cx:anchor.x,cy:anchor.y,radius:Math.min(3,nodeWidth/2)});
         else if(visible)nodeCommands.push(...nodeArcCommands(cx,cy,radius,inner,sector.start,sector.end));
         // Shared sector hits use clockwise radians from twelve o'clock.
-        const hit=zero?{kind:'circle' as const,cx:anchor.x,cy:anchor.y,radius:Math.min(3,nodeWidth/2)}:{kind:'sector' as const,cx,cy,radius,innerRadius:inner,start:sector.start+Math.PI/2,end:sector.end+Math.PI/2};
-        observations.push({id:{seriesId:group.id,pointId:node.id},label:node.label,seriesName:group.label,value:node.incident,...anchor,color:group.color,...(visible?{hit}:{}),relationship:{kind:'node',incoming:node.incoming,outgoing:node.outgoing,incident:node.incident,...(!visible?{geometryOmitted:true as const}:{})},...(node.incomplete?{incomplete:true}:{})});
+        const hit=zero?{type:'circle' as const,cx:anchor.x,cy:anchor.y,radius:Math.min(3,nodeWidth/2)}:{type:'sector' as const,cx,cy,radius,innerRadius:inner,start:sector.start+Math.PI/2,end:sector.end+Math.PI/2};
+        observations.push({id:{seriesId:group.id,pointId:node.id},label:node.label,seriesName:group.label,value:node.incident,...anchor,color:group.color,...(visible?{hit}:{}),relationship:{type:'node',incoming:node.incoming,outgoing:node.outgoing,incident:node.incident,...(!visible?{geometryOmitted:true as const}:{})},...(node.incomplete?{incomplete:true}:{})});
         const span=(sector.end-sector.start)*(radius-nodeWidth/2),labelWidth=Math.min(90,span);
         if(labelWidth>=18)annotations.push({...anchor,text:shortLabel(node.label,labelWidth),role:'label',box:{width:coordinate(labelWidth),height:16,seriesId:group.id}});
       }

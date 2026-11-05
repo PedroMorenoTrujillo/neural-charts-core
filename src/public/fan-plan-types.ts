@@ -5,5 +5,5 @@ export interface PlanFanPoint<TX=string|number>{readonly id:string;readonly x:TX
 type FanInput<T>=T extends {axes:infer A;series:readonly{data:readonly{x:infer X}[]}[]}?Readonly<{family:'fan';title:string;description?:string;axes:A;bands:readonly PlanFanBand[];data:readonly PlanFanPoint<X>[];centerName?:string;centerColor?:string}>:never;
 /** Caller-supplied central estimates and nested uncertainty intervals. Does not calculate forecasts. */
 export type PlanFanSpec=FanInput<PlanLineSpec>;
-export type PlanFanValue=Readonly<{kind:'center'}>|Readonly<{kind:'interval';coverage:number;low:number;high:number}>;
+export type PlanFanValue=Readonly<{type:'center'}>|Readonly<{type:'interval';coverage:number;low:number;high:number}>;
 export interface PlanFanLayout{readonly bands:readonly Readonly<{id:string;label:string;coverage:number}>[];readonly centerId:'center';}

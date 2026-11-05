@@ -51,16 +51,16 @@ test('invalid raw numbers and unknown or duplicate identities are rejected even 
 });
 test('full-circle Pie and Donut have two arcs per contour and opposite winding', () => {
   for (const innerRadius of [0, 50, 99.999999]) {
-    const path = value(sectorPath({ ...frame, innerRadius }, 0, TAU)), arcs = path.filter(command => command.kind === 'A');
+    const path = value(sectorPath({ ...frame, innerRadius }, 0, TAU)), arcs = path.filter(command => command.type === 'A');
     expect(arcs.map(arc => arc.sweep)).toEqual(innerRadius ? [1, 1, 0, 0] : [1, 1]);
-    expect(path.some(command => command.kind === 'L')).toBe(false); expect(path.filter(command => command.kind === 'M')).toHaveLength(innerRadius ? 2 : 1);
-    expect(path[0]).toEqual({ kind: 'M', x: 200, y: 50 }); expect(path.at(-1)).toEqual({ kind: 'Z' });
+    expect(path.some(command => command.type === 'L')).toBe(false); expect(path.filter(command => command.type === 'M')).toHaveLength(innerRadius ? 2 : 1);
+    expect(path[0]).toEqual({ type: 'M', x: 200, y: 50 }); expect(path.at(-1)).toEqual({ type: 'Z' });
     expect(value(serializePath(path))).not.toMatch(/NaN|Infinity/);
   }
 });
 test('semicircle flags and annular return arc are deterministic around pi', () => {
   for (const delta of [Math.PI - 1e-8, Math.PI, Math.PI + 1e-8]) {
-    const path = value(sectorPath({ ...frame, innerRadius: 50 }, 0, delta)), arcs = path.filter(command => command.kind === 'A');
+    const path = value(sectorPath({ ...frame, innerRadius: 50 }, 0, delta)), arcs = path.filter(command => command.type === 'A');
     expect(arcs.map(arc => arc.largeArc)).toEqual([delta > Math.PI ? 1 : 0, delta > Math.PI ? 1 : 0]);
     expect(arcs.map(arc => arc.sweep)).toEqual([1, 0]); expect(serializePath(path).status).toBe('ok');
   }

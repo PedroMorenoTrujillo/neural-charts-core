@@ -7,8 +7,8 @@ import { zoomNumeric, panNumeric, panTime, zoomCategory, panCategory } from './v
 
 type Axis = 'x' | 'y';
 export type ViewportValue = ChartViewportValue<ChartAxisWindow, ChartAxisWindow>;
-export type ViewportAxis = Readonly<{ kind: 'linear' | 'time'; domain: Domain | null; automatic: Domain | null }>
-  | Readonly<{ kind: 'category'; ids: readonly string[]; ranks: ReadonlyMap<string, number> }>;
+export type ViewportAxis = Readonly<{ type: 'linear' | 'time'; domain: Domain | null; automatic: Domain | null }>
+  | Readonly<{ type: 'category'; ids: readonly string[]; ranks: ReadonlyMap<string, number> }>;
 export type ViewportContext = Readonly<{ x: ViewportAxis; y: ViewportAxis }>;
 export type ViewportSettings = Readonly<{ mode: 'internal' | 'controlled'; axes: 'x' | 'y' | 'xy'; gesture: 'none' | 'pan' | 'zoom'; wheel: boolean; controls: boolean }>;
 export type Viewport = Readonly<{ settings: ViewportSettings; value: ViewportValue; resolved: ViewportValue; context: ViewportContext }>;
@@ -20,7 +20,7 @@ function result<T>(callback: () => T): ChartResult<T> {
   catch (error) { return error instanceof ValidationFailure ? { status: 'invalid', diagnostic: error.diagnostic } : invalid('INVALID_CONFIG', 'BAD_VIEWPORT', 'viewport'); }
 }
 function boolean(value: unknown, path: string): boolean { if (typeof value !== 'boolean') fail(path); return value; }
-/** Descriptor-safe structural copy for spec validators; actual axis kind and
+/** Descriptor-safe structural copy for spec validators; actual axis type and
  * bounds are checked when the normalized dataset provides a full context. */
 export function viewportBinding(input: unknown): ChartViewportBinding<ChartAxisWindow, ChartAxisWindow> {
   if (input === false) return false;
@@ -45,39 +45,39 @@ export function viewportBinding(input: unknown): ChartViewportBinding<ChartAxisW
   if (Object.hasOwn(config, 'value')) fail('viewport.value', 'DOUBLE_VIEWPORT_OWNER');
   return Object.freeze({ ...settings, mode: 'internal', ...(Object.hasOwn(config, 'initial') ? { initial: read(config.initial, 'viewport.initial') } : {}) });
 }
-export function numericViewportAxis(kind: 'linear' | 'time', domain: Domain | null, automatic: Domain | null = domain): ChartResult<ViewportAxis> {
+export function numericViewportAxis(type: 'linear' | 'time', domain: Domain | null, automatic: Domain | null = domain): ChartResult<ViewportAxis> {
   return result(() => {
     const clone = (input: Domain | null): Domain | null => {
       if (!input) return null;
       const values = array(input, 2, 'viewport.bounds'); if (values.length !== 2) fail('viewport.bounds');
       const low = number(values[0], 'viewport.bounds[0]'), high = number(values[1], 'viewport.bounds[1]');
-      if (low >= high || kind === 'time' && (![low, high].every(Number.isSafeInteger) || low < -8640000000000000 || high > 8640000000000000)) fail('viewport.bounds', 'BAD_VIEWPORT_BOUNDS');
+      if (low >= high || type === 'time' && (![low, high].every(Number.isSafeInteger) || low < -8640000000000000 || high > 8640000000000000)) fail('viewport.bounds', 'BAD_VIEWPORT_BOUNDS');
       return Object.freeze([low, high] as const);
     };
     const bounds = clone(domain), auto = clone(automatic);
     if (auto && (!bounds || auto[0] < bounds[0] || auto[1] > bounds[1])) fail('viewport.bounds', 'AUTOMATIC_WINDOW_OUTSIDE_BOUNDS');
-    return Object.freeze({ kind, domain: bounds, automatic: auto });
+    return Object.freeze({ type, domain: bounds, automatic: auto });
   });
 }
 export function categoryViewportAxis(ids: readonly string[]): ChartResult<ViewportAxis> {
   return result(() => {
     const owned = array(ids, 1000000, 'viewport.categories').map((id, index) => text(id, 'viewport.categories[' + index + ']', 128)), ranks = new Map<string, number>();
     owned.forEach((id, index) => { if (ranks.has(id)) fail('viewport.categories[' + index + ']', 'DUPLICATE_CATEGORY'); ranks.set(id, index); });
-    return Object.freeze({ kind: 'category', ids: Object.freeze(owned), ranks });
+    return Object.freeze({ type: 'category', ids: Object.freeze(owned), ranks });
   });
 }
 function full(axis: ViewportAxis): ChartAxisWindow | undefined {
-  return axis.kind === 'category' ? axis.ids.length ? Object.freeze({ firstId: axis.ids[0]!, lastId: axis.ids[axis.ids.length - 1]! }) : undefined : axis.automatic ?? undefined;
+  return axis.type === 'category' ? axis.ids.length ? Object.freeze({ firstId: axis.ids[0]!, lastId: axis.ids[axis.ids.length - 1]! }) : undefined : axis.automatic ?? undefined;
 }
 function readWindow(input: unknown, axis: ViewportAxis, path: string, boundsRequired = true): ChartAxisWindow {
-  if (axis.kind === 'category') {
+  if (axis.type === 'category') {
     const value = record(input, ['firstId', 'lastId'], ['firstId', 'lastId'], path), firstId = text(value.firstId, path + '.firstId', 128), lastId = text(value.lastId, path + '.lastId', 128), first = axis.ranks.get(firstId), last = axis.ranks.get(lastId);
     if (boundsRequired && (first === undefined || last === undefined || first > last)) fail(path, 'BAD_CATEGORY_WINDOW');
     return Object.freeze({ firstId, lastId });
   }
   const value = array(input, 2, path); if (value.length !== 2) fail(path, 'BAD_VIEWPORT_WINDOW');
   const low = number(value[0], path + '[0]'), high = number(value[1], path + '[1]');
-  if (low >= high || boundsRequired && (!axis.domain || low < axis.domain[0] || high > axis.domain[1]) || axis.kind === 'time' && (!Number.isSafeInteger(low) || !Number.isSafeInteger(high))) fail(path, 'BAD_VIEWPORT_WINDOW', 'INVALID_DOMAIN');
+  if (low >= high || boundsRequired && (!axis.domain || low < axis.domain[0] || high > axis.domain[1]) || axis.type === 'time' && (!Number.isSafeInteger(low) || !Number.isSafeInteger(high))) fail(path, 'BAD_VIEWPORT_WINDOW', 'INVALID_DOMAIN');
   return Object.freeze([low, high] as const);
 }
 function readValue(input: unknown, settings: ViewportSettings, context: ViewportContext, path: string, boundsRequired = true): ViewportValue {
@@ -94,13 +94,13 @@ function reconcile(value: ViewportValue, settings: ViewportSettings, context: Vi
   const next: { x?: ChartAxisWindow; y?: ChartAxisWindow } = {};
   for (const key of axes) {
     const previous = value[key], bounds = context[key]; if (!previous || !enabled(settings, key)) continue;
-    if (bounds.kind === 'category') {
+    if (bounds.type === 'category') {
       if (numeric(previous)) continue;
       const first = bounds.ranks.get(previous.firstId), last = bounds.ranks.get(previous.lastId);
       if (first !== undefined && last !== undefined && first <= last) next[key] = Object.freeze({ ...previous });
     } else if (numeric(previous) && bounds.domain) {
       const low = Math.max(previous[0], bounds.domain[0]), high = Math.min(previous[1], bounds.domain[1]);
-      if (low < high && (bounds.kind !== 'time' || Number.isSafeInteger(low) && Number.isSafeInteger(high))) next[key] = Object.freeze([low, high] as const);
+      if (low < high && (bounds.type !== 'time' || Number.isSafeInteger(low) && Number.isSafeInteger(high))) next[key] = Object.freeze([low, high] as const);
     }
   }
   return Object.freeze(next);
@@ -132,14 +132,14 @@ function transformed(current: Viewport, operation: 'zoom' | 'pan', values: Reado
     if (!enabled(current.settings, axis) || values[axis] === undefined || operation === 'pan' && values[axis] === 0 || operation === 'zoom' && values[axis] === 1) continue;
     const window = current.resolved[axis], bounds = current.context[axis]; if (!window) return invalid('INVALID_DOMAIN', 'NO_VIEWPORT_DOMAIN', 'viewport.' + axis);
     const amount = values[axis]!, anchor = anchors[axis] ?? .5;
-    const changed = bounds.kind === 'category' && !numeric(window)
+    const changed = bounds.type === 'category' && !numeric(window)
       ? operation === 'zoom' ? zoomCategory(window, bounds.ids, bounds.ranks, amount, anchor) : panCategory(window, bounds.ids, bounds.ranks, amount)
-      : bounds.kind !== 'category' && bounds.domain && numeric(window)
-        ? operation === 'zoom' ? zoomNumeric(window, bounds.domain, amount, anchor) : (bounds.kind === 'time' ? panTime : panNumeric)(window, bounds.domain, amount)
+      : bounds.type !== 'category' && bounds.domain && numeric(window)
+        ? operation === 'zoom' ? zoomNumeric(window, bounds.domain, amount, anchor) : (bounds.type === 'time' ? panTime : panNumeric)(window, bounds.domain, amount)
         : invalid('INVALID_DOMAIN', 'BAD_VIEWPORT_WINDOW', 'viewport.' + axis);
     if (changed.status === 'invalid') return changed;
     let next = changed.value;
-    if (bounds.kind === 'time' && bounds.domain && numeric(next)) next = Object.freeze([Math.max(bounds.domain[0], Math.floor(next[0])), Math.min(bounds.domain[1], Math.ceil(next[1]))] as const);
+    if (bounds.type === 'time' && bounds.domain && numeric(next)) next = Object.freeze([Math.max(bounds.domain[0], Math.floor(next[0])), Math.min(bounds.domain[1], Math.ceil(next[1]))] as const);
     value[axis] = next;
   }
   return requestViewport(current, value);

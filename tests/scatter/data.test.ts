@@ -3,7 +3,7 @@ import { normalizeScatter, scatterDomains, targetKey } from '../../src/scatter/d
 import type { ScatterDataSpec, ScatterSeries } from '../../src/scatter/data.js';
 import type { ChartResult } from '../../src/public/chart-types.js';
 function value<T>(result: ChartResult<T>): T { if (result.status !== 'ok') throw Error(JSON.stringify(result)); return result.value; }
-const axes = { x: { kind: 'linear' as const }, y: { kind: 'linear' as const } }, visible = { hiddenSeriesIds: [] };
+const axes = { x: { type: 'linear' as const }, y: { type: 'linear' as const } }, visible = { hiddenSeriesIds: [] };
 const make = (series: readonly ScatterSeries[]): ScatterDataSpec => ({ axes, series });
 test('unordered duplicate XY values and incomplete pairs retain original logical identities', () => {
   const datum = Object.freeze({ original: true }), points = Object.freeze([{ id: 'a', x: 5, y: -2, datum }, { id: 'b', x: 0, y: 0 }, { id: 'c', x: 5, y: -2 }, { id: 'd', x: null, y: 7 }, { id: 'e', x: 8, y: null }].map(point => Object.freeze(point)));
@@ -15,9 +15,9 @@ test('both automatic domains use visible finite pairs, with explicit and include
   const series = [{ id: 'a', name: 'A', data: [{ id: 'a', x: -5, y: 2 }, { id: 'b', x: -2, y: 8 }] }, { id: 'b', name: 'B', data: [{ id: 'a', x: 100, y: -90 }, { id: 'b', x: 200, y: -80 }] }];
   const data = value(normalizeScatter(make(series))), hidden = { hiddenSeriesIds: ['b'] };
   expect(value(scatterDomains(data, hidden))).toEqual({ x: [-5, -2], y: [2, 8] }); expect(value(scatterDomains(data, { hiddenSeriesIds: ['a', 'b'] }))).toEqual({ x: null, y: null });
-  const zero = value(normalizeScatter({ ...make(series), axes: { x: { kind: 'linear', includeZero: true }, y: { kind: 'linear', includeZero: true } } }));
+  const zero = value(normalizeScatter({ ...make(series), axes: { x: { type: 'linear', includeZero: true }, y: { type: 'linear', includeZero: true } } }));
   expect(value(scatterDomains(zero, hidden))).toEqual({ x: [-5, 0], y: [0, 8] });
-  const explicit = value(normalizeScatter({ ...make(series), axes: { x: { kind: 'linear', domain: [-10, 300] }, y: { kind: 'linear', domain: [-100, 100] } } }));
+  const explicit = value(normalizeScatter({ ...make(series), axes: { x: { type: 'linear', domain: [-10, 300] }, y: { type: 'linear', domain: [-100, 100] } } }));
   expect(value(scatterDomains(explicit, hidden))).toEqual({ x: [-10, 300], y: [-100, 100] });
 });
 test('constant zero/tiny/large domains use the certified expansion without fabricated pairs', () => {
@@ -37,6 +37,6 @@ test('nonfinite values, duplicate identities and bounded resource limits fail be
   expect(normalizeScatter(make([row, { ...row, id: 'other' }])).status).toBe('ok');
 });
 test('invalid applied domains reject and composite keys cannot collide across delimiter-like IDs', () => {
-  const data = value(normalizeScatter({ ...make([{ id: 'a', name: 'A', data: [] }]), axes: { x: { kind: 'linear', domain: [2, 1] }, y: { kind: 'linear' } } }));
+  const data = value(normalizeScatter({ ...make([{ id: 'a', name: 'A', data: [] }]), axes: { x: { type: 'linear', domain: [2, 1] }, y: { type: 'linear' } } }));
   expect(scatterDomains(data, visible).status).toBe('invalid'); expect(targetKey('a|p:1:b', 'c')).not.toBe(targetKey('a', 'b|p:1:c'));
 });

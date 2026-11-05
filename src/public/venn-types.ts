@@ -14,7 +14,7 @@ export interface PlanVennSpec {
 }
 export interface PlanVennCircle {readonly id:string;readonly bit:number;readonly cx:number;readonly cy:number;readonly radius:number;readonly value:number;}
 export interface PlanVennValue {
-  readonly kind:'inclusive-intersection';readonly sets:readonly string[];readonly mask:number;
+  readonly type:'inclusive-intersection';readonly sets:readonly string[];readonly mask:number;
   /** Membership uses the exact circles in vennLayout, not a polygon surrogate. */
   readonly geometry:'placed'|'omitted';
 }

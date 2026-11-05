@@ -48,9 +48,9 @@ export function planStatisticalRanges(spec:PlanBoxplotSpec|PlanErrorbarSpec,opti
         const minimum=mapY(point.low!)!,maximum=mapY(point.high!)!,visibleTop=Math.max(top,Math.min(minimum,maximum)),visibleBottom=Math.min(bottom,Math.max(minimum,maximum));
         const vertical=(at:number,a:number,b:number)=>{
           if(at<left||at>right||Math.max(a,b)<top||Math.min(a,b)>bottom)return;
-          const y1=Math.max(top,Math.min(bottom,a)),y2=Math.max(top,Math.min(bottom,b));if(y1!==y2)paint.commands.push({kind:'M',x:at,y:y1},{kind:'L',x:at,y:y2});
+          const y1=Math.max(top,Math.min(bottom,a)),y2=Math.max(top,Math.min(bottom,b));if(y1!==y2)paint.commands.push({type:'M',x:at,y:y1},{type:'L',x:at,y:y2});
         };
-        const horizontal=(y:number,x1:number,x2:number)=>{if(y>=top&&y<=bottom&&x2>x1)paint.commands.push({kind:'M',x:x1,y},{kind:'L',x:x2,y});};
+        const horizontal=(y:number,x1:number,x2:number)=>{if(y>=top&&y<=bottom&&x2>x1)paint.commands.push({type:'M',x:x1,y},{type:'L',x:x2,y});};
         let value=observation.value,anchorY=observation.y;
         if(box){
           const five=point.five!,q1=mapY(five.q1Value)!,q3=mapY(five.q3Value)!,median=mapY(five.medianValue)!;
@@ -68,7 +68,7 @@ export function planStatisticalRanges(spec:PlanBoxplotSpec|PlanErrorbarSpec,opti
         // fully invisible zero intervals never acquire an invented target.
         if(painted&&targetRight<=targetLeft){targetLeft=Math.max(left,x-1);targetRight=Math.min(right,x+1);}
         if(painted&&targetBottom<=targetTop){targetTop=Math.max(top,visibleTop-1);targetBottom=Math.min(bottom,visibleBottom+1);}
-        const hit:PlanObservation['hit']=painted&&targetBottom>targetTop&&targetRight>targetLeft?{kind:'polygon',vertices:[{x:targetLeft,y:targetTop},{x:targetRight,y:targetTop},{x:targetRight,y:targetBottom},{x:targetLeft,y:targetBottom}]}:undefined;
+        const hit:PlanObservation['hit']=painted&&targetBottom>targetTop&&targetRight>targetLeft?{type:'polygon',vertices:[{x:targetLeft,y:targetTop},{x:targetRight,y:targetTop},{x:targetRight,y:targetBottom},{x:targetLeft,y:targetBottom}]}:undefined;
         const {hit:_oldHit,...semantic}=observation;
         observations.push({...semantic,value,x:Math.max(left,Math.min(right,x)),y:anchorY,...(point.five??{}),...(hit?{hit}:{})});
       }

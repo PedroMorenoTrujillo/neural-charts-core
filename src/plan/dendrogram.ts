@@ -40,11 +40,11 @@ export function planDendrogram(spec:PlanDendrogramSpec,options:PlanOptions):Plan
   const mapHeight=(value:number)=>heightScale?.value.map(value)??(vertical?plot.y+plot.height:plot.x+plot.width);
   for(const node of nodes){const fraction=(node.first+node.last+1)/2/leaves;node.x=vertical?plot.x+fraction*plot.width:mapHeight(node.height);node.y=vertical?mapHeight(node.height):plot.y+fraction*plot.height;}
   const commands:PlanCommand[]=[];
-  for(const node of nodes)if(node.parent){const parent=node.parent;commands.push({kind:'M',x:parent.x,y:parent.y},vertical?{kind:'L',x:node.x,y:parent.y}:{kind:'L',x:parent.x,y:node.y},{kind:'L',x:node.x,y:node.y});}
+  for(const node of nodes)if(node.parent){const parent=node.parent;commands.push({type:'M',x:parent.x,y:parent.y},vertical?{type:'L',x:node.x,y:parent.y}:{type:'L',x:parent.x,y:node.y},{type:'L',x:node.x,y:node.y});}
   const unit=distance?spec.unit??'':'levels',color=defaultPalette('light',false).series[0]!,observations:PlanObservation[]=[],annotations:PlanAnnotation[]=[];
   for(const node of nodes){
-    const leaf=node.children.length===0,label=node.source.label??node.source.id,role:PlanDendrogramValue={kind:leaf?'leaf':'cluster',heightMode:distance?'distance':'topology',heightSource:node.source.height!==undefined?'source':leaf?'leafZero':'topology',leafCount:node.leafCount,depth:node.depth,unit};
-    observations.push({id:{seriesId:'tree',pointId:node.source.id},label,seriesName:spec.title,value:node.height,x:node.x,y:node.y,color,hit:{kind:'circle',cx:node.x,cy:node.y,radius:7},dendrogram:role});
+    const leaf=node.children.length===0,label=node.source.label??node.source.id,role:PlanDendrogramValue={type:leaf?'leaf':'cluster',heightMode:distance?'distance':'topology',heightSource:node.source.height!==undefined?'source':leaf?'leafZero':'topology',leafCount:node.leafCount,depth:node.depth,unit};
+    observations.push({id:{seriesId:'tree',pointId:node.source.id},label,seriesName:spec.title,value:node.height,x:node.x,y:node.y,color,hit:{type:'circle',cx:node.x,cy:node.y,radius:7},dendrogram:role});
     if(!leaf||!label)continue;
     const w=vertical?Math.min(112,plot.width/leaves-6):labelWidth,h=vertical?28:18,x=vertical?node.x:node.x+8+w/2,y=vertical?node.y+18:node.y;
     if(w<32||!vertical&&plot.height/leaves<20||x-w/2<0||x+w/2>width||y-h/2<0||y+h/2>height)continue;

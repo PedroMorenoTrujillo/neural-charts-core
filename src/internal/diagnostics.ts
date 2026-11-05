@@ -9,9 +9,9 @@ export function notify(sink: ((diagnostic: Diagnostic) => void) | undefined, dia
   try { sink?.(diagnostic); } catch { /* A diagnostic sink cannot interrupt cleanup. */ }
 }
 export type DevelopmentNoticeReason = 'TICK_RESOLUTION_FALLBACK';
-export type DevelopmentNotice = Readonly<{ kind: 'development-notice'; reason: DevelopmentNoticeReason; path: string; message: string }>;
+export type DevelopmentNotice = Readonly<{ type: 'development-notice'; reason: DevelopmentNoticeReason; path: string; message: string }>;
 export type DevelopmentNoticeSink = (notice: DevelopmentNotice) => void;
 export function notifyTickFallback(sink: DevelopmentNoticeSink | undefined): void {
-  try { sink?.(Object.freeze({ kind: 'development-notice', reason: 'TICK_RESOLUTION_FALLBACK', path: 'ticks', message: 'No representable regular tick grid; finite domain endpoints selected.' })); }
+  try { sink?.(Object.freeze({ type: 'development-notice', reason: 'TICK_RESOLUTION_FALLBACK', path: 'ticks', message: 'No representable regular tick grid; finite domain endpoints selected.' })); }
   catch { /* Development notices cannot change a valid numerical result. */ }
 }

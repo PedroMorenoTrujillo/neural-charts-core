@@ -3,9 +3,9 @@ import type {PlanFrame,PlanHitRegion,PlanObservation} from '../public/plan-types
 /** Exact membership in Core-projected geometry; no DOM, labels or pointer state. */
 export function containsPlanHit(hit:PlanHitRegion,x:number,y:number):boolean{
   if(!Number.isFinite(x)||!Number.isFinite(y))return false;
-  if(hit.kind==='circle')return Math.hypot(x-hit.cx,y-hit.cy)<=hit.radius;
-  if(hit.kind==='compoundPolygon')return hit.polygons.some(vertices=>containsPlanHit({kind:'polygon',vertices},x,y));
-  if(hit.kind==='sector'){
+  if(hit.type==='circle')return Math.hypot(x-hit.cx,y-hit.cy)<=hit.radius;
+  if(hit.type==='compoundPolygon')return hit.polygons.some(vertices=>containsPlanHit({type:'polygon',vertices},x,y));
+  if(hit.type==='sector'){
     const radius=Math.hypot(x-hit.cx,y-hit.cy);if(radius<hit.innerRadius||radius>hit.radius)return false;
     const tau=Math.PI*2,normalize=(angle:number)=>(angle%tau+tau)%tau;
     if(Math.abs(hit.end-hit.start)<1e-12)return false;
@@ -38,8 +38,8 @@ interface Entry {readonly observation:PlanObservation;readonly hit:PlanHitRegion
 interface Branch {readonly bounds:Bounds;readonly rank:number;readonly entries?:readonly Entry[];readonly left?:Branch;readonly right?:Branch;}
 export interface PlanRegionHitIndex {readonly query:(x:number,y:number)=>PlanObservation|undefined;}
 function boundsOf(hit:PlanHitRegion):Bounds|undefined{
-  if(hit.kind==='circle'||hit.kind==='sector')return {left:hit.cx-hit.radius,top:hit.cy-hit.radius,right:hit.cx+hit.radius,bottom:hit.cy+hit.radius};
-  const polygons=hit.kind==='polygon'?[hit.vertices]:hit.polygons;let left=Infinity,top=Infinity,right=-Infinity,bottom=-Infinity;
+  if(hit.type==='circle'||hit.type==='sector')return {left:hit.cx-hit.radius,top:hit.cy-hit.radius,right:hit.cx+hit.radius,bottom:hit.cy+hit.radius};
+  const polygons=hit.type==='polygon'?[hit.vertices]:hit.polygons;let left=Infinity,top=Infinity,right=-Infinity,bottom=-Infinity;
   for(const polygon of polygons)for(const point of polygon){left=Math.min(left,point.x);right=Math.max(right,point.x);top=Math.min(top,point.y);bottom=Math.max(bottom,point.y);}
   return [left,top,right,bottom].every(Number.isFinite)?{left,top,right,bottom}:undefined;
 }

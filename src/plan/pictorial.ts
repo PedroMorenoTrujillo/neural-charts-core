@@ -9,8 +9,8 @@ import type {PlanPictorialSpec,PlanPictorialOptions,PlanPictorialResult,PlanPict
 function validate(input:PlanPictorialSpec):{spec:PlanPictorialSpec;mesh:Mesh} {
   const source=record(input,['family','title','description','axes','series','pictorial'],['family','title','axes','series'],'spec');
   choice(source.family,['pictorial'],'spec.family');
-  const axes=record(source.axes,['x','y'],['x','y'],'spec.axes'),x=record(axes.x,['kind','values'],['kind','values'],'spec.axes.x'),y=record(axes.y,['kind','domain','unit'],['kind'],'spec.axes.y');
-  choice(x.kind,['category'],'spec.axes.x.kind');choice(y.kind,['linear'],'spec.axes.y.kind');
+  const axes=record(source.axes,['x','y'],['x','y'],'spec.axes'),x=record(axes.x,['type','values'],['type','values'],'spec.axes.x'),y=record(axes.y,['type','domain','unit'],['type'],'spec.axes.y');
+  choice(x.type,['category'],'spec.axes.x.type');choice(y.type,['linear'],'spec.axes.y.type');
   const categoryIds=new Set<string>();
   const categories=array(x.values,32,'spec.axes.x.values').map((item,index)=>{
     const path='spec.axes.x.values['+index+']',row=record(item,['id','label'],['id','label'],path),id=text(row.id,path+'.id',128);
@@ -41,9 +41,9 @@ function validate(input:PlanPictorialSpec):{spec:PlanPictorialSpec;mesh:Mesh} {
     if(layout.gap!==undefined)gap=number(layout.gap,'spec.pictorial.gap',0,64);
     if(layout.background!==undefined){if(typeof layout.background!=='boolean')fail('spec.pictorial.background');background=layout.background;}
     if(layout.shape!==undefined){
-      const shape=record(layout.shape,['kind','name','mesh'],['kind'],'spec.pictorial.shape');
-      const kind=choice(shape.kind,['preset','mesh'],'spec.pictorial.shape.kind');
-      if(kind==='preset'){if(shape.mesh!==undefined)fail('spec.pictorial.shape.mesh','INCOMPATIBLE_OPTION');mesh=presetMesh(choice(shape.name,['person','bottle','heart'],'spec.pictorial.shape.name'));}
+      const shape=record(layout.shape,['type','name','mesh'],['type'],'spec.pictorial.shape');
+      const type=choice(shape.type,['preset','mesh'],'spec.pictorial.shape.type');
+      if(type==='preset'){if(shape.mesh!==undefined)fail('spec.pictorial.shape.mesh','INCOMPATIBLE_OPTION');mesh=presetMesh(choice(shape.name,['person','bottle','heart'],'spec.pictorial.shape.name'));}
       else{
         if(shape.name!==undefined)fail('spec.pictorial.shape.name','INCOMPATIBLE_OPTION');
         const m=record(shape.mesh,['id','aspectRatio','vertices','triangles'],['id','aspectRatio','vertices','triangles'],'spec.pictorial.shape.mesh');
@@ -53,7 +53,7 @@ function validate(input:PlanPictorialSpec):{spec:PlanPictorialSpec;mesh:Mesh} {
       }
     }
   }
-  const spec:PlanPictorialSpec={family:'pictorial',title:text(source.title,'spec.title',512,true),...(source.description===undefined?{}:{description:text(source.description,'spec.description',2048,true)}),axes:{x:{kind:'category',values:categories},y:{kind:'linear',...(domain?{domain}:{}),...(y.unit===undefined?{}:{unit:text(y.unit,'spec.axes.y.unit',64,true)})}},series,pictorial:{shape:{kind:'mesh',mesh},gap,background}};
+  const spec:PlanPictorialSpec={family:'pictorial',title:text(source.title,'spec.title',512,true),...(source.description===undefined?{}:{description:text(source.description,'spec.description',2048,true)}),axes:{x:{type:'category',values:categories},y:{type:'linear',...(domain?{domain}:{}),...(y.unit===undefined?{}:{unit:text(y.unit,'spec.axes.y.unit',64,true)})}},series,pictorial:{shape:{type:'mesh',mesh},gap,background}};
   return{spec,mesh};
 }
 
@@ -70,7 +70,7 @@ function options(input:PlanPictorialOptions,ids:ReadonlySet<string>){
 /** UTF-16 length-prefixed tuples retain lone surrogates and every possible delimiter. */
 function tuple(parts:readonly string[]):string{return parts.map(p=>p.length+':'+p).join('');}
 function commands(loops:readonly (readonly Vertex[])[],map:(v:Vertex)=>Vertex):PlanCommand[]{
-  return loops.flatMap(loop=>loop.length<3?[]:[{kind:'M' as const,...map(loop[0]!)},...loop.slice(1).map(p=>({kind:'L' as const,...map(p)})),{kind:'Z' as const}]);
+  return loops.flatMap(loop=>loop.length<3?[]:[{type:'M' as const,...map(loop[0]!)},...loop.slice(1).map(p=>({type:'L' as const,...map(p)})),{type:'Z' as const}]);
 }
 function total(values:readonly number[]):{value:number|null;status:'known'|'overflow'}{
   let value=0;for(const n of values){value+=n;if(!Number.isFinite(value))return{value:null,status:'overflow'};}return{value,status:'known'};
@@ -112,9 +112,9 @@ export function planPictorial(input:PlanPictorialSpec,inputOptions:PlanPictorial
       catState.set(category.id,{incomplete:members.some(p=>p===undefined||p.y===null),total:sum.value,totalStatus:sum.status,max,scaledTotal:max>0?values.reduce((s,v)=>s+v/max,0):0});
     }
     for(let ci=0;ci<categories.length;ci++){
-      const category=categories[ci]!,state=catState.get(category.id)!,stackedGlyphId:PlanPictorialGlyphId={kind:'stacked',categoryId:category.id};let cumulative=0;
+      const category=categories[ci]!,state=catState.get(category.id)!,stackedGlyphId:PlanPictorialGlyphId={type:'stacked',categoryId:category.id};let cumulative=0;
       for(let si=0;si<visible.length;si++){
-        const source=visible[si]!,point=rows.get(source.id)!.get(category.id),glyphId:PlanPictorialGlyphId=opts.mode==='grouped'?{kind:'grouped',categoryId:category.id,seriesId:source.id}:stackedGlyphId;
+        const source=visible[si]!,point=rows.get(source.id)!.get(category.id),glyphId:PlanPictorialGlyphId=opts.mode==='grouped'?{type:'grouped',categoryId:category.id,seriesId:source.id}:stackedGlyphId;
         const gx=plot.x+ci*slot+(opts.mode==='grouped'?si*subslot:0)+(subslot-glyphWidth)/2;
         const map=(v:Vertex):Vertex=>({x:gx+v.x*glyphWidth,y:glyphTop+v.y*glyphHeight});
         if(opts.mode==='grouped'||si===0)glyphs.push({id:glyphId,shapeId:mesh.id,categoryId:category.id,bounds:{x:gx,y:glyphTop,width:glyphWidth,height:glyphHeight},backgroundCommands:spec.pictorial!.background?commands(full.loops,map):[]});
@@ -127,7 +127,7 @@ export function planPictorial(input:PlanPictorialSpec,inputOptions:PlanPictorial
         const noInk=point.y>0&&(!paint.length||!pieces.some(p=>signedArea(p)>0)),status=point.y===0?'zero':noInk?'noInk':'displayed';
         if(status==='displayed')filled.get(source.id)!.push({pointId:point.id,glyphId,shapeId:mesh.id,commands:paint});
         const largest=pieces.reduce<readonly Vertex[]>((a,p)=>signedArea(p)>signedArea(a)?p:a,[]),anchor=largest.length?{x:largest.reduce((s,p)=>s+p.x,0)/largest.length,y:largest.reduce((s,p)=>s+p.y,0)/largest.length}:{x:gx+glyphWidth/2,y:baseline};
-        observations.push({id:{seriesId:source.id,pointId:point.id},label:category.label,seriesName:source.name,value:point.y,x:anchor.x,y:anchor.y,color:source.color!,...(status==='displayed'?{hit:{kind:'compoundPolygon' as const,polygons:pieces}}:{}),...(opts.mode==='percent'?{percentage:fraction*100}:{}),pictorial:{categoryId:category.id,glyphId,shapeId:mesh.id,status,low,high,capacity,total:state.total,totalStatus:state.totalStatus,incomplete:state.incomplete}});
+        observations.push({id:{seriesId:source.id,pointId:point.id},label:category.label,seriesName:source.name,value:point.y,x:anchor.x,y:anchor.y,color:source.color!,...(status==='displayed'?{hit:{type:'compoundPolygon' as const,polygons:pieces}}:{}),...(opts.mode==='percent'?{percentage:fraction*100}:{}),pictorial:{categoryId:category.id,glyphId,shapeId:mesh.id,status,low,high,capacity,total:state.total,totalStatus:state.totalStatus,incomplete:state.incomplete}});
       }
     }
     const observationsById=new Map(observations.map(o=>[tuple([o.id.seriesId,o.id.pointId]),o]));

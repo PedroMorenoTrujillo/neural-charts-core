@@ -11,7 +11,7 @@ function at(s: CubicSegment, t: number): SplineCoordinate {
   return { x: a * s.a.x + b * s.b.x + c * s.c.x + d * s.d.x, y: a * s.a.y + b * s.b.y + c * s.c.y + d * s.d.y };
 }
 function vertices(commands: readonly PathCommand[]): SplineCoordinate[] {
-  return commands.flatMap(command => command.kind === 'M' || command.kind === 'L' ? [{ x: command.x, y: command.y }] : []);
+  return commands.flatMap(command => command.type === 'M' || command.type === 'L' ? [{ x: command.x, y: command.y }] : []);
 }
 function distanceToPolyline(p: SplineCoordinate, points: readonly SplineCoordinate[]): number {
   let best = Infinity;
@@ -30,7 +30,7 @@ describe('monotone mathematical interpolation and frozen-path approximation', ()
     expect(commands.length).toBeGreaterThan(points.length);
     for (const point of points) expect(vertices(commands)).toContainEqual(point);
     expect(value(serializePath(commands))).not.toMatch(/NaN|Infinity/);
-    expect(commands.every(command => command.kind === 'M' || command.kind === 'L')).toBe(true);
+    expect(commands.every(command => command.type === 'M' || command.type === 'L')).toBe(true);
   });
   test('constant and linear data need no gratuitous subdivisions', () => {
     expect(value(splineCommands([{ x: 0, y: 2 }, { x: 10, y: 2 }, { x: 100, y: 2 }]))).toHaveLength(3);
@@ -108,7 +108,7 @@ describe('monotone mathematical interpolation and frozen-path approximation', ()
   test('50000 original positions remain addressable without a command explosion', () => {
     const points = Array.from({ length: 50000 }, (_, x) => ({ x, y: x / 10 }));
     const commands = value(splineCommands(points));
-    expect(commands).toHaveLength(50000); expect(commands.at(-1)).toEqual({ kind: 'L', x: 49999, y: 4999.9 });
+    expect(commands).toHaveLength(50000); expect(commands.at(-1)).toEqual({ type: 'L', x: 49999, y: 4999.9 });
   });
   test('viewport culling preserves full-run tangents and retains boundary crossings', () => {
     const points = Array.from({ length: 1000 }, (_, x) => ({ x: x * 80, y: Math.sin(x / 2) * 200 }));

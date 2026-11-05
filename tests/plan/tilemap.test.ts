@@ -4,7 +4,7 @@ const size={width:390,height:320};
 const source=(values:readonly(number|null)[]=[0,10,null]):PlanTilemapSpec=>({family:'tilemap',title:'Source cells',series:[{id:'source',name:'One real series',data:values.map((value,i)=>({id:'p'+i,x:i,y:0,value}))}]});
 function ok(spec:unknown,options:unknown=size){const result=planChart(spec as PlanTilemapSpec,options as PlanTilemapOptions);if(result.status==='invalid')throw Error(JSON.stringify(result));return result;}
 const invalid=(spec:unknown,options:unknown=size)=>expect(planChart(spec as PlanTilemapSpec,options as PlanTilemapOptions).status).toBe('invalid');
-const classes:PlanColorAxisSpec={kind:'classes',missingColor:'#EEEEEE',unclassifiedColor:'#999999',classes:[{id:'negative',label:'Negative',maxExclusive:0,color:'#2244CC'},{id:'positive',label:'Ten or more',minInclusive:10,color:'#CC4422'}]};
+const classes:PlanColorAxisSpec={type:'classes',missingColor:'#EEEEEE',unclassifiedColor:'#999999',classes:[{id:'negative',label:'Negative',maxExclusive:0,color:'#2244CC'},{id:'positive',label:'Ten or more',minInclusive:10,color:'#CC4422'}]};
 
 it('four real cell geometries remain on the single original series with correct numeric identities',()=>{
   for(const shape of ['hexagon','circle','diamond','square'] as const){
@@ -13,8 +13,8 @@ it('four real cell geometries remain on the single original series with correct 
     expect(frame.observations.map(o=>o.value)).toEqual([0,10]);expect(frame.observations.map(o=>o.id.pointId)).toEqual(['p0','p1']);
     expect(frame.series[0]!.cells![2]!.pointId).toBe('p2');expect(frame.tilemapData![2]!.value).toBeNull();
     const geometry=frame.series[0]!.cells![0]!.geometry;
-    if(shape==='circle'){expect(geometry.kind).toBe('circle');if(geometry.kind==='circle')expect(geometry.radius).toBeGreaterThan(0);}
-    else{expect(geometry.kind).toBe('polygon');if(geometry.kind==='polygon')expect(geometry.vertices).toHaveLength(shape==='hexagon'?6:4);}
+    if(shape==='circle'){expect(geometry.type).toBe('circle');if(geometry.type==='circle')expect(geometry.radius).toBeGreaterThan(0);}
+    else{expect(geometry.type).toBe('polygon');if(geometry.type==='polygon')expect(geometry.vertices).toHaveLength(shape==='hexagon'?6:4);}
     expect(frame.observations[0]!.hit).toBe(geometry);expect(frame.observations[0]!.tilemap?.sourceX).toBe(0);
   }
 });
@@ -22,24 +22,24 @@ it('four real cell geometries remain on the single original series with correct 
 it('all-missing cells paint honestly without numeric observations or fake zero hits',()=>{
   const result=ok(source([null,null]));expect(result.status).toBe('empty');expect(result.frame.tilemapLayout?.status).toBe('allMissing');
   expect(result.frame.series[0]!.cells).toHaveLength(2);expect(result.frame.observations).toHaveLength(0);
-  expect(result.frame.tilemapData!.every(p=>p.value===null&&!p.observed&&p.geometryDecision==='painted'&&p.color.kind==='missing')).toBe(true);
-  expect(result.frame.colorAxis).toMatchObject({kind:'continuous',domain:null,domainSource:'none'});
+  expect(result.frame.tilemapData!.every(p=>p.value===null&&!p.observed&&p.geometryDecision==='painted'&&p.color.type==='missing')).toBe(true);
+  expect(result.frame.colorAxis).toMatchObject({type:'continuous',domain:null,domainSource:'none'});
   const zero=ok(source([0,0]));expect(zero.status).toBe('ok');expect(zero.frame.observations.map(o=>o.value)).toEqual([0,0]);
-  expect(zero.frame.colorAxis).toMatchObject({kind:'continuous',domain:[0,0],domainSource:'source'});
-  expect(zero.frame.tilemapData![0]!.color).toMatchObject({kind:'continuous',value:0,ratio:.5});
+  expect(zero.frame.colorAxis).toMatchObject({type:'continuous',domain:[0,0],domainSource:'source'});
+  expect(zero.frame.tilemapData![0]!.color).toMatchObject({type:'continuous',value:0,ratio:.5});
 });
 
 it('unclassified numeric cells retain exact observations, distinct from missing values',()=>{
   const result=ok({...source([null,0,5,10]),colorAxis:classes});
   expect(result.frame.observations.map(o=>o.value)).toEqual([0,5,10]);
-  expect(result.frame.observations[0]!.tilemap?.color).toMatchObject({kind:'unclassified',value:0,color:'#999999'});
-  expect(result.frame.tilemapData![0]!.color.kind).toBe('missing');expect(result.frame.colorAxis).toMatchObject({kind:'classes',classes:classes.classes.map(c=>({...c,color:c.color.toLowerCase()}))});
-  expect(result.frame.colorAxis?.kind==='classes'&&result.frame.colorAxis.classes).toHaveLength(2);
+  expect(result.frame.observations[0]!.tilemap?.color).toMatchObject({type:'unclassified',value:0,color:'#999999'});
+  expect(result.frame.tilemapData![0]!.color.type).toBe('missing');expect(result.frame.colorAxis).toMatchObject({type:'classes',classes:classes.classes.map(c=>({...c,color:c.color.toLowerCase()}))});
+  expect(result.frame.colorAxis?.type==='classes'&&result.frame.colorAxis.classes).toHaveLength(2);
 });
 
 it('original color domain is independent of legend visibility and restore reproduces the same frame',()=>{
   const input=source([-10,null,50]),first=ok(input),hidden=ok(input,{...size,hiddenSeriesIds:['source']});
-  expect(first.frame.colorAxis).toMatchObject({kind:'continuous',domain:[-10,50]});
+  expect(first.frame.colorAxis).toMatchObject({type:'continuous',domain:[-10,50]});
   expect(hidden.frame.colorAxis).toEqual(first.frame.colorAxis);expect(hidden.frame.tilemapData!.map(p=>p.color)).toEqual(first.frame.tilemapData!.map(p=>p.color));
   expect(hidden.frame.series).toHaveLength(0);expect(hidden.frame.observations).toHaveLength(0);expect(hidden.frame.tilemapLayout?.status).toBe('allHidden');
   expect(ok(input,{...size,hiddenSeriesIds:[]})).toEqual(first);
@@ -60,10 +60,10 @@ it('noSource, allMissing, allHidden, noInk and ready are distinct source/layout 
 });
 
 it('explicit color clipping changes only color and records the decision, preserving original extremes',()=>{
-  const scale:PlanColorAxisSpec={kind:'continuous',domain:[0,10],stops:[{at:0,color:'#000000'},{at:1,color:'#FFFFFF'}],missingColor:'#EEEEEE'};
+  const scale:PlanColorAxisSpec={type:'continuous',domain:[0,10],stops:[{at:0,color:'#000000'},{at:1,color:'#FFFFFF'}],missingColor:'#EEEEEE'};
   const result=ok({...source([-200,0,200]),colorAxis:scale});expect(result.frame.observations.map(o=>o.value)).toEqual([-200,0,200]);
   expect(result.frame.tilemapData![0]!.color).toMatchObject({value:-200,ratio:0,clamped:true});expect(result.frame.tilemapData![2]!.color).toMatchObject({value:200,ratio:1,clamped:true});
-  const extremes=ok(source([-Number.MAX_VALUE,0,Number.MAX_VALUE]));expect(extremes.frame.tilemapData!.map(p=>p.color.kind==='continuous'?p.color.ratio:null)).toEqual([0,.5,1]);
+  const extremes=ok(source([-Number.MAX_VALUE,0,Number.MAX_VALUE]));expect(extremes.frame.tilemapData!.map(p=>p.color.type==='continuous'?p.color.ratio:null)).toEqual([0,.5,1]);
 });
 
 it('public inputs and results are independently owned and source/config/option getters never execute',()=>{
@@ -76,7 +76,7 @@ it('public inputs and results are independently owned and source/config/option g
 
 it('rejects axes, stack, zoom, references and contradictory color-axis properties',()=>{
   invalid({...source(),axes:{}});for(const opts of [{...size,stacking:'sum'},{...size,viewport:{axes:'x'}},{...size,references:[]},{...size,wordcloudText:{fontKey:'x',measurements:[]}}])invalid(source(),opts);
-  for(const colorAxis of [null,{kind:'continuous',stops:[],missingColor:'#EEEEEE'},{kind:'continuous',stops:[{at:0,color:'#000000'},{at:1,color:'#FFFFFF'}],missingColor:'#EEEEEE',classes:[]},{...classes,domain:[0,1]},{...classes,classes:[{id:'a',label:'A',maxExclusive:20,color:'#000000'},{id:'b',label:'B',minInclusive:10,color:'#FFFFFF'}]}])invalid({...source(),colorAxis},{...size,hiddenSeriesIds:['source']});
+  for(const colorAxis of [null,{type:'continuous',stops:[],missingColor:'#EEEEEE'},{type:'continuous',stops:[{at:0,color:'#000000'},{at:1,color:'#FFFFFF'}],missingColor:'#EEEEEE',classes:[]},{...classes,domain:[0,1]},{...classes,classes:[{id:'a',label:'A',maxExclusive:20,color:'#000000'},{id:'b',label:'B',minInclusive:10,color:'#FFFFFF'}]}])invalid({...source(),colorAxis},{...size,hiddenSeriesIds:['source']});
 });
 
 it('2048 cells stay on one real series while 2049 rejects without silent sampling',()=>{

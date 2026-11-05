@@ -46,11 +46,11 @@ export function validateRadial<T>(value: unknown, family: 'pie' | 'donut'): Char
       return Object.freeze({ mode, value: validateRadialState(state.value, ids, path + '.value') });
     }, 'spec');
     optional(spec, 'status', (value, path): ChartStatus => {
-      const status = record(value, ['kind', 'message'], ['kind'], path), kind = choice(status.kind, ['ready', 'loading', 'empty', 'error'], path + '.kind');
-      if (kind === 'ready') { if (Object.hasOwn(status, 'message')) fail(path); return Object.freeze({ kind }); }
+      const status = record(value, ['type', 'message'], ['type'], path), type = choice(status.type, ['ready', 'loading', 'empty', 'error'], path + '.type');
+      if (type === 'ready') { if (Object.hasOwn(status, 'message')) fail(path); return Object.freeze({ type }); }
       const message = Object.hasOwn(status, 'message') ? text(status.message, path + '.message', 2048) : undefined;
-      if (kind === 'error') { if (message === undefined) fail(path + '.message'); return Object.freeze({ kind, message }); }
-      return Object.freeze({ kind, ...(message === undefined ? {} : { message }) });
+      if (type === 'error') { if (message === undefined) fail(path + '.message'); return Object.freeze({ type, message }); }
+      return Object.freeze({ type, ...(message === undefined ? {} : { message }) });
     }, 'spec');
     if (family === 'donut') {
       optional(spec, 'holeRatio', (value, path) => { const ratio = number(value, path, 0, 1); if (ratio === 1) fail(path, 'BAD_HOLE_RATIO'); return ratio; }, 'spec');

@@ -59,7 +59,7 @@ function planCartesian(value:PlanSpec,options:PlanOptions,owned:boolean):PlanRes
     if(spec.family==='column'&&ownedOptions.stackGroups)return planGroupedStacks(spec,ownedOptions,references);
     if((spec.family==='area'||spec.family==='areaspline')&&ownedOptions.stacking)return planStackedArea(spec,ownedOptions,references);
     if(!Array.isArray(spec.series)||spec.series.length>16||spec.series.reduce((n,s)=>n+(Array.isArray(s?.data)?s.data.length:capacity.points+1),0)>capacity.points)return bad('INPUT_LIMIT','series');
-    if(spec.axes?.x?.kind==='category'&&Array.isArray(spec.axes.x.values)&&spec.axes.x.values.length>capacity.categories)return bad('LABEL_LIMIT','axes.x.values');
+    if(spec.axes?.x?.type==='category'&&Array.isArray(spec.axes.x.values)&&spec.axes.x.values.length>capacity.categories)return bad('LABEL_LIMIT','axes.x.values');
     const state={hiddenSeriesIds:[...hidden]},plot={x:16,y:14,width:width-32,height:height-28},palette=defaultPalette('light',false).series;
     const finish=(frame:PlanFrame,context?:PlanReferenceContext):PlanResult=>freezePlan({status:frame.observations.length?'ok':'empty',frame:withPlanReferences(frame,references,context,checkedBands.value)});
     if(spec.family==='line'||spec.family==='area'||spec.family==='areaspline'||spec.family==='spline'){
@@ -74,11 +74,11 @@ function planCartesian(value:PlanSpec,options:PlanOptions,owned:boolean):PlanRes
       const base={schema:'nc-plan/1' as const,family:spec.family,width,height,title:input.title,description:input.description??'',unit:input.axes.y.title??'',legend};
       if(!domains.value.y)return finish({...base,series:[],observations:[],labels:[],grid:[]});
       let yt=selectNumericTicks(domains.value.y,{nice:input.axes.y.nice??!input.axes.y.domain,targetCount:input.axes.y.ticks?.targetCount??5});if(yt.status==='invalid')return yt;
-      const xa=input.axes.x;let xt=xa.kind==='category'||!domains.value.x?null:(xa.kind==='time'?selectTimeTicks:selectNumericTicks)(domains.value.x,{nice:xa.nice??false,targetCount:xa.ticks?.targetCount??6});if(xt?.status==='invalid')return xt;
+      const xa=input.axes.x;let xt=xa.type==='category'||!domains.value.x?null:(xa.type==='time'?selectTimeTicks:selectNumericTicks)(domains.value.x,{nice:xa.nice??false,targetCount:xa.ticks?.targetCount??6});if(xt?.status==='invalid')return xt;
       const prepared=preparePlanViewport(input.axes,{x:xt?.value.domain??domains.value.x,y:yt.value.domain},ownedOptions.viewport);if(prepared.status==='invalid')return prepared;
       const view=prepared.value,scoped=withViewportDomains({x:xt?.value.domain??domains.value.x,y:yt.value.domain},view);
       if(view?.value.y){yt=selectNumericTicks(scoped.y!,{nice:false,targetCount:input.axes.y.ticks?.targetCount??5});if(yt.status==='invalid')return yt;}
-      if(view?.value.x&&xa.kind!=='category'&&scoped.x){xt=(xa.kind==='time'?selectTimeTicks:selectNumericTicks)(scoped.x,{nice:false,targetCount:xa.ticks?.targetCount??6});if(xt.status==='invalid')return xt;}
+      if(view?.value.x&&xa.type!=='category'&&scoped.x){xt=(xa.type==='time'?selectTimeTicks:selectNumericTicks)(scoped.x,{nice:false,targetCount:xa.ticks?.targetCount??6});if(xt.status==='invalid')return xt;}
       const interval=xt&&'interval' in xt.value?xt.value.interval:null;
       const scales=planLineViewportScales(input.axes,plot,xt?.value.domain??domains.value.x,yt.value.domain,view);if(scales.status==='invalid')return scales;
       let p: PlanLineProjection<unknown>;const series:PlanSeries[]=[],observations:PlanObservation[]=[];
@@ -91,17 +91,17 @@ function planCartesian(value:PlanSpec,options:PlanOptions,owned:boolean):PlanRes
       }
       for(const s of p.series){
         const color=legend.find(item=>item.id===s.series.spec.id)!.color;
-        const key=seriesKey(s.series.spec.id),outline=layers.marks.find(mark=>mark.kind==='path'&&mark.key===key);
-        const areaCommands=layers.marks.flatMap(mark=>mark.kind==='path'&&mark.key.startsWith(key+'|area:')?mark.commands:[]);
-        const commands=outline?.kind==='path'?outline.commands:s.commands;
+        const key=seriesKey(s.series.spec.id),outline=layers.marks.find(mark=>mark.type==='path'&&mark.key===key);
+        const areaCommands=layers.marks.flatMap(mark=>mark.type==='path'&&mark.key.startsWith(key+'|area:')?mark.commands:[]);
+        const commands=outline?.type==='path'?outline.commands:s.commands;
         const baseline=p.mapY(0);
         if(spec.family==='areaspline'&&(baseline===null||!Number.isFinite(baseline)))return bad('UNREPRESENTABLE_GEOMETRY','area.baseline');
         const fill=spec.family==='areaspline'?splineAreaCommands(commands,Math.max(plot.y,Math.min(plot.y+plot.height,baseline!))):areaCommands;
         series.push({id:s.series.spec.id,name:s.series.spec.name,color,commands,...(filled?{areaCommands:fill}:{})});
-        const metadata=spec.family==='line'&&data.nonnullCount>2048&&s.eligible.length?lineObservationMetadata(s.series,xa.kind):undefined;
+        const metadata=spec.family==='line'&&data.nonnullCount>2048&&s.eligible.length?lineObservationMetadata(s.series,xa.type):undefined;
         for(const point of s.eligible){
-          const label=data.labels.get(String(point.point.x))??formatAxis(point.point.x,xa.kind,interval,data.labels);
-          const id=metadata?.ids[point.index]??Object.freeze({seriesId:s.series.spec.id,pointId:point.point.id}),groupKey=metadata?.keys[point.index]??JSON.stringify([xa.kind,point.point.x]);
+          const label=data.labels.get(String(point.point.x))??formatAxis(point.point.x,xa.type,interval,data.labels);
+          const id=metadata?.ids[point.index]??Object.freeze({seriesId:s.series.spec.id,pointId:point.point.id}),groupKey=metadata?.keys[point.index]??JSON.stringify([xa.type,point.point.x]);
           if(metadata){metadata.ids[point.index]=id;metadata.keys[point.index]=groupKey;}
           // All children are owned immutable identities or primitives. Freeze
           // here rather than allocating traversal arrays for every tiny record.
@@ -109,9 +109,9 @@ function planCartesian(value:PlanSpec,options:PlanOptions,owned:boolean):PlanRes
           observations.push(Object.freeze({id,label,seriesName:s.series.spec.name,value:point.point.y!,x:point.x,y:point.y,color,group}));
         }
       }
-      const values=xa.kind==='category'?xa.values.map(c=>c.id):(xt?.value.ticks??[]);
-      const labels=values.flatMap(v=>{const x=p.mapX(v);return x===null||x<plot.x||x>plot.x+plot.width?[]:[{x,label:formatAxis(v,xa.kind,interval,data.labels),...(typeof v==='number'?{value:v,kind:xa.kind==='time'?'time' as const:'number' as const}:{})}];});
-      return finish({...base,series,observations,labels,grid:yt.value.ticks.map(v=>({y:p.mapY(v)!,label:String(v),value:v,kind:'number' as const})),...(view?{viewport:planViewportState(view,{x:xt?.value.domain??domains.value.x,y:yt.value.domain},input.axes,plot)!}:{})},references===undefined&&checkedBands.value===undefined||!p.series.some(series=>series.series.valid.length>0)?undefined:{plot,domains:{x:xt?.value.domain??domains.value.x,y:yt.value.domain},mapX:p.mapX,mapY:p.mapY,bandSourceAxes:input.axes,...(xa.kind==='category'?{categories:referenceCategories(xa.values,plot,p.mapX)}:{})});
+      const values=xa.type==='category'?xa.values.map(c=>c.id):(xt?.value.ticks??[]);
+      const labels=values.flatMap(v=>{const x=p.mapX(v);return x===null||x<plot.x||x>plot.x+plot.width?[]:[{x,label:formatAxis(v,xa.type,interval,data.labels),...(typeof v==='number'?{value:v,type:xa.type==='time'?'time' as const:'number' as const}:{})}];});
+      return finish({...base,series,observations,labels,grid:yt.value.ticks.map(v=>({y:p.mapY(v)!,label:String(v),value:v,type:'number' as const})),...(view?{viewport:planViewportState(view,{x:xt?.value.domain??domains.value.x,y:yt.value.domain},input.axes,plot)!}:{})},references===undefined&&checkedBands.value===undefined||!p.series.some(series=>series.series.valid.length>0)?undefined:{plot,domains:{x:xt?.value.domain??domains.value.x,y:yt.value.domain},mapX:p.mapX,mapY:p.mapY,bandSourceAxes:input.axes,...(xa.type==='category'?{categories:referenceCategories(xa.values,plot,p.mapX)}:{})});
     }
     const stacking=ownedOptions.stacking;
     const referenceInput=references===undefined?spec:{...spec,references};
@@ -150,9 +150,9 @@ function planCartesian(value:PlanSpec,options:PlanOptions,owned:boolean):PlanRes
         observations.push({id:{seriesId:s.spec.id,pointId:point.id},label,seriesName:s.spec.name,value:point.y!,x:anchor.x,y:anchor.y,color,...(percentage===undefined?{}:{percentage}),group:{key:JSON.stringify(['category',point.x]),label,coordinate:coordinate!}});
       }
     }
-    const labels=p.horizontal?ticks.value.ticks.map(v=>({x:p.mapValue(v)!,label:String(v),value:v,kind:'number' as const})):input.axes.x.values.flatMap(c=>{const x=p.bands.center(c.id);return x===null?[]:[{x,label:c.label??c.id}];});
+    const labels=p.horizontal?ticks.value.ticks.map(v=>({x:p.mapValue(v)!,label:String(v),value:v,type:'number' as const})):input.axes.x.values.flatMap(c=>{const x=p.bands.center(c.id);return x===null?[]:[{x,label:c.label??c.id}];});
     const yLabels=p.horizontal?input.axes.x.values.flatMap(c=>{const y=p.bands.center(c.id);return y===null?[]:[{id:c.id,y,label:c.label??c.id}];}):undefined;
     const annotations=stacked?.status==='ok'&&stacking?planStackLabels(stacked.value.stack.categories.values(),stacking,ticks.value.domain,p.bands.center,p.mapValue,p.horizontal):undefined;
-    return finish({...base,series,observations,labels,...(annotations?{annotations}:{}),grid:p.horizontal?[]:ticks.value.ticks.map(v=>({y:p.mapValue(v)!,label:String(v),value:v,kind:'number' as const})),...(yLabels?{yLabels}:{}),...(view?{viewport:planViewportState(view,{x:null,y:ticks.value.domain},input.axes,plot)!}:{})},references===undefined&&checkedBands.value===undefined||!data.series.some(series=>!hidden.includes(series.spec.id)&&series.valid.length>0)?undefined:{plot,domains:{x:null,y:ticks.value.domain},mapY:p.mapValue,horizontal:p.horizontal,bandSourceAxes:input.axes,categorySlot:id=>{const band=p.bands.band(id);return band?[band.start,band.end]:null;}});
+    return finish({...base,series,observations,labels,...(annotations?{annotations}:{}),grid:p.horizontal?[]:ticks.value.ticks.map(v=>({y:p.mapValue(v)!,label:String(v),value:v,type:'number' as const})),...(yLabels?{yLabels}:{}),...(view?{viewport:planViewportState(view,{x:null,y:ticks.value.domain},input.axes,plot)!}:{})},references===undefined&&checkedBands.value===undefined||!data.series.some(series=>!hidden.includes(series.spec.id)&&series.valid.length>0)?undefined:{plot,domains:{x:null,y:ticks.value.domain},mapY:p.mapValue,horizontal:p.horizontal,bandSourceAxes:input.axes,categorySlot:id=>{const band=p.bands.band(id);return band?[band.start,band.end]:null;}});
   }catch(error){return bad(error instanceof Error?error.message:'UNREADABLE_INPUT','spec');}
 }

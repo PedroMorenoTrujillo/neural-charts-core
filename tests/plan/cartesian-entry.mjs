@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import {planChart} from '../../dist/plan.js';
 import {planCartesianChart} from '../../dist/cartesian.js';
-const spec={family:'line',title:'Large',axes:{x:{kind:'linear'},y:{kind:'linear'}},series:[{id:'s',name:'Series',data:Array.from({length:50000},(_,i)=>({id:'p'+i,x:i,y:Math.sin(i/10)}))}]};
+const spec={family:'line',title:'Large',axes:{x:{type:'linear'},y:{type:'linear'}},series:[{id:'s',name:'Series',data:Array.from({length:50000},(_,i)=>({id:'p'+i,x:i,y:Math.sin(i/10)}))}]};
 assert.equal(planChart(spec,{width:640,height:360}).status,'invalid','Default resource guarantee preserved');
 const options={width:640,height:360,capacity:{points:50000}},a=planCartesianChart(spec,options),b=planChart(spec,options);
 assert.equal(a.status,'ok');assert.equal(a.frame.observations.length,50000);assert.deepEqual(a,b);
-const column={family:'column',title:'Categories',axes:{x:{kind:'category',values:Array.from({length:1000},(_,i)=>({id:'c'+i,label:'Category '+i}))},y:{kind:'linear'}},series:[{id:'s',name:'S',data:Array.from({length:1000},(_,i)=>({id:'p'+i,x:'c'+i,y:i%19-8}))}]};
+const column={family:'column',title:'Categories',axes:{x:{type:'category',values:Array.from({length:1000},(_,i)=>({id:'c'+i,label:'Category '+i}))},y:{type:'linear'}},series:[{id:'s',name:'S',data:Array.from({length:1000},(_,i)=>({id:'p'+i,x:'c'+i,y:i%19-8}))}]};
 assert.equal(planChart(column,{width:900,height:380}).status,'invalid');
 const c=planCartesianChart(column,{width:900,height:380,capacity:{categories:1000}});assert.equal(c.status,'ok');assert.equal(c.frame.observations.length,1000);
 const mutable={...spec,series:[{id:'s',name:'Mutable',data:[{id:'p',x:0,y:3}]}]};

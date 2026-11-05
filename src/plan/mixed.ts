@@ -49,9 +49,9 @@ export function planMixed(spec:PlanMixedSpec,options:PlanOptions,references?:rea
   const p=projected.value,layers=emptyLayers(),painted=mixedScene(p,palette,layers,new Map());if(painted.status==='invalid')return painted;
   const series:PlanSeries[]=[],observations:PlanObservation[]=[];
   for(const s of p.line.series){
-    const id=s.series.spec.id,color=legend.find(item=>item.id===id)!.color,key=seriesKey(id),kind=data.kinds.get(id);
-    if(kind==='column')series.push({id,name:s.series.spec.name,color,bars:(p.column?.rects??[]).filter(rect=>rect.series.spec.id===id).map(rect=>({pointId:rect.point.id,x:rect.x,y:rect.y,width:rect.width,height:rect.height}))});
-    else series.push({id,name:s.series.spec.name,color,commands:s.commands,...(kind==='area'?{areaCommands:layers.marks.flatMap(mark=>mark.kind==='path'&&mark.key.startsWith(key+'|area:')?mark.commands:[])}:{})});
+    const id=s.series.spec.id,color=legend.find(item=>item.id===id)!.color,key=seriesKey(id),type=data.kinds.get(id);
+    if(type==='column')series.push({id,name:s.series.spec.name,color,bars:(p.column?.rects??[]).filter(rect=>rect.series.spec.id===id).map(rect=>({pointId:rect.point.id,x:rect.x,y:rect.y,width:rect.width,height:rect.height}))});
+    else series.push({id,name:s.series.spec.name,color,commands:s.commands,...(type==='area'?{areaCommands:layers.marks.flatMap(mark=>mark.type==='path'&&mark.key.startsWith(key+'|area:')?mark.commands:[])}:{})});
   }
   const percentages=new Map<string,number>();if(stacked?.status==='ok')for(const s of stacked.value.stack.series)for(const segment of s.segments)if(segment.percentage!==null)percentages.set(JSON.stringify([s.id,segment.point.id]),segment.percentage);
   for(const row of p.index.targets)for(const target of row){const s=target.series.series.spec,point=target.point,label=data.line.labels.get(String(point.point.x))??String(point.point.x),coordinate=maps.mapX(point.point.x)!,percentage=percentages.get(JSON.stringify([s.id,point.point.id]));observations.push({id:{seriesId:s.id,pointId:point.point.id},label,seriesName:s.name,value:point.point.y!,x:point.x,y:point.y,color:legend.find(item=>item.id===s.id)!.color,...(percentage===undefined?{}:{percentage}),group:{key:JSON.stringify(['category',point.point.x]),label,coordinate}});}
@@ -59,6 +59,6 @@ export function planMixed(spec:PlanMixedSpec,options:PlanOptions,references?:rea
   // Preserve semantic/legend order while matching the owner's paint precedence.
   const rank=(id:string)=>data.kinds.get(id)==='area'?0:data.kinds.get(id)==='column'?1:2;
   series.sort((a,b)=>rank(a.id)-rank(b.id));
-  const frame=withPlanReferences({...base,series,observations,...(annotations?{annotations}:{}),labels:visible.map(c=>({x:maps.mapX(c.id)!,label:c.label??c.id})),grid:yt.value.ticks.map(value=>({y:maps.mapY(value)!,label:String(value),value:value,kind:'number' as const})),...(view?{viewport:planViewportState(view,{x:null,y:yt.value.domain},input.axes,plot)!}:{})},references,{plot,domains:{x:null,y:yt.value.domain},...maps,bandSourceAxes:input.axes,categories:referenceCategories(all,plot,maps.mapX)},options.referenceBands);
+  const frame=withPlanReferences({...base,series,observations,...(annotations?{annotations}:{}),labels:visible.map(c=>({x:maps.mapX(c.id)!,label:c.label??c.id})),grid:yt.value.ticks.map(value=>({y:maps.mapY(value)!,label:String(value),value:value,type:'number' as const})),...(view?{viewport:planViewportState(view,{x:null,y:yt.value.domain},input.axes,plot)!}:{})},references,{plot,domains:{x:null,y:yt.value.domain},...maps,bandSourceAxes:input.axes,categories:referenceCategories(all,plot,maps.mapX)},options.referenceBands);
   return freezePlan({status:observations.length?'ok':'empty',frame});
 }

@@ -67,24 +67,24 @@ const examples = [...readme.matchAll(/```ts\n([\s\S]*?)\n```/g)].map(match => ma
 examples.filter(source => source.includes('import ')).forEach((source, index) => writeFileSync(path.join(consumer, 'example-' + index + '.ts'), source));
 writeFileSync(path.join(consumer, 'example-pictorial-api.ts'), `
 import {planChart, type PlanPictorialSpec, type PlanPictorialGlyphId, type PlanCompoundPolygonHit, type PlanHitRegion} from '@neural-charts/core';
-const source: PlanPictorialSpec = {family: 'pictorial', title: 'Capacity', axes: {x: {kind: 'category', values: [{id: 'a', label: 'A'}]}, y: {kind: 'linear', domain: [0, 100]}}, series: [{id: 's', name: 'Original', data: [{id: 'p', x: 'a', y: 60}]}]};
+const source: PlanPictorialSpec = {family: 'pictorial', title: 'Capacity', axes: {x: {type: 'category', values: [{id: 'a', label: 'A'}]}, y: {type: 'linear', domain: [0, 100]}}, series: [{id: 's', name: 'Original', data: [{id: 'p', x: 'a', y: 60}]}]};
 const result = planChart(source, {width: 390, height: 320});
 if (result.status !== 'invalid') {
   const id: PlanPictorialGlyphId | undefined = result.frame.pictorialGlyphs?.[0]?.id;
   const hit: PlanHitRegion | undefined = result.frame.observations[0]?.hit;
-  const compound: PlanCompoundPolygonHit | undefined = hit?.kind === 'compoundPolygon' ? hit : undefined;
-  if (id?.kind === 'grouped') { const seriesId: string = id.seriesId; void seriesId; }
+  const compound: PlanCompoundPolygonHit | undefined = hit?.type === 'compoundPolygon' ? hit : undefined;
+  if (id?.type === 'grouped') { const seriesId: string = id.seriesId; void seriesId; }
   void compound;
 }
 `);
 writeFileSync(path.join(consumer, 'example-tilemap-api.ts'), `
 import {planChart, type PlanTilemapSpec, type PlanColorAxisSpec, type PlanCellPaint} from '@neural-charts/core';
-const colorAxis: PlanColorAxisSpec = {kind: 'continuous', stops: [{at: 0, color: '#000000'}, {at: 1, color: '#FFFFFF'}], missingColor: '#EEEEEE'};
+const colorAxis: PlanColorAxisSpec = {type: 'continuous', stops: [{at: 0, color: '#000000'}, {at: 1, color: '#FFFFFF'}], missingColor: '#EEEEEE'};
 const source: PlanTilemapSpec = {family: 'tilemap', title: 'Cells', series: [{id: 's', name: 'Source', data: [{id: 'zero', x: 0, y: 0, value: 0}, {id: 'unknown', x: 1, y: 0, value: null}]}], tileShape: 'hexagon', colorAxis};
 const result = planChart(source, {width: 390, height: 320});
 if (result.status !== 'invalid') {
   const cell: PlanCellPaint | undefined = result.frame.series[0]?.cells?.[0];
-  if (cell?.geometry.kind === 'polygon') { const x: number | undefined = cell.geometry.vertices[0]?.x; void x; }
+  if (cell?.geometry.type === 'polygon') { const x: number | undefined = cell.geometry.vertices[0]?.x; void x; }
   const missing = result.frame.tilemapData?.find(point => point.value === null);
   void missing;
 }
@@ -106,14 +106,14 @@ const seam = await import('@neural-charts/core/plan');
 assert.deepEqual(Object.keys(root).sort(), ['containsPlanHit', 'financialFamilies', 'financialParameterKeys', 'hitTestPlanRegion', 'planChart', 'planFinancialChart', 'preparePlanRegionHit', 'prepareWordCloudMeasurements', 'transformPlanViewport']);
 assert.equal(root.planChart, seam.planChart);
 assert.equal(root.prepareWordCloudMeasurements, seam.prepareWordCloudMeasurements);
-const input = {family: 'line', title: 'Source', axes: {x: {kind: 'linear'}, y: {kind: 'linear'}}, series: [{id: 's', name: 'Series', data: [{id: 'a', x: 0, y: 0}, {id: 'gap', x: 1, y: null}, {id: 'b', x: 2, y: 8}]}]};
+const input = {family: 'line', title: 'Source', axes: {x: {type: 'linear'}, y: {type: 'linear'}}, series: [{id: 's', name: 'Series', data: [{id: 'a', x: 0, y: 0}, {id: 'gap', x: 1, y: null}, {id: 'b', x: 2, y: 8}]}]};
 const first = root.planChart(input, {width: 390, height: 300, viewport: {axes: 'x'}});
 assert.equal(first.status, 'ok');
 assert(Object.isFrozen(first.frame));
 assert.deepEqual(first.frame.observations.map(p => p.value), [0, 8]);
 input.series[0].data[0].y = 99;
 assert.equal(first.frame.observations[0].value, 0);
-const transformed = root.transformPlanViewport(first.frame.viewport, {kind: 'zoom', factor: 2});
+const transformed = root.transformPlanViewport(first.frame.viewport, {type: 'zoom', factor: 2});
 assert.equal(transformed.status, 'ok');
 assert.equal(root.planChart(input, {width: 0, height: 300}).status, 'invalid');
 assert.equal(root.planChart(input, {width: 390, height: 300, hiddenSeriesIds: ['s']}).status, 'empty');
@@ -129,15 +129,15 @@ const cloud = root.planChart(wordSource, {width: 390, height: 300, wordcloudText
 assert.equal(cloud.status, 'ok');
 assert.equal(cloud.frame.series[0].textGlyphs[0].text, 'Literal <text>');
 assert.equal(cloud.frame.wordcloudData[0].weight, 3);
-const pictorialSource = {family: 'pictorial', title: 'Capacity', axes: {x: {kind: 'category', values: [{id: 'a', label: 'A'}]}, y: {kind: 'linear', domain: [0, 100]}}, series: [{id: 's', name: 'Original', data: [{id: 'p', x: 'a', y: 60}]}]};
+const pictorialSource = {family: 'pictorial', title: 'Capacity', axes: {x: {type: 'category', values: [{id: 'a', label: 'A'}]}, y: {type: 'linear', domain: [0, 100]}}, series: [{id: 's', name: 'Original', data: [{id: 'p', x: 'a', y: 60}]}]};
 const pictorial = root.planChart(pictorialSource, {width: 390, height: 320});
 assert.equal(pictorial.status, 'ok');
-assert.equal(pictorial.frame.observations[0].hit.kind, 'compoundPolygon');
+assert.equal(pictorial.frame.observations[0].hit.type, 'compoundPolygon');
 assert.equal(pictorial.frame.pictorialData[0].y, 60);
 assert.equal(pictorial.frame.series[0].pictorialFills[0].glyphId, pictorial.frame.pictorialGlyphs[0].id);
 assert(Object.isFrozen(pictorial.frame.pictorialGlyphs[0].id));
 for (const stacking of ['sum', 'percent']) {
-  const source = stacking === 'sum' ? pictorialSource : {...pictorialSource, axes: {...pictorialSource.axes, y: {kind: 'linear'}}};
+  const source = stacking === 'sum' ? pictorialSource : {...pictorialSource, axes: {...pictorialSource.axes, y: {type: 'linear'}}};
   const stacked = root.planChart(source, {width: 390, height: 320, stacking});
   assert.equal(stacked.status, 'ok');
   assert.equal(stacked.frame.pictorialLayout.mode, stacking);

@@ -84,7 +84,7 @@ export function planParts(spec:PlanVariablePieSpec|PlanItemSpec|PlanPolygonSpec,
     const hidden=Object.hasOwn(opts,'hiddenSeriesIds')?array(opts.hiddenSeriesIds,16,'options.hiddenSeriesIds').map((id,i)=>text(id,'options.hiddenSeriesIds['+i+']',128)):[];if(new Set(hidden).size!==hidden.length)fail('options.hiddenSeriesIds','BAD_VISIBILITY');
     const palette=defaultPalette('light',false).series;
     if(family==='polygon'){
-      const axes=record(input.axes,['x','y'],['x','y'],'axes'),xAxis=record(axes.x,['kind','domain','nice','title','grid','ticks','labels'],['kind'],'axes.x');choice(xAxis.kind,['linear','time'],'axes.x.kind');
+      const axes=record(input.axes,['x','y'],['x','y'],'axes'),xAxis=record(axes.x,['type','domain','nice','title','grid','ticks','labels'],['type'],'axes.x');choice(xAxis.type,['linear','time'],'axes.x.type');
       let count=0;const ids=new Set<string>();
       const polygons=array(input.series,16,'series').map((raw,i)=>{
         const path='series['+i+']',s=record(raw,['id','name','color','data'],['id','name','data'],path),id=text(s.id,path+'.id',64),name=text(s.name,path+'.name');if(ids.has(id))fail(path+'.id','DUPLICATE_SERIES_ID');ids.add(id);
@@ -100,14 +100,14 @@ export function planParts(spec:PlanVariablePieSpec|PlanItemSpec|PlanPolygonSpec,
       }
       const adapted={family:'arearange',title,...(description?{description}:{}),axes:input.axes,series:surrogate} as PlanRangeSpec;
       const planned=planRanges(adapted,options,references,(frame,context):PlanFrame=>{
-        const {mapX,mapY}=context,series:PlanSeries[]=[],observations:PlanObservation[]=[],labels=new Map<string,string>(),kind=(spec as PlanPolygonSpec).axes.x.kind;
+        const {mapX,mapY}=context,series:PlanSeries[]=[],observations:PlanObservation[]=[],labels=new Map<string,string>(),type=(spec as PlanPolygonSpec).axes.x.type;
         for(const s of polygons){
           if(hidden.includes(s.id))continue;
           const paintColor=frame.legend.find(item=>item.id===s.id)!.color;
           const vertices=s.data.map(p=>({x:mapX(p.x)!,y:mapY(p.y)!})),clipped=clipPolygon(vertices,plot),commands:PlanCommand[]=[],circles:PlanCircle[]=[];
-          for(let i=0;i<vertices.length;i++){const edge=clipEdge(vertices[i]!,vertices[(i+1)%vertices.length]!,plot);if(edge)commands.push({kind:'M',...edge[0]},{kind:'L',...edge[1]});}
-          for(const [i,p]of s.data.entries()){const v=vertices[i]!;if(v.x<plot.x||v.x>plot.x+plot.width||v.y<plot.y||v.y>plot.y+plot.height)continue;circles.push({pointId:p.id,cx:v.x,cy:v.y,radius:3});observations.push({id:{seriesId:s.id,pointId:p.id},label:formatAxis(p.x,kind,null,labels),seriesName:s.name,value:p.y,xValue:p.x,x:v.x,y:v.y,color:paintColor,hit:{kind:'circle',cx:v.x,cy:v.y,radius:4}});}
-          const areaCommands:PlanCommand[]=clipped.length?[...clipped.map((v,i):PlanCommand=>({kind:i?'L':'M',...v})),{kind:'Z'}]:[];
+          for(let i=0;i<vertices.length;i++){const edge=clipEdge(vertices[i]!,vertices[(i+1)%vertices.length]!,plot);if(edge)commands.push({type:'M',...edge[0]},{type:'L',...edge[1]});}
+          for(const [i,p]of s.data.entries()){const v=vertices[i]!;if(v.x<plot.x||v.x>plot.x+plot.width||v.y<plot.y||v.y>plot.y+plot.height)continue;circles.push({pointId:p.id,cx:v.x,cy:v.y,radius:3});observations.push({id:{seriesId:s.id,pointId:p.id},label:formatAxis(p.x,type,null,labels),seriesName:s.name,value:p.y,xValue:p.x,x:v.x,y:v.y,color:paintColor,hit:{type:'circle',cx:v.x,cy:v.y,radius:4}});}
+          const areaCommands:PlanCommand[]=clipped.length?[...clipped.map((v,i):PlanCommand=>({type:i?'L':'M',...v})),{type:'Z'}]:[];
           series.push({id:s.id,name:s.name,color:paintColor,commands,areaCommands,circles});
         }
         return {...frame,family:'polygon',series,observations};
@@ -142,8 +142,8 @@ export function planParts(spec:PlanVariablePieSpec|PlanItemSpec|PlanPolygonSpec,
     for(const [i,p]of visible.entries()){
       const share=denominator===0?0:(p.value/maximum)/denominator,start=cursor;cursor=i===lastPositive?Math.PI*2:Math.min(Math.PI*2,cursor+share*Math.PI*2);const end=cursor,z=zMin===zMax?1:Math.max(0,Math.min(1,fraction(p.z,zMin,zMax))),ratio=radiusScale==='area'?Math.sqrt(minimumRatio*minimumRatio+z*(1-minimumRatio*minimumRatio)):minimumRatio+z*(1-minimumRatio),r=radius*ratio;
       const vertex=(angle:number,length=r):Vertex=>({x:cx+Math.sin(angle)*length,y:cy-Math.cos(angle)*length}),a=vertex(start),b=vertex(end),mid=vertex(start/2+end/2,r*.65),painted=end>start&&r>0;
-      const commands:PlanCommand[]=!painted?[]:end-start===Math.PI*2?[{kind:'M',x:cx,y:cy-r},{kind:'A',radius:r,largeArc:0,sweep:1,x:cx,y:cy+r},{kind:'A',radius:r,largeArc:0,sweep:1,x:cx,y:cy-r},{kind:'Z'}]:[{kind:'M',x:cx,y:cy},{kind:'L',...a},{kind:'A',radius:r,largeArc:end-start>Math.PI?1:0,sweep:1,...b},{kind:'Z'}];
-      series.push({id:p.id,name:p.label,color:p.color,commands,fill:true});observations.push({id:{seriesId:p.id,pointId:p.id},label:p.label,seriesName:title,value:p.value,sizeValue:p.z,x:mid.x,y:mid.y,color:p.color,...(denominator>0?{percentage:share*100}:{}),...(painted?{hit:{kind:'sector' as const,cx,cy,radius:r,innerRadius:0,start,end}}:{})});
+      const commands:PlanCommand[]=!painted?[]:end-start===Math.PI*2?[{type:'M',x:cx,y:cy-r},{type:'A',radius:r,largeArc:0,sweep:1,x:cx,y:cy+r},{type:'A',radius:r,largeArc:0,sweep:1,x:cx,y:cy-r},{type:'Z'}]:[{type:'M',x:cx,y:cy},{type:'L',...a},{type:'A',radius:r,largeArc:end-start>Math.PI?1:0,sweep:1,...b},{type:'Z'}];
+      series.push({id:p.id,name:p.label,color:p.color,commands,fill:true});observations.push({id:{seriesId:p.id,pointId:p.id},label:p.label,seriesName:title,value:p.value,sizeValue:p.z,x:mid.x,y:mid.y,color:p.color,...(denominator>0?{percentage:share*100}:{}),...(painted?{hit:{type:'sector' as const,cx,cy,radius:r,innerRadius:0,start,end}}:{})});
     }
     return freezePlan({status:observations.length?'ok':'empty',frame:{...base,series,observations,grid:[],labels:[]}});
   }catch(error){return error instanceof ValidationFailure?{status:'invalid',diagnostic:error.diagnostic}:{status:'invalid',diagnostic:{code:'INVALID_CONFIG',reason:'BAD_SPEC',path:'spec',message:'BAD_SPEC'}};}

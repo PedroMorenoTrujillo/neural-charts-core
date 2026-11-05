@@ -45,7 +45,7 @@ for(const [name,select] of [['numeric',selectNumericTicks],['time',selectTimeTic
     if('step'in baseline)expect(baseline.step).toBeNull();else expect(baseline.interval).toBeNull();
     const notices:DevelopmentNotice[]=[];
     expect(value<TickPlan|TimeTickPlan>(select(domain,options,n=>notices.push(n)))).toEqual(baseline);
-    expect(notices).toHaveLength(1);expect(notices[0]).toMatchObject({kind:'development-notice',reason:'TICK_RESOLUTION_FALLBACK',path:'ticks'});expect(notices[0]!.message.length).toBeLessThanOrEqual(512);
+    expect(notices).toHaveLength(1);expect(notices[0]).toMatchObject({type:'development-notice',reason:'TICK_RESOLUTION_FALLBACK',path:'ticks'});expect(notices[0]!.message.length).toBeLessThanOrEqual(512);
     let calls=0;expect(value<TickPlan|TimeTickPlan>(select(domain,options,()=>{calls++;throw Error('sink');}))).toEqual(baseline);expect(calls).toBe(1);
     notices.length=0;select([0,10],{nice:false},n=>notices.push(n));select([0,10],{nice:false,manual:[]},n=>notices.push(n));expect(notices).toEqual([]);
   });

@@ -8,7 +8,7 @@ it('exports and plans three relationship discriminants with distinct directional
     expect(result.status).toBe('ok');
     if (result.status === 'invalid') throw Error(result.diagnostic.reason);
     expect(result.frame.family).toBe(family);
-    expect(result.frame.observations.find(point => point.id.pointId === 'ab')?.relationship).toMatchObject({kind: 'link', directed: family === 'dependencywheel'});
+    expect(result.frame.observations.find(point => point.id.pointId === 'ab')?.relationship).toMatchObject({type: 'link', directed: family === 'dependencywheel'});
     expect(Object.isFrozen(result.frame.observations[0]?.relationship)).toBe(true);
     expect(planChart(spec, {width: 390, height: 320, hiddenSeriesIds: ['nodes']})).toMatchObject({status: 'empty', frame: {observations: []}});
     for (const options of [{viewport: {axes: 'xy' as const}}, {stacking: 'sum' as const}, {references: []}]) expect(planChart(spec, {width: 390, height: 320, ...options}).status).toBe('invalid');

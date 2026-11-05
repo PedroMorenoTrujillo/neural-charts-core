@@ -32,7 +32,7 @@ export function validatePlanReferences(input:unknown,spec:PlanSpec):ChartResult<
     ids.add(reference.id);
     if(reference.axis!=='x'&&reference.axis!=='y'||(spec.family==='column'||spec.family==='waterfall')&&reference.axis!=='y')return invalid('INVALID_CONFIG','BAD_REFERENCE_AXIS',path+'.axis');
     if(reference.yAxis!==undefined&&(reference.yAxis!=='secondary'||reference.axis!=='y'||spec.family!=='mixed'||!spec.axes?.secondaryY))return invalid('INVALID_CONFIG','BAD_SECONDARY_REFERENCE',path+'.yAxis');
-    const category=reference.axis==='x'&&(spec.family==='mixed'||spec.family==='line'||spec.family==='area'||spec.family==='lollipop'||spec.family==='dumbbell'||spec.family==='columnpyramid'||spec.family==='boxplot'||spec.family==='errorbar'||spec.family==='streamgraph'||spec.family==='areaspline'||spec.family==='arearange'||spec.family==='areasplinerange'||spec.family==='columnrange'||spec.family==='spline')&&spec.axes?.x?.kind==='category';
+    const category=reference.axis==='x'&&(spec.family==='mixed'||spec.family==='line'||spec.family==='area'||spec.family==='lollipop'||spec.family==='dumbbell'||spec.family==='columnpyramid'||spec.family==='boxplot'||spec.family==='errorbar'||spec.family==='streamgraph'||spec.family==='areaspline'||spec.family==='arearange'||spec.family==='areasplinerange'||spec.family==='columnrange'||spec.family==='spline')&&spec.axes?.x?.type==='category';
     if(category?typeof reference.value!=='string':typeof reference.value!=='number'||!Number.isFinite(reference.value))return invalid('INVALID_CONFIG','BAD_REFERENCE_VALUE',path+'.value');
   }
   return ok(input as readonly PlanReference[]);

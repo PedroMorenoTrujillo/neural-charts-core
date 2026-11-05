@@ -28,12 +28,12 @@ export function planMixedAxes(spec:PlanMixedSpec,options:PlanOptions,references?
   if(!spec.axes||!Array.isArray(spec.series)||spec.series.some(s=>!s||s.yAxis!==undefined&&s.yAxis!=='primary'&&s.yAxis!=='secondary'))return bad('BAD_MIXED_AXIS_ASSIGNMENT','series.yAxis');
   const {secondaryY,...axes}=spec.axes,series=spec.series.map(({yAxis,...s})=>s),clean={...spec,axes,series};
   if(secondaryY===undefined){if(spec.series.some(s=>s.yAxis==='secondary'))return bad('MISSING_SECONDARY_AXIS','axes.secondaryY');return planMixed(clean,options,references);}
-  // Validate all source identities and kind-specific options before partitioning.
+  // Validate all source identities and type-specific options before partitioning.
   // Explicit Y domains are checked on their own assigned series, never against
   // unrelated columns on another value scale.
   const {domain,...schemaY}=axes.y;
   const schema=validateMixed({...clean,axes:{...axes,y:schemaY}});if(schema.status==='invalid')return schema;
-  if(options.stacking&&!schema.value.series.some(s=>s.kind==='column'))return bad('STACKING_REQUIRES_COLUMNS','options.stacking');
+  if(options.stacking&&!schema.value.series.some(s=>s.type==='column'))return bad('STACKING_REQUIRES_COLUMNS','options.stacking');
   if(schema.value.axes.x.values.length>64)return bad('LABEL_LIMIT','axes.x.values');
   const assignment=new Map(spec.series.map(s=>[s.id,s.yAxis??'primary'])),ids=new Set(schema.value.series.map(s=>s.id)),hidden=options.hiddenSeriesIds??[];
   if(hidden.some(id=>!ids.has(id)))return bad('UNKNOWN_SERIES','options.hiddenSeriesIds');
@@ -84,12 +84,12 @@ export function planMixedAxes(spec:PlanMixedSpec,options:PlanOptions,references?
     const p=projected.value,layers=emptyLayers(),scene=mixedScene(p,palette,layers,new Map());if(scene.status==='invalid')return scene;
     const percentages=new Map<string,number>();if(stacked?.status==='ok')for(const s of stacked.value.stack.series)for(const segment of s.segments)if(segment.percentage!==null)percentages.set(JSON.stringify([s.id,segment.point.id]),segment.percentage);
     const bars=new Map<string,Readonly<{pointId:string;x:number;y:number;width:number;height:number}>>();
-    for(const s of p.line.series){const id=s.series.spec.id,color=byId.get(id)!.color,key=seriesKey(id),kind=d.kinds.get(id);
-      if(kind==='column'){const rects=(p.column?.rects??[]).filter(r=>r.series.spec.id===id).map(r=>{const slot=options.stacking?stackSlot(r.point.x):slots?.status==='ok'?slots.value.byId.get(r.key):undefined;if(!slot)throw Error('Missing coordinated column slot');const bar={pointId:r.point.id,x:slot.x,y:r.y,width:slot.width,height:r.height};bars.set(JSON.stringify([id,r.point.id]),bar);return bar;});paint.push({id,name:s.series.spec.name,color,bars:rects});}
-      else paint.push({id,name:s.series.spec.name,color,commands:s.commands,...(kind==='area'?{areaCommands:layers.marks.flatMap(mark=>mark.kind==='path'&&mark.key.startsWith(key+'|area:')?mark.commands:[])}:{})});
+    for(const s of p.line.series){const id=s.series.spec.id,color=byId.get(id)!.color,key=seriesKey(id),type=d.kinds.get(id);
+      if(type==='column'){const rects=(p.column?.rects??[]).filter(r=>r.series.spec.id===id).map(r=>{const slot=options.stacking?stackSlot(r.point.x):slots?.status==='ok'?slots.value.byId.get(r.key):undefined;if(!slot)throw Error('Missing coordinated column slot');const bar={pointId:r.point.id,x:slot.x,y:r.y,width:slot.width,height:r.height};bars.set(JSON.stringify([id,r.point.id]),bar);return bar;});paint.push({id,name:s.series.spec.name,color,bars:rects});}
+      else paint.push({id,name:s.series.spec.name,color,commands:s.commands,...(type==='area'?{areaCommands:layers.marks.flatMap(mark=>mark.type==='path'&&mark.key.startsWith(key+'|area:')?mark.commands:[])}:{})});
     }
     for(const row of p.index.targets)for(const target of row){const s=target.series.series.spec,point=target.point,percentage=percentages.get(JSON.stringify([s.id,point.point.id])),zeroSlot=options.stacking&&d.kinds.get(s.id)==='column'?stackSlot(String(point.point.x)):null,label=d.line.labels.get(String(point.point.x))??String(point.point.x),bar=bars.get(JSON.stringify([s.id,point.point.id]));observations.push({id:{seriesId:s.id,pointId:point.point.id},label,seriesName:s.name,value:point.point.y!,...(percentage===undefined?{}:{percentage}),valueAxis:index===0?'primary':'secondary',x:bar?bar.x+bar.width/2:zeroSlot?zeroSlot.x+zeroSlot.width/2:point.x,y:point.y,color:byId.get(s.id)!.color,group:{key:JSON.stringify(['category',point.point.x]),label,coordinate:maps.mapX(point.point.x)!}});}
-    grids[index]=ticks.value.ticks.map(v=>({y:maps.mapY(v)!,label:String(v),value:v,kind:'number' as const}));
+    grids[index]=ticks.value.ticks.map(v=>({y:maps.mapY(v)!,label:String(v),value:v,type:'number' as const}));
   }
   const rank=(id:string)=>globalData.kinds.get(id)==='area'?0:globalData.kinds.get(id)==='column'?1:2,order=new Map(schema.value.series.map((s,i)=>[s.id,i]));paint.sort((a,b)=>rank(a.id)-rank(b.id)||order.get(a.id)!-order.get(b.id)!);observations.sort((a,b)=>order.get(a.id.seriesId)!-order.get(b.id.seriesId)!);
   const frame={...base,mixedAxes,...(options.stacking?{annotations}:{}),series:paint,observations,labels:visible.map(c=>({x:categoryMap(c.id)!,label:c.label??c.id})),grid:grids[0]!,...(full[1]?{secondaryGrid:grids[1]!}:{}),...(view?{viewport:planViewportState(view,{x:null,y:displayed[0]!},primary.value.axes,plot)!}:{})};

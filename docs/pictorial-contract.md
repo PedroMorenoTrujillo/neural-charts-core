@@ -26,8 +26,8 @@ An actual capacity excess rejects. A multi-member sum may reach the silhouette e
 
 ```ts
 type PlanPictorialGlyphId =
-  | Readonly<{kind: 'grouped'; categoryId: string; seriesId: string}>
-  | Readonly<{kind: 'stacked'; categoryId: string}>;
+  | Readonly<{type: 'grouped'; categoryId: string; seriesId: string}>
+  | Readonly<{type: 'stacked'; categoryId: string}>;
 ```
 
 Fill and observation metadata refer to the same glyph identity. Shape IDs identify geometry, source point IDs identify data, and glyph IDs identify occurrences. Renderers must preserve these meanings and must not truncate, hash or invent composite public source IDs.
@@ -38,7 +38,7 @@ Fill and observation metadata refer to the same glyph identity. Shape IDs identi
 
 ```ts
 interface PlanCompoundPolygonHit {
-  readonly kind: 'compoundPolygon';
+  readonly type: 'compoundPolygon';
   readonly polygons: readonly (readonly Readonly<{x: number; y: number}>[])[];
 }
 ```

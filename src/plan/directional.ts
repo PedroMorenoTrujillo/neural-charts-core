@@ -38,8 +38,8 @@ export function planDirectional(spec:PlanVectorSpec|PlanWindbarbSpec,options:Pla
   const length=Math.min(vector?28:34,options.width/5,options.height/5);
   const commands=new Map<string,PlanCommand[]>(),heads=new Map<string,PlanCommand[]>();
   const observations:PlanObservation[]=[];
-  const move=(a:PlanCommand[],x:number,y:number)=>a.push({kind:'M',x:paint(x),y:paint(y)});
-  const line=(a:PlanCommand[],x:number,y:number)=>a.push({kind:'L',x:paint(x),y:paint(y)});
+  const move=(a:PlanCommand[],x:number,y:number)=>a.push({type:'M',x:paint(x),y:paint(y)});
+  const line=(a:PlanCommand[],x:number,y:number)=>a.push({type:'L',x:paint(x),y:paint(y)});
   for(const observation of result.frame.observations){
     const datum=data.get(key(observation.id.seriesId,observation.id.pointId));if(!datum)continue;
     const path=commands.get(observation.id.seriesId)??[],fill=heads.get(observation.id.seriesId)??[];
@@ -54,14 +54,14 @@ export function planDirectional(spec:PlanVectorSpec|PlanWindbarbSpec,options:Pla
       if(size>=1){
         const head=Math.min(6,size/2),side=head*.55;
         move(path,x,y);line(path,ex,ey);
-        move(fill,ex,ey);line(fill,ex-dx*head-dy*side,ey-dy*head+dx*side);line(fill,ex-dx*head+dy*side,ey-dy*head-dx*side);fill.push({kind:'Z'});
+        move(fill,ex,ey);line(fill,ex-dx*head-dy*side,ey-dy*head+dx*side);line(fill,ex-dx*head+dy*side,ey-dy*head-dx*side);fill.push({type:'Z'});
       }else circle(path,x,y,Math.min(3,length/4));
-      observations.push({...observation,value,yValue:observation.value,vector:datum,hit:{kind:'circle',cx:x,cy:y,radius:Math.max(12,size)}});
+      observations.push({...observation,value,yValue:observation.value,vector:datum,hit:{type:'circle',cx:x,cy:y,radius:Math.max(12,size)}});
     }else{
       const knots=Math.round(value*(3600/1852)/5)*5;
       if(knots===0)circle(path,x,y,Math.min(4,length/4));
       else if(datum.direction===null){
-        const radius=Math.min(4,length/4);move(path,x,y-radius);line(path,x+radius,y);line(path,x,y+radius);line(path,x-radius,y);path.push({kind:'Z'});
+        const radius=Math.min(4,length/4);move(path,x,y-radius);line(path,x+radius,y);line(path,x,y+radius);line(path,x-radius,y);path.push({type:'Z'});
       }else{
         const dx=Math.sin(datum.direction*radians),dy=-Math.cos(datum.direction*radians),px=-dy,py=dx;
         const flags=Math.floor(knots/50),full=Math.floor((knots%50)/10),half=knots%10>=5?1:0,count=flags+full+half;
@@ -69,12 +69,12 @@ export function planDirectional(spec:PlanVectorSpec|PlanWindbarbSpec,options:Pla
         move(path,x,y);line(path,x+dx*length,y+dy*length);
         let at=length;
         for(let i=0;i<flags;i++,at-=step){
-          move(fill,x+dx*at,y+dy*at);line(fill,x+dx*(at-step*.55)+px*width,y+dy*(at-step*.55)+py*width);line(fill,x+dx*(at-step),y+dy*(at-step));fill.push({kind:'Z'});
+          move(fill,x+dx*at,y+dy*at);line(fill,x+dx*(at-step*.55)+px*width,y+dy*(at-step*.55)+py*width);line(fill,x+dx*(at-step),y+dy*(at-step));fill.push({type:'Z'});
         }
         for(let i=0;i<full;i++,at-=step){move(path,x+dx*at,y+dy*at);line(path,x+dx*(at-step*.45)+px*width,y+dy*(at-step*.45)+py*width);}
         if(half){move(path,x+dx*at,y+dy*at);line(path,x+dx*(at-step*.225)+px*width*.5,y+dy*(at-step*.225)+py*width*.5);}
       }
-      observations.push({...observation,wind:datum,hit:{kind:'circle',cx:x,cy:y,radius:Math.max(12,length)}});
+      observations.push({...observation,wind:datum,hit:{type:'circle',cx:x,cy:y,radius:Math.max(12,length)}});
     }
   }
   const series:PlanSeries[]=result.frame.series.map(s=>({id:s.id,name:s.name,color:s.color,commands:commands.get(s.id)??[],areaCommands:heads.get(s.id)??[]}));
@@ -82,5 +82,5 @@ export function planDirectional(spec:PlanVectorSpec|PlanWindbarbSpec,options:Pla
 }
 
 function circle(path:PlanCommand[],x:number,y:number,radius:number):void{
-  path.push({kind:'M',x:paint(x-radius),y:paint(y)},{kind:'A',radius:paint(radius),largeArc:1,sweep:0,x:paint(x+radius),y:paint(y)},{kind:'A',radius:paint(radius),largeArc:1,sweep:0,x:paint(x-radius),y:paint(y)});
+  path.push({type:'M',x:paint(x-radius),y:paint(y)},{type:'A',radius:paint(radius),largeArc:1,sweep:0,x:paint(x+radius),y:paint(y)},{type:'A',radius:paint(radius),largeArc:1,sweep:0,x:paint(x-radius),y:paint(y)});
 }

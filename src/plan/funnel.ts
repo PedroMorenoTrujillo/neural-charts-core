@@ -67,9 +67,9 @@ export function planFunnel(spec:PlanFunnelSpec|PlanPyramidSpec,options:PlanOptio
       const origin=vertices[0];let twiceArea=0;
       if(origin)for(let j=1;j<vertices.length-1;j++){const a=vertices[j]!,b=vertices[j+1]!;twiceArea+=(a.x-origin.x)*(b.y-origin.y)-(a.y-origin.y)*(b.x-origin.x);}
       const hasArea=Math.abs(twiceArea)>0;
-      const commands:PlanCommand[]=hasArea?[...vertices.map((v,j):PlanCommand=>({kind:j?'L':'M',...v})),{kind:'Z'}]:[];
+      const commands:PlanCommand[]=hasArea?[...vertices.map((v,j):PlanCommand=>({type:j?'L':'M',...v})),{type:'Z'}]:[];
       series.push({id:p.id,name:p.label,color:p.color,commands,fill:true});
-      observations.push({id:{seriesId:p.id,pointId:p.id},label:p.label,seriesName:title,value:p.value,...(denominator>0?{percentage:share*100}:{}),x:cx,y:plot.y+(hasArea?shapeStart+(shapeEnd-shapeStart)/2:start+(end-start)/2)*plot.height,color:p.color,...(hasArea?{hit:{kind:'polygon' as const,vertices}}:{})});
+      observations.push({id:{seriesId:p.id,pointId:p.id},label:p.label,seriesName:title,value:p.value,...(denominator>0?{percentage:share*100}:{}),x:cx,y:plot.y+(hasArea?shapeStart+(shapeEnd-shapeStart)/2:start+(end-start)/2)*plot.height,color:p.color,...(hasArea?{hit:{type:'polygon' as const,vertices}}:{})});
     }
     return freezePlan({status:observations.length?'ok':'empty',frame:{schema:'nc-plan/1',family,title,description,unit:'',width,height,legend:data.map(p=>({id:p.id,name:p.label,color:p.color,visible:!hidden.includes(p.id)})),series,observations,grid:[],labels:[]}});
   }catch(error){

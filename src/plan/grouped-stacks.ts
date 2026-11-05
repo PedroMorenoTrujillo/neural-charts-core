@@ -60,15 +60,15 @@ export function planGroupedStacks(spec:PlanColumnSpec,options:PlanOptions,refere
       for(const point of s.points){const rect=byPoint.get(point.id),coordinate=p.bands.center(point.x),place=slot(point.x),zero=mode==='percent'&&point.y===0&&coordinate!==null&&ticks.value.domain[0]<=0&&ticks.value.domain[1]>=0;
         if(!place||!rect&&!zero)continue;const label=data.labels.get(point.x)??point.x,percentage=percentages.get(JSON.stringify([s.spec.id,point.id])),endpoint=rect?(horizontal?rect.anchor.x:rect.anchor.y):p.mapValue(0)!;
         const bar=rect?barsById.get(point.id):undefined;
-        const hit=bar&&bar.width>0&&bar.height>0?{kind:'polygon' as const,vertices:[{x:bar.x,y:bar.y},{x:bar.x+bar.width,y:bar.y},{x:bar.x+bar.width,y:bar.y+bar.height},{x:bar.x,y:bar.y+bar.height}]}:undefined;
+        const hit=bar&&bar.width>0&&bar.height>0?{type:'polygon' as const,vertices:[{x:bar.x,y:bar.y},{x:bar.x+bar.width,y:bar.y},{x:bar.x+bar.width,y:bar.y+bar.height},{x:bar.x,y:bar.y+bar.height}]}:undefined;
         observations.push({id:{seriesId:s.spec.id,pointId:point.id},label,seriesName:s.spec.name,value:point.y!,x:horizontal?endpoint:place.center,y:horizontal?place.center:endpoint,color,...(hit?{hit}:{}),...(percentage===undefined?{}:{percentage}),group:{key:JSON.stringify(['category',point.x]),label,coordinate:coordinate!}});
       }
     }
     annotations.push(...planStackLabels(p.stack.categories.values(),mode,ticks.value.domain,id=>slot(id)?.center??null,p.mapValue,horizontal).slice(0,Math.max(0,64-annotations.length)));
   }
   const p=first!,order=new Map(input.series.map((s,i)=>[s.id,i]));series.sort((a,b)=>order.get(a.id)!-order.get(b.id)!);observations.sort((a,b)=>order.get(a.id.seriesId)!-order.get(b.id.seriesId)!);
-  const labels=horizontal?ticks.value.ticks.map(v=>({x:p.mapValue(v)!,label:String(v),value:v,kind:'number' as const})):input.axes.x.values.flatMap(c=>{const x=p.bands.center(c.id);return x===null?[]:[{x,label:c.label??c.id}];});
+  const labels=horizontal?ticks.value.ticks.map(v=>({x:p.mapValue(v)!,label:String(v),value:v,type:'number' as const})):input.axes.x.values.flatMap(c=>{const x=p.bands.center(c.id);return x===null?[]:[{x,label:c.label??c.id}];});
   const yLabels=horizontal?input.axes.x.values.flatMap(c=>{const y=p.bands.center(c.id);return y===null?[]:[{id:c.id,y,label:c.label??c.id}];}):undefined;
-  const frame={...base,series,observations,labels,annotations,grid:horizontal?[]:ticks.value.ticks.map(v=>({y:p.mapValue(v)!,label:String(v),value:v,kind:'number' as const})),...(yLabels?{yLabels}:{}),...(view?{viewport:planViewportState(view,{x:null,y:ticks.value.domain},input.axes,plot)!}:{})};
+  const frame={...base,series,observations,labels,annotations,grid:horizontal?[]:ticks.value.ticks.map(v=>({y:p.mapValue(v)!,label:String(v),value:v,type:'number' as const})),...(yLabels?{yLabels}:{}),...(view?{viewport:planViewportState(view,{x:null,y:ticks.value.domain},input.axes,plot)!}:{})};
   return freezePlan({status:observations.length?'ok':'empty',frame:withPlanReferences(frame,references,{plot,domains:{x:null,y:ticks.value.domain},mapY:p.mapValue,horizontal,bandSourceAxes:input.axes,categorySlot:id=>{const band=p.bands.band(id);return band?[band.start,band.end]:null;}},options.referenceBands)});
 }

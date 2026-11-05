@@ -2,7 +2,7 @@ import {expect,test} from 'vitest';
 import {planChart,transformPlanViewport} from '../../src/plan.js';
 import type {PlanFlameSpec,PlanSpec,PlanOptions} from '../../src/plan.js';
 const size={width:390,height:300};
-const source:PlanFlameSpec={family:'flame',title:'Call trace',axes:{x:{kind:'linear',unit:'ms',nice:false}},data:[{id:'main',label:'Main',start:0,end:100},{id:'load',label:'Load',parentId:'main',start:10,end:50},{id:'parse',label:'Parse',parentId:'load',start:20,end:40},{id:'paint',label:'Paint',parentId:'main',start:60,end:90}]};
+const source:PlanFlameSpec={family:'flame',title:'Call trace',axes:{x:{type:'linear',unit:'ms',nice:false}},data:[{id:'main',label:'Main',start:0,end:100},{id:'load',label:'Load',parentId:'main',start:10,end:50},{id:'parse',label:'Parse',parentId:'load',start:20,end:40},{id:'paint',label:'Paint',parentId:'main',start:60,end:90}]};
 function frame(spec=source,options:PlanOptions=size){const r=planChart(spec,options);if(r.status==='invalid')throw Error(JSON.stringify(r.diagnostic));return r.frame;}
 const invalid=(spec:unknown,options:unknown=size)=>expect(planChart(spec as PlanSpec,options as PlanOptions).status).toBe('invalid');
 test('uses original temporal intervals and computes exclusive duration without accumulating bars',()=>{
@@ -15,7 +15,7 @@ test('touching siblings, zero events and multiple disjoint roots do not invent o
   const f=frame({...source,data:[{id:'r',label:'Root',start:-10,end:10},{id:'a',label:'A',parentId:'r',start:-10,end:0},{id:'b',label:'B',parentId:'r',start:0,end:10},{id:'zero',label:'Zero',parentId:'r',start:0,end:0},{id:'second',label:'Second root',start:20,end:30}]});expect(f.flame?.rootCount).toBe(2);expect(f.observations[0]?.flame?.selfDuration).toBe(0);expect(f.observations.find(p=>p.id.pointId==='zero')?.value).toBe(0);expect(f.series[0]?.circles).toHaveLength(1);expect(f.series[0]?.bars).toHaveLength(4);
 });
 test('UTC trace durations and source endpoints remain unmodified under X viewport transforms',()=>{
-  const offset=Date.UTC(2026,0,1),spec:PlanFlameSpec={...source,axes:{x:{kind:'time',nice:false}},data:source.data.map(s=>({...s,start:offset+s.start*1000,end:offset+s.end*1000}))};const a=frame(spec,{...size,viewport:{axes:'x'}}),view=transformPlanViewport(a.viewport!,{kind:'zoom',factor:2});if(view.status==='invalid')throw Error(JSON.stringify(view));const b=frame(spec,{...size,viewport:{axes:'x',value:view.value}});expect(b.viewport?.axes).toBe('x');expect(b.unit).toBe('ms');expect(b.observations.find(p=>p.id.pointId==='load')).toMatchObject({value:40000,interval:{start:offset+10000,end:offset+50000}});expect(b.intervals).toEqual(a.intervals);
+  const offset=Date.UTC(2026,0,1),spec:PlanFlameSpec={...source,axes:{x:{type:'time',nice:false}},data:source.data.map(s=>({...s,start:offset+s.start*1000,end:offset+s.end*1000}))};const a=frame(spec,{...size,viewport:{axes:'x'}}),view=transformPlanViewport(a.viewport!,{type:'zoom',factor:2});if(view.status==='invalid')throw Error(JSON.stringify(view));const b=frame(spec,{...size,viewport:{axes:'x',value:view.value}});expect(b.viewport?.axes).toBe('x');expect(b.unit).toBe('ms');expect(b.observations.find(p=>p.id.pointId==='load')).toMatchObject({value:40000,interval:{start:offset+10000,end:offset+50000}});expect(b.intervals).toEqual(a.intervals);
 });
 test('empty traces remain explicitly empty and never create an artificial call',()=>{
   const r=planChart({...source,data:[]},size);expect(r.status).toBe('empty');if(r.status==='invalid')throw Error('Unexpected invalid');expect(r.frame.observations).toEqual([]);expect(r.frame.flame).toEqual({maxDepth:0,nodeCount:0,rootCount:0});
@@ -37,5 +37,5 @@ test.each([
   {...source,data:Array.from({length:33},(_,i)=>({id:String(i),label:String(i),start:0,end:1,...(i?{parentId:String(i-1)}:{})}))},
 ])('rejects invalid or ambiguous single-thread traces %#',spec=>invalid(spec));
 test('rejects unsupported stacks/visibility, excessive source and unknown public fields',()=>{
-  invalid(source,{...size,stacking:'sum'});invalid(source,{...size,hiddenSeriesIds:['profile']});invalid({...source,unknown:true});invalid({...source,axes:{...source.axes,y:{kind:'linear'}}});invalid({...source,data:Array.from({length:2049},(_,i)=>({id:String(i),label:String(i),start:i,end:i+1}))});
+  invalid(source,{...size,stacking:'sum'});invalid(source,{...size,hiddenSeriesIds:['profile']});invalid({...source,unknown:true});invalid({...source,axes:{...source.axes,y:{type:'linear'}}});invalid({...source,data:Array.from({length:2049},(_,i)=>({id:String(i),label:String(i),start:i,end:i+1}))});
 });

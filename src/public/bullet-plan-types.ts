@@ -27,8 +27,8 @@ export interface PlanBulletSpec {
   readonly title: string;
   readonly description?: string;
   readonly axes: Readonly<{
-    x: Readonly<{kind: 'category'; values: readonly Readonly<{id: string; label: string}>[]; reversed?: boolean}>;
-    y: Extract<PlanTemporalAxis, {kind: 'linear'}>;
+    x: Readonly<{type: 'category'; values: readonly Readonly<{id: string; label: string}>[]; reversed?: boolean}>;
+    y: Extract<PlanTemporalAxis, {type: 'linear'}>;
   }>;
   readonly series: readonly PlanBulletSeries[];
   readonly bands?: readonly PlanBulletBand[];
@@ -36,7 +36,7 @@ export interface PlanBulletSpec {
   readonly pointPadding?: number;
 }
 export interface PlanBulletValue {
-  readonly kind: 'measure' | 'target';
+  readonly type: 'measure' | 'target';
   readonly measure: number | null;
   readonly target?: number | null;
 }

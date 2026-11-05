@@ -11,10 +11,10 @@ import type {PlanColorAxisFrame} from '../public/color-axis-types.js';
 import type {BandScale} from '../internal/math/category.js';
 function bands(axis:PlanHeatmapAxis,scale:BandScale|null){return scale?axis.values.map((category,index)=>{const band=scale.band(category.id)!;return {id:category.id,index,from:Math.min(band.start,band.end),to:Math.max(band.start,band.end)};}):[];}
 function axis(input:unknown,path:string):PlanHeatmapAxis {
-  const a=record(input,['kind','values','reversed'],['kind','values'],path);choice(a.kind,['category'],path+'.kind');
+  const a=record(input,['type','values','reversed'],['type','values'],path);choice(a.type,['category'],path+'.type');
   const values=array(a.values,64,path+'.values').map((raw,i)=>{const at=path+'.values['+i+']',v=record(raw,['id','label'],['id'],at);return {id:text(v.id,at+'.id',128),...(v.label===undefined?{}:{label:text(v.label,at+'.label',256,true)})};});
   if(a.reversed!==undefined&&typeof a.reversed!=='boolean')fail(path+'.reversed');
-  return {kind:'category',values,...(a.reversed===undefined?{}:{reversed:a.reversed as boolean})};
+  return {type:'category',values,...(a.reversed===undefined?{}:{reversed:a.reversed as boolean})};
 }
 /** Projects the existing sparse heatmap mathematics into renderer-independent roles. */
 export function planHeatmap(input:PlanHeatmapSpec,inputOptions:PlanHeatmapOptions):PlanHeatmapResult {
@@ -36,7 +36,7 @@ export function planHeatmap(input:PlanHeatmapSpec,inputOptions:PlanHeatmapOption
     const axes:AxesPlan={plot:{x:0,y:0,width,height},tooSmall:!x.values.length||!y.values.length,x:emptyAxis,y:emptyAxis,mapX:()=>null,mapY:()=>null,xTitle:null,yTitle:null,font:{family:'sans-serif',size:14,weight:400},direction:'ltr'};
     const projected=projectHeatmap(data,axes);if(projected.status==='invalid')return projected;
     const projection=projected.value,paint:PlanCellPaint[]=[],observations:PlanHeatmapObservation[]=[],summary:PlanHeatmapSummary[]=[],annotations:PlanAnnotation[]=[];
-    const colorAxis:PlanColorAxisFrame=scale.kind==='continuous'?{kind:'continuous',domain:mapping.domain,domainSource:scale.domain?'explicit':mapping.domain?'source':'none',stops:scale.stops,missingColor:scale.missingColor}:{kind:'classes',classes:mapping.classes,missingColor:scale.missingColor,unclassifiedColor:scale.unclassifiedColor};
+    const colorAxis:PlanColorAxisFrame=scale.type==='continuous'?{type:'continuous',domain:mapping.domain,domainSource:scale.domain?'explicit':mapping.domain?'source':'none',stops:scale.stops,missingColor:scale.missingColor}:{type:'classes',classes:mapping.classes,missingColor:scale.missingColor,unclassifiedColor:scale.unclassifiedColor};
     let known=0;
     for(let i=0;i<cells.length;i++){
       const cell=cells[i]!,target=projection.byId.get(cell.id),color=mapping.values[i]!,row=data.rows.get(cell.rowId)!,column=data.columns.get(cell.columnId)!,rowLabel=data.rowLabels.get(cell.rowId)!,columnLabel=data.columnLabels.get(cell.columnId)!;
@@ -44,9 +44,9 @@ export function planHeatmap(input:PlanHeatmapSpec,inputOptions:PlanHeatmapOption
       if(cell.value!==null)known++;
       summary.push({...cell,row,column,rowLabel,columnLabel,color,painted});
       if(!painted||!target)continue;
-      const geometry:PlanCellGeometry={kind:'polygon',vertices:[{x:target.x,y:target.y},{x:target.x+target.width,y:target.y},{x:target.x+target.width,y:target.y+target.height},{x:target.x,y:target.y+target.height}]};
+      const geometry:PlanCellGeometry={type:'polygon',vertices:[{x:target.x,y:target.y},{x:target.x+target.width,y:target.y},{x:target.x+target.width,y:target.y+target.height},{x:target.x,y:target.y+target.height}]};
       paint.push({pointId:cell.id,color:color.color,opacity,geometry});
-      if(cell.value===null||color.kind==='missing')continue;
+      if(cell.value===null||color.type==='missing')continue;
       const label=columnLabel+' · '+rowLabel;
       observations.push({id:{seriesId:'cells',pointId:cell.id},label,seriesName:title,value:cell.value,x:target.cx,y:target.cy,color:color.color,hit:geometry,heatmap:{rowId:cell.rowId,columnId:cell.columnId,rowLabel,columnLabel,color}});
       if(annotations.length<64&&target.width>=28&&target.height>=20)annotations.push({x:target.cx,y:target.cy,text:String(cell.value),role:'value',box:{width:target.width,height:target.height,seriesId:'cells'}});

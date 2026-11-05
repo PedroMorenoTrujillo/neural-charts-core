@@ -12,7 +12,7 @@ const keys = ['x', 'y'] as const;
 function displayed(current: Viewport, domains: ViewportDomains): Viewport {
   const context = { ...current.context }, resolved = { ...current.resolved };
   for (const key of keys) {
-    const axis = context[key], domain = domains[key]; if (axis.kind === 'category' || !axis.domain || !domain) continue;
+    const axis = context[key], domain = domains[key]; if (axis.type === 'category' || !axis.domain || !domain) continue;
     context[key] = { ...axis, domain: [Math.min(axis.domain[0], domain[0]), Math.max(axis.domain[1], domain[1])], automatic: domain }; resolved[key] = domain;
   }
   return { ...current, context, resolved };
@@ -21,7 +21,7 @@ function fit(current: Viewport, proposal: ChartResult<Viewport>, preserveSpan: b
   if (proposal.status === 'invalid') return proposal;
   const value: { x?: ChartAxisWindow; y?: ChartAxisWindow } = { ...proposal.value.value };
   for (const key of keys) {
-    const axis = current.context[key], window = value[key]; if (axis.kind === 'category' || !axis.domain || !Array.isArray(window)) continue;
+    const axis = current.context[key], window = value[key]; if (axis.type === 'category' || !axis.domain || !Array.isArray(window)) continue;
     let [low, high] = window as ChartNumericWindow; const bounds = axis.domain;
     if (preserveSpan && (low < bounds[0] || high > bounds[1])) {
       const scale = createLinearScale([low, high], [0, 1], false); if (scale.status === 'invalid') return scale;
@@ -29,7 +29,7 @@ function fit(current: Viewport, proposal: ChartResult<Viewport>, preserveSpan: b
       if (high > bounds[1]) { const end = scale.value.map(bounds[1]); high = bounds[1]; low = end === null ? bounds[0] : scale.value.invert(end - 1) ?? bounds[0]; }
     }
     low = Math.max(bounds[0], low); high = Math.min(bounds[1], high);
-    if (axis.kind === 'time') { low = Math.max(bounds[0], Math.floor(low)); high = Math.min(bounds[1], Math.ceil(high)); }
+    if (axis.type === 'time') { low = Math.max(bounds[0], Math.floor(low)); high = Math.min(bounds[1], Math.ceil(high)); }
     if (!(low < high)) return invalid('INVALID_DOMAIN', 'UNREPRESENTABLE_VIEWPORT', 'viewport.' + key);
     value[key] = [low, high];
   }

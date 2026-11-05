@@ -1,9 +1,9 @@
 import type {MixedChartSpec} from './mixed-types.js';
 import type {PlanRangeSeries} from './plan-types.js';
 export interface PlanMixedRangeSeries extends PlanRangeSeries<string>{
- readonly kind:'arearange'|'areasplinerange';readonly yAxis?:never;
+ readonly type:'arearange'|'areasplinerange';readonly yAxis?:never;
 }
-export type PlanMixedRangeLineSeries=Extract<MixedChartSpec['series'][number],Readonly<{kind:'line'|'area'}>>&Readonly<{kind:'line';yAxis?:'primary'}>;
+export type PlanMixedRangeLineSeries=Extract<MixedChartSpec['series'][number],Readonly<{type:'line'|'area'}>>&Readonly<{type:'line';yAxis?:'primary'}>;
 /** One category frame and one original-value scale for supplied ranges and lines. */
 export interface PlanMixedRangeSpec{
  readonly family:'mixed';readonly title:string;readonly description?:string;
@@ -13,5 +13,5 @@ export interface PlanMixedRangeSpec{
 }
 export interface PlanMixedRangesLayout{
  readonly mode:'range-line';
- readonly series:readonly Readonly<{id:string;kind:'line'|'arearange'|'areasplinerange'}>[];
+ readonly series:readonly Readonly<{id:string;type:'line'|'arearange'|'areasplinerange'}>[];
 }

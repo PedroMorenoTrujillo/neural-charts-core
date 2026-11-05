@@ -2,7 +2,7 @@ import type { ChartCategoryWindow } from '../../public/viewport-types.js';
 import type { Viewport } from './viewport.js';
 type Axis = 'x' | 'y';
 function range(viewport: Viewport, axis: Axis): Readonly<{ ids: readonly string[]; first: number; count: number }> | null {
-  const bounds = viewport.context[axis], window = viewport.resolved[axis]; if (bounds.kind !== 'category' || !window || !('firstId' in window)) return null;
+  const bounds = viewport.context[axis], window = viewport.resolved[axis]; if (bounds.type !== 'category' || !window || !('firstId' in window)) return null;
   const first = bounds.ranks.get(window.firstId), last = bounds.ranks.get(window.lastId);
   return first === undefined || last === undefined ? null : { ids: bounds.ids, first, count: last - first + 1 };
 }

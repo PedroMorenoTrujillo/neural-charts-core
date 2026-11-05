@@ -23,7 +23,7 @@ it('exports the defensive preparation API and explicit geometric text role throu
 
 it('rejects the renderer-only measurement port on ordinary and relationship chart families', () => {
   const examples: readonly PlanSpec[] = [
-    {family: 'line', title: 'Measured', axes: {x: {kind: 'linear'}, y: {kind: 'linear'}}, series: [{id: 's', name: 'Source', data: [{id: 'p', x: 0, y: 1}]}]},
+    {family: 'line', title: 'Measured', axes: {x: {type: 'linear'}, y: {type: 'linear'}}, series: [{id: 's', name: 'Source', data: [{id: 'p', x: 0, y: 1}]}]},
     {family: 'dependencywheel', title: 'Relations', nodes: [{id: 'a', label: 'A'}], links: []},
   ];
   for (const spec of examples) expect(planChart(spec, {...size, wordcloudText: {fontKey, measurements: []}})).toMatchObject({status: 'invalid', diagnostic: {reason: 'UNSUPPORTED_TEXT_MEASUREMENTS', path: 'options.wordcloudText'}});
@@ -33,5 +33,5 @@ it('distinguishes positive words that do not fit from an absent source in the pu
   const prepared = prepareWordCloudMeasurements(source, {...size, fontKey});
   if (prepared.status === 'invalid') throw Error(prepared.diagnostic.reason);
   const result = planChart(source, {...size, wordcloudText: {fontKey, measurements: prepared.preparation.requests.map(request => ({...request, width: 1000, height: 1000}))}});
-  expect(result).toMatchObject({status: 'empty', frame: {wordcloudLayout: {sourceWords: 1, emptyReason: 'noSpace', attempts: 0}, wordcloudData: [{weight: 9, decision: {kind: 'notDisplayed', reason: 'noSpace'}}], observations: []}});
+  expect(result).toMatchObject({status: 'empty', frame: {wordcloudLayout: {sourceWords: 1, emptyReason: 'noSpace', attempts: 0}, wordcloudData: [{weight: 9, decision: {type: 'notDisplayed', reason: 'noSpace'}}], observations: []}});
 });

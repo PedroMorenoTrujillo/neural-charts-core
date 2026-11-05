@@ -23,7 +23,7 @@ export function normalizeStackedArea<T>(spec: StackedAreaChartSpec<T>): StackedA
   // The validated axes/series tuple is unchanged; only the internal family
   // discriminant is adapted for existing pure Line normalization.
   const line = normalizeLine<T>({ ...spec, family: 'line' } as LineChartSpec<T>), x = spec.axes.x;
-  const coordinates: readonly (string | number)[] = Object.freeze(x.kind === 'category'
+  const coordinates: readonly (string | number)[] = Object.freeze(x.type === 'category'
     ? x.values.map(value => value.id)
     : [...new Set(spec.series.flatMap(series => series.data.map(point => point.x as number)))].sort((a, b) => a - b));
   return Object.freeze({ spec, line, coordinates, coordinateIds: Object.freeze(coordinates.map((_, i) => 'x' + i)), coordinateIndex: new Map(coordinates.map((value, i) => [value, i])) });
@@ -42,8 +42,8 @@ export function stackAreaDomains<T>(data: StackedAreaData<T>, stack: AreaStack<T
   const y = data.spec.axes.y, x = data.spec.axes.x;
   const yPlan = normalizeNumericDomain(stack.mode === 'percent' && ys.length ? finiteExtent([0, 100]) : finiteExtent(ys), { includeZero: !y.domain, ...(y.domain ? { explicit: y.domain } : {}) });
   if (yPlan.status === 'invalid') return yPlan;
-  if (x.kind === 'category') return ok({ x: null, y: yPlan.status === 'ok' ? yPlan.domain : null });
-  const xs = data.coordinates as readonly number[], extent = x.kind === 'time' ? timeExtent(xs) : finiteExtent(xs);
-  const xPlan = x.kind === 'time' ? normalizeTimeDomain(extent, x.domain ? { explicit: x.domain } : {}) : normalizeNumericDomain(extent, { includeZero: false, ...(x.domain ? { explicit: x.domain } : {}) });
+  if (x.type === 'category') return ok({ x: null, y: yPlan.status === 'ok' ? yPlan.domain : null });
+  const xs = data.coordinates as readonly number[], extent = x.type === 'time' ? timeExtent(xs) : finiteExtent(xs);
+  const xPlan = x.type === 'time' ? normalizeTimeDomain(extent, x.domain ? { explicit: x.domain } : {}) : normalizeNumericDomain(extent, { includeZero: false, ...(x.domain ? { explicit: x.domain } : {}) });
   return xPlan.status === 'invalid' ? xPlan : ok({ x: xPlan.status === 'ok' ? xPlan.domain : null, y: yPlan.status === 'ok' ? yPlan.domain : null });
 }

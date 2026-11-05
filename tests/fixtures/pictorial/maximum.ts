@@ -6,5 +6,5 @@ export function maximumSpec():PlanPictorialSpec {
     vertices.push({x:x/.995,y:y/.995},{x:(x+.12)/.995,y:y/.995},{x:x/.995,y:(y+.12)/.995});triangles.push([n,n+1,n+2]);
   }
   const categories=Array.from({length:32},(_,i)=>({id:'c'+i,label:'Category '+i}));
-  return{family:'pictorial',title:'Maximum bounded transport',axes:{x:{kind:'category',values:categories},y:{kind:'linear',domain:[0,100]}},series:Array.from({length:2},(_,s)=>({id:'s'+s,name:'Source '+s,data:categories.map((c,i)=>({id:'p'+i,x:c.id,y:60+s*30}))})),pictorial:{shape:{kind:'mesh',mesh:{id:'islands',aspectRatio:1,vertices,triangles}}}};
+  return{family:'pictorial',title:'Maximum bounded transport',axes:{x:{type:'category',values:categories},y:{type:'linear',domain:[0,100]}},series:Array.from({length:2},(_,s)=>({id:'s'+s,name:'Source '+s,data:categories.map((c,i)=>({id:'p'+i,x:c.id,y:60+s*30}))})),pictorial:{shape:{type:'mesh',mesh:{id:'islands',aspectRatio:1,vertices,triangles}}}};
 }

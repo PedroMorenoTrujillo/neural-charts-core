@@ -10,9 +10,9 @@ for(const family of ['treegraph','organization']){
  const a=horizontal.frame.observations.find(p=>p.id.pointId==='root'),b=horizontal.frame.observations.find(p=>p.id.pointId==='left');assert.ok(a.x<b.x);checks++;
  const av=vertical.frame.observations.find(p=>p.id.pointId==='root'),bv=vertical.frame.observations.find(p=>p.id.pointId==='left');assert.ok(av.y<bv.y);checks++;
  assert.deepEqual(horizontal.frame.observations.map(p=>p.id),vertical.frame.observations.map(p=>p.id));assert.deepEqual(horizontal.frame.observations.map(p=>p.node),vertical.frame.observations.map(p=>p.node));checks++;
- const zoom=transformPlanViewport(horizontal.frame.viewport,{kind:'zoom',factor:2});assert.equal(zoom.status,'ok');
+ const zoom=transformPlanViewport(horizontal.frame.viewport,{type:'zoom',factor:2});assert.equal(zoom.status,'ok');
  const zoomed=planChart(spec,{...settings,hierarchy:{orientation:'horizontal'},viewport:{axes:'xy',value:zoom.value}});assert.notEqual(zoomed.status,'invalid',JSON.stringify(zoomed));checks++;
- const reset=transformPlanViewport(zoomed.frame.viewport,{kind:'reset'});assert.equal(reset.status,'ok');assert.deepEqual(reset.value,{});checks++;
+ const reset=transformPlanViewport(zoomed.frame.viewport,{type:'reset'});assert.equal(reset.status,'ok');assert.deepEqual(reset.value,{});checks++;
  assert.equal(JSON.stringify(spec),source);checks++;
  assert.equal(planChart(spec,{...settings,hierarchy:{orientation:'diagonal'}}).status,'invalid');checks++;
  assert.equal(planChart({...spec,family:'networkgraph'},{...settings,hierarchy:{orientation:'horizontal'}}).status,'invalid');checks++;

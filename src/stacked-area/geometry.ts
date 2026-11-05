@@ -10,14 +10,14 @@ import type { AreaStack, StackedAreaData } from './data.js';
 import { stackAreaBands, type AreaBand } from './bands.js';
 
 export type StackedAreaProjection<T> = LineProjection<T> & Readonly<{
-  kind: 'category' | 'linear' | 'time'; labels: ReadonlyMap<string, string>; tooltipMode: 'point' | 'shared';
+  type: 'category' | 'linear' | 'time'; labels: ReadonlyMap<string, string>; tooltipMode: 'point' | 'shared';
   index: HitIndex<T>; stack: AreaStack<T>; fills: ReadonlyMap<string, readonly PathCommand[]>;
   segments: ReadonlyMap<string, Readonly<{ base: number; end: number; percentage: number | null }>>;
 }>;
 export function projectStackedArea<T>(data: StackedAreaData<T>, state: ChartState, stack: AreaStack<T>, axes: AxesPlan, preparedBands?: readonly AreaBand[]): ChartResult<StackedAreaProjection<T>> {
   if (axes.tooSmall) {
     const projection: LineProjection<T> = { plot: axes.plot, series: [], mapX: axes.mapX, mapY: axes.mapY };
-    return ok({ ...projection, kind: data.spec.axes.x.kind, labels: data.line.labels, tooltipMode: data.spec.tooltip?.mode === 'shared' ? 'shared' : 'point', index: buildHitIndex(projection, () => 0), stack, segments: new Map(), fills: new Map() });
+    return ok({ ...projection, type: data.spec.axes.x.type, labels: data.line.labels, tooltipMode: data.spec.tooltip?.mode === 'shared' ? 'shared' : 'point', index: buildHitIndex(projection, () => 0), stack, segments: new Map(), fills: new Map() });
   }
   const hidden = new Set(state.hiddenSeriesIds), series: ProjectedSeries<T>[] = [], segments = new Map<string, { base: number; end: number; percentage: number | null }>();
   const top = new Map<string, PathCommand[]>(), fills = new Map<string, PathCommand[]>();
@@ -34,8 +34,8 @@ export function projectStackedArea<T>(data: StackedAreaData<T>, state: ChartStat
     }
     if ((commandCount += 7) > MAX_PATH_COMMANDS) return invalid('INVALID_CONFIG', 'RESOURCE_LIMIT', 'stackedArea.commands');
     const a = pixels[0]!, b = pixels[1]!, fill = fills.get(band.seriesId) ?? [], outline = top.get(band.seriesId) ?? [];
-    fill.push({ kind: 'M', x: a.x, y: a.end }, { kind: 'L', x: b.x, y: b.end }, { kind: 'L', x: b.x, y: b.base }, { kind: 'L', x: a.x, y: a.base }, { kind: 'Z' });
-    outline.push({ kind: 'M', x: a.x, y: a.end }, { kind: 'L', x: b.x, y: b.end });
+    fill.push({ type: 'M', x: a.x, y: a.end }, { type: 'L', x: b.x, y: b.end }, { type: 'L', x: b.x, y: b.base }, { type: 'L', x: a.x, y: a.base }, { type: 'Z' });
+    outline.push({ type: 'M', x: a.x, y: a.end }, { type: 'L', x: b.x, y: b.end });
     fills.set(band.seriesId, fill); top.set(band.seriesId, outline);
   }
   for (const normalized of data.line.series) if (!hidden.has(normalized.spec.id)) {
@@ -55,5 +55,5 @@ export function projectStackedArea<T>(data: StackedAreaData<T>, state: ChartStat
     series.push(Object.freeze({ series: normalized, points: Object.freeze(points), eligible, markers, commands: Object.freeze((top.get(normalized.spec.id) ?? []).map(command => Object.freeze(command))) }));
   }
   const projection: LineProjection<T> = Object.freeze({ plot: axes.plot, series: Object.freeze(series), mapX: axes.mapX, mapY: axes.mapY });
-  return ok(Object.freeze({ ...projection, kind: data.spec.axes.x.kind, labels: data.line.labels, tooltipMode: data.spec.tooltip?.mode === 'shared' ? 'shared' : 'point', index: buildHitIndex(projection, value => typeof value === 'string' ? data.coordinateIndex.get(value)! : value), stack, segments, fills: new Map([...fills].map(([id, commands]) => [id, Object.freeze(commands.map(command => Object.freeze(command)))])) }));
+  return ok(Object.freeze({ ...projection, type: data.spec.axes.x.type, labels: data.line.labels, tooltipMode: data.spec.tooltip?.mode === 'shared' ? 'shared' : 'point', index: buildHitIndex(projection, value => typeof value === 'string' ? data.coordinateIndex.get(value)! : value), stack, segments, fills: new Map([...fills].map(([id, commands]) => [id, Object.freeze(commands.map(command => Object.freeze(command)))])) }));
 }

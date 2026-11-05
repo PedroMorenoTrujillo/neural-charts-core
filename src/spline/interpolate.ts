@@ -84,14 +84,14 @@ export function flattenCubics(segments: readonly CubicSegment[], tolerance = .2,
     if (segment.d.x < segment.a.x || !Number.isFinite(segment.d.x - segment.a.x) || !Number.isFinite(segment.d.y - segment.a.y)) return invalid('INVALID_DOMAIN', 'UNREPRESENTABLE_GEOMETRY', 'spline.segments[' + i + ']');
     if (i && (segments[i - 1]!.d.x !== segment.a.x || segments[i - 1]!.d.y !== segment.a.y)) return invalid('INVALID_CONFIG', 'NON_CONTIGUOUS_SPLINE', 'spline.segments[' + i + ']');
   }
-  const commands: PathCommand[] = [Object.freeze({ kind: 'M', x: segments[0]!.a.x, y: segments[0]!.a.y })];
+  const commands: PathCommand[] = [Object.freeze({ type: 'M', x: segments[0]!.a.x, y: segments[0]!.a.y })];
   for (const segment of segments) {
     const stack = [{ segment, depth: 0 }];
     while (stack.length) {
       const item = stack.pop()!, { a, b, c, d } = item.segment;
       if (Math.max(distance(b, a, d), distance(c, a, d)) <= tolerance) {
         if (commands.length >= budget) return invalid('INVALID_CONFIG', 'RESOURCE_LIMIT', 'spline.commands');
-        commands.push(Object.freeze({ kind: 'L', x: d.x, y: d.y }));
+        commands.push(Object.freeze({ type: 'L', x: d.x, y: d.y }));
       } else {
         if (item.depth >= 20 || commands.length + stack.length + 2 > budget) return invalid('INVALID_CONFIG', 'RESOURCE_LIMIT', 'spline.subdivision');
         const ab = blend(a, b), bc = blend(b, c), cd = blend(c, d), abc = blend(ab, bc), bcd = blend(bc, cd), center = blend(abc, bcd), depth = item.depth + 1;

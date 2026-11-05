@@ -29,7 +29,7 @@ it('V02 colliding prefixes retain distinct suffixes, code points and measured bo
 it('V02 bounded plans keep distinguishable endpoints and full values at all review widths', () => {
   const values = Array.from({length:7}, (_,i) => ({id:'c'+i,label:'A long category label with details '+i})), labels = new Map(values.map(c => [c.id,c.label]));
   for (const width of [320,390,768,1280]) {
-    const result = planAxes({x:{kind:'category',values,title:'Period'},y:{kind:'linear',title:'Value'},domains:{x:null,y:[0,10]},width:width-24,height:200,font:{family:'sans-serif',size:12,weight:400},direction:'ltr',labels,measurer,compact:width<640});
+    const result = planAxes({x:{type:'category',values,title:'Period'},y:{type:'linear',title:'Value'},domains:{x:null,y:[0,10]},width:width-24,height:200,font:{family:'sans-serif',size:12,weight:400},direction:'ltr',labels,measurer,compact:width<640});
     expect(result.status).toBe('ok'); if(result.status!=='ok')continue;
     const endpoints = [result.value.x.labels[0]!, result.value.x.labels.at(-1)!];
     expect(endpoints[0]!.text).not.toBe(endpoints[1]!.text);

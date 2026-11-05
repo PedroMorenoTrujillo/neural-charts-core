@@ -5,7 +5,7 @@ import type { ChartReferenceBand } from './reference-types.js';
 export type ScatterPoint<T = unknown> = Readonly<{ id: string; x: number | null; y: number | null; datum?: T }>;
 export type ScatterMarkerShape = 'circle' | 'square' | 'diamond';
 export type ScatterSeries<T = unknown> = Readonly<{ id: string; name: string; data: readonly ScatterPoint<T>[]; color?: string; marker?: Readonly<{ shape?: ScatterMarkerShape; size?: number }> }>;
-export type NumericAxis = Readonly<{ kind: 'linear'; domain?: readonly [number, number]; includeZero?: boolean; reversed?: boolean; nice?: boolean; title?: string; grid?: boolean; ticks?: Readonly<{ targetCount?: number }>; labels?: Readonly<{ maxWidth?: number }> }>;
+export type NumericAxis = Readonly<{ type: 'linear'; domain?: readonly [number, number]; includeZero?: boolean; reversed?: boolean; nice?: boolean; title?: string; grid?: boolean; ticks?: Readonly<{ targetCount?: number }>; labels?: Readonly<{ maxWidth?: number }> }>;
 export type ScatterReferenceLine = Readonly<{ id: string; axis: 'x' | 'y'; value: number; label?: string; color?: string; dash?: 'solid' | 'dashed' | 'dotted' }>;
 export type ScatterChartSpec<T = unknown> = Readonly<{
   family: 'scatter'; title: string; description?: string; axes: Readonly<{ x: NumericAxis; y: NumericAxis }>; series: readonly ScatterSeries<T>[];

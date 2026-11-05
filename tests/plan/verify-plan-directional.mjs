@@ -3,8 +3,8 @@ import {writeFileSync} from 'node:fs';
 import {planChart,transformPlanViewport} from '../../dist/plan.js';
 
 const options={width:320,height:300};
-const vector={family:'vector',title:'Field',unit:'m/s',axes:{x:{kind:'linear',domain:[0,10]},y:{kind:'linear',domain:[0,10]}},series:[{id:'field',name:'Field',data:[{id:'east',x:2,y:2,dx:3,dy:0},{id:'north',x:5,y:5,dx:0,dy:4},{id:'zero',x:8,y:8,dx:0,dy:0},{id:'missing',x:7,y:2,dx:null,dy:null}]}]};
-const wind={family:'windbarb',title:'Wind',axes:{x:{kind:'linear',domain:[0,10]},y:{kind:'linear',domain:[0,150]}},series:[{id:'station',name:'Station',data:[{id:'north',x:1,value:10,direction:0},{id:'east',x:3,value:20,direction:90},{id:'calm',x:5,value:0,direction:180},{id:'unknown',x:7,value:5,direction:null},{id:'missing',x:9,value:null,direction:null}]}]};
+const vector={family:'vector',title:'Field',unit:'m/s',axes:{x:{type:'linear',domain:[0,10]},y:{type:'linear',domain:[0,10]}},series:[{id:'field',name:'Field',data:[{id:'east',x:2,y:2,dx:3,dy:0},{id:'north',x:5,y:5,dx:0,dy:4},{id:'zero',x:8,y:8,dx:0,dy:0},{id:'missing',x:7,y:2,dx:null,dy:null}]}]};
+const wind={family:'windbarb',title:'Wind',axes:{x:{type:'linear',domain:[0,10]},y:{type:'linear',domain:[0,150]}},series:[{id:'station',name:'Station',data:[{id:'north',x:1,value:10,direction:0},{id:'east',x:3,value:20,direction:90},{id:'calm',x:5,value:0,direction:180},{id:'unknown',x:7,value:5,direction:null},{id:'missing',x:9,value:null,direction:null}]}]};
 const checks=[];const check=(name,run)=>{run();checks.push(name);};
 const frame=(data,opts=options)=>{const r=planChart(data,opts);assert.equal(r.status,'ok',JSON.stringify(r));return r.frame;};
 const point=(f,id)=>f.observations.find(o=>o.id.pointId===id);
@@ -18,10 +18,10 @@ check('Vector metadata preserves source components, coordinates, magnitude, zero
 });
 check('Vector glyphs point east and north without joining separate observations',()=>{
   const f=frame(vector),path=f.series[0].commands;
-  assert.equal(path[0].kind,'M');assert.equal(path[1].kind,'L');assert.ok(path[1].x>path[0].x);close(path[1].y,path[0].y);
-  assert.equal(path[2].kind,'M');assert.ok(path[3].y<path[2].y);close(path[3].x,path[2].x);
+  assert.equal(path[0].type,'M');assert.equal(path[1].type,'L');assert.ok(path[1].x>path[0].x);close(path[1].y,path[0].y);
+  assert.equal(path[2].type,'M');assert.ok(path[3].y<path[2].y);close(path[3].x,path[2].x);
   const lengths=[Math.hypot(path[1].x-path[0].x,path[1].y-path[0].y),Math.hypot(path[3].x-path[2].x,path[3].y-path[2].y)];close(lengths[0]/lengths[1],3/4);
-  assert.equal(f.series[0].areaCommands.filter(c=>c.kind==='Z').length,2);
+  assert.equal(f.series[0].areaCommands.filter(c=>c.type==='Z').length,2);
 });
 check('Reversed numeric axes invert the corresponding vector component',()=>{
   const f=frame({...vector,axes:{x:{...vector.axes.x,reversed:true},y:{...vector.axes.y,reversed:true}}}),p=f.series[0].commands;
@@ -30,18 +30,18 @@ check('Reversed numeric axes invert the corresponding vector component',()=>{
 check('Wind uses original metres per second and meteorological direction from north',()=>{
   const f=frame(wind),p=f.series[0].commands;
   assert.equal(f.unit,'m/s');assert.equal(f.observations.length,4);assert.equal(point(f,'north').value,10);assert.deepEqual(point(f,'north').wind,{direction:0});
-  assert.equal(p[0].kind,'M');assert.equal(p[1].kind,'L');close(p[0].x,p[1].x);assert.ok(p[1].y<p[0].y);assert.equal(point(f,'unknown').wind.direction,null);
+  assert.equal(p[0].type,'M');assert.equal(p[1].type,'L');close(p[0].x,p[1].x);assert.ok(p[1].y<p[0].y);assert.equal(point(f,'unknown').wind.direction,null);
 });
 check('Wind flags encode fifty knots, full and half barbs encode ten and five knots',()=>{
   for(const [knots,closed,lines] of [[50,1,2],[10,0,4],[5,0,4],[0,0,1]]){
     const f=frame(single(wind,{id:'one',x:5,value:knots*1852/3600,direction:0})),s=f.series[0];
-    assert.equal(s.areaCommands.filter(c=>c.kind==='Z').length,closed);assert.equal(s.commands.length,knots===0?3:lines);
+    assert.equal(s.areaCommands.filter(c=>c.type==='Z').length,closed);assert.equal(s.commands.length,knots===0?3:lines);
     assert.equal(f.observations[0].value,knots*1852/3600);
   }
 });
 check('Unknown wind direction is distinct from calm and retains known speed',()=>{
-  const unknown=frame(single(wind,{id:'one',x:5,value:4,direction:null}));assert.equal(unknown.series[0].commands.at(-1).kind,'Z');assert.equal(unknown.observations[0].value,4);
-  const calm=frame(single(wind,{id:'one',x:5,value:0,direction:null}));assert.equal(calm.series[0].commands[1].kind,'A');assert.equal(calm.observations[0].value,0);
+  const unknown=frame(single(wind,{id:'one',x:5,value:4,direction:null}));assert.equal(unknown.series[0].commands.at(-1).type,'Z');assert.equal(unknown.observations[0].value,4);
+  const calm=frame(single(wind,{id:'one',x:5,value:0,direction:null}));assert.equal(calm.series[0].commands[1].type,'A');assert.equal(calm.observations[0].value,0);
 });
 check('Missing coordinates and values omit marks without converting missingness to zero',()=>{
   for(const data of [single(vector,{id:'one',x:null,y:1,dx:2,dy:3}),single(vector,{id:'one',x:1,y:null,dx:2,dy:3}),single(wind,{id:'one',x:1,value:null,direction:0})])assert.equal(planChart(data,options).status,'empty');
@@ -61,7 +61,7 @@ check('Legend visibility affects glyphs, magnitude scale and empty state consist
 });
 check('Numeric zoom and pan reuse semantic windows and retain original metadata',()=>{
   for(const data of [vector,wind]){
-    const f=frame(data,{...options,viewport:{axes:'x'}});assert.ok(f.viewport);const changed=transformPlanViewport(f.viewport,{kind:'zoom',factor:2});assert.notEqual(changed.status,'invalid');
+    const f=frame(data,{...options,viewport:{axes:'x'}});assert.ok(f.viewport);const changed=transformPlanViewport(f.viewport,{type:'zoom',factor:2});assert.notEqual(changed.status,'invalid');
     const zoomed=frame(data,{...options,viewport:{axes:'x',value:changed.value}});for(const o of zoomed.observations){const original=point(f,o.id.pointId);assert.equal(o.value,original.value);assert.deepEqual(o.vector??o.wind,original.vector??original.wind);}
   }
 });

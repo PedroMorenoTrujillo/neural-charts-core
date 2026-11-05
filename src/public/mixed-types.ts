@@ -6,8 +6,8 @@ import type { ColumnCategoryAxis, ColumnSeries } from './column-types.js';
 import type { ChartReferenceBand } from './reference-types.js';
 export type MixedPoint<T = unknown> = LinePoint<T, string>;
 export type MixedSeries<T = unknown> =
-  | (LineSeries<T, string> & Readonly<{ kind: 'line' | 'area' }>)
-  | (ColumnSeries<T> & Readonly<{ kind: 'column'; curve?: never; gaps?: never; markers?: never; dash?: never }>);
+  | (LineSeries<T, string> & Readonly<{ type: 'line' | 'area' }>)
+  | (ColumnSeries<T> & Readonly<{ type: 'column'; curve?: never; gaps?: never; markers?: never; dash?: never }>);
 export type MixedChartSpec<T = unknown> = Readonly<{
   family: 'mixed'; title: string; description?: string; series: readonly MixedSeries<T>[];
   axes: Readonly<{ x: ColumnCategoryAxis; y: LineYAxis }>;
@@ -17,7 +17,7 @@ export type MixedChartSpec<T = unknown> = Readonly<{
   selection?: ChartSelectionBinding<SeriesPointId>; crosshair?: ChartCrosshair; motion?: ChartMotion; labels?: 'auto' | 'off';
   viewport?: ChartViewportBinding<ChartCategoryWindow>;
 }>;
-export type MixedPointActivation<T = unknown> = Readonly<{ seriesId: string; kind: MixedSeries<T>['kind']; point: MixedPoint<T>; xKind: 'category'; source: 'pointer' | 'touch' | 'keyboard'; revision: number }>;
+export type MixedPointActivation<T = unknown> = Readonly<{ seriesId: string; type: MixedSeries<T>['type']; point: MixedPoint<T>; xKind: 'category'; source: 'pointer' | 'touch' | 'keyboard'; revision: number }>;
 export type MixedMountOptions<T = unknown> = Readonly<{ instanceId: string; initialState?: ChartState; onPointActivate?: (event: MixedPointActivation<T>) => void; onStateChange?: (event: ChartStateChange) => void; onSelectionChange?: (event: ChartSelectionChange<SeriesPointId>) => void; onViewportChange?: (event: ChartViewportChange<ChartCategoryWindow>) => void; onDiagnostic?: (diagnostic: ChartDiagnostic) => void }>;
 export type MixedSnapshot = LineSnapshot;
 export interface MixedController<T = unknown> {

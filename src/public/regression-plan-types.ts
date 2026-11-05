@@ -6,5 +6,5 @@ export type PlanRegressionModel=RegressionCounts&(
   | Readonly<{status:'ready';slope:number;intercept:number;rSquared:number|null;minX:number;maxX:number}>
   | Readonly<{status:'insufficient-data'|'constant-x'}>
 );
-export interface PlanRegressionValue{readonly kind:'sample'|'fit';readonly modelId:string;}
+export interface PlanRegressionValue{readonly type:'sample'|'fit';readonly modelId:string;}
 export interface PlanRegressionLayout{readonly method:'ordinary-least-squares';readonly models:readonly PlanRegressionModel[];}

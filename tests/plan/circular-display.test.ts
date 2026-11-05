@@ -9,8 +9,8 @@ describe('bounded circular display without changing source values',()=>{
  it.each(['pie','donut'] as const)('%s maps the supplied sweep and keeps original IDs, quantities and percentages',family=>{
   const spec=family==='pie'?pie:{...pie,family:'donut' as const,holeRatio:.6},f=frame(spec,{circular:{startAngle:-90,endAngle:90}});
   expect(f.observations.map(p=>p.value)).toEqual([1,3]);expect(f.observations.map(p=>p.percentage)).toEqual([25,75]);expect(f.observations.map(p=>p.id.pointId)).toEqual(['a','b']);
-  expect(f.circular).toMatchObject({style:'sectors',startAngle:-90,endAngle:90});const hits=f.observations.map(p=>p.hit);expect(hits[0]?.kind).toBe('sector');
-  if(hits[0]?.kind!=='sector'||hits[1]?.kind!=='sector')throw Error('Expected original sectors');expect(hits[0].start).toBeCloseTo(3*Math.PI/2);expect(hits[0].end-hits[0].start).toBeCloseTo(Math.PI/4);expect(hits[1].end).toBeCloseTo(5*Math.PI/2);expect(hits[0].end).toBe(hits[1].start);
+  expect(f.circular).toMatchObject({style:'sectors',startAngle:-90,endAngle:90});const hits=f.observations.map(p=>p.hit);expect(hits[0]?.type).toBe('sector');
+  if(hits[0]?.type!=='sector'||hits[1]?.type!=='sector')throw Error('Expected original sectors');expect(hits[0].start).toBeCloseTo(3*Math.PI/2);expect(hits[0].end-hits[0].start).toBeCloseTo(Math.PI/4);expect(hits[1].end).toBeCloseTo(5*Math.PI/2);expect(hits[0].end).toBe(hits[1].start);
   expect(f.circular!.bounds.height).toBeLessThan(f.circular!.bounds.width*.65);finiteDrawing(f);
  });
  it.each([{startAngle:0,endAngle:90},{startAngle:90,endAngle:450},{startAngle:270,endAngle:630},{startAngle:-360,endAngle:-359}])('fits a finite original arc for $startAngle to $endAngle',circular=>{
@@ -35,12 +35,12 @@ describe('bounded circular display without changing source values',()=>{
  });
  it('normalizes path starts for later sectors and bands crossing the angular seam',()=>{
   const f=frame({...pie,data:[{id:'a',label:'A',value:48},{id:'b',label:'B',value:32},{id:'c',label:'C',value:20}]},{width:300,height:280,circular:{startAngle:-90,endAngle:90}});
-  expect(f.observations).toHaveLength(3);expect(f.observations.at(-1)?.hit?.kind).toBe('sector');finiteDrawing(f);
+  expect(f.observations).toHaveLength(3);expect(f.observations.at(-1)?.hit?.type).toBe('sector');finiteDrawing(f);
   const dial=frame({...gauge,bands:[{id:'first',from:0,to:60,color:'#638A35'},{id:'last',from:85,to:100,color:'#CB536D'}]},{circular:{gaugeStyle:'needle'}});
   expect(dial.series.some(s=>s.id==='band:last')).toBe(true);finiteDrawing(dial);
  });
  it('needle geometry, ticks, bands and target share one true angular scale',()=>{
-  const f=frame(gauge,{circular:{gaugeStyle:'needle',tickCount:7}}),c=f.circular!;expect(c.style).toBe('needle-gauge');expect(c.domain).toEqual([0,100]);expect(c.valueState).toBe('within');expect(c.needle?.from).toBeCloseTo(3*Math.PI/2);expect(c.needle?.to).toBeCloseTo(3*Math.PI/2+Math.PI*.72);expect(f.observations[0]?.value).toBe(72);expect(f.series.find(s=>s.id==='reading')?.commands?.some(c=>c.kind==='Z')).toBe(true);expect(f.series.find(s=>s.id==='reading')?.circles?.[0]?.pointId).toBe('value');expect(c.ticks!.length).toBeGreaterThan(1);expect(c.ticks!.length).toBeLessThanOrEqual(16);expect(f.series.some(s=>s.id==='band:safe')).toBe(true);expect(f.series.some(s=>s.id==='target')).toBe(true);finiteDrawing(f);
+  const f=frame(gauge,{circular:{gaugeStyle:'needle',tickCount:7}}),c=f.circular!;expect(c.style).toBe('needle-gauge');expect(c.domain).toEqual([0,100]);expect(c.valueState).toBe('within');expect(c.needle?.from).toBeCloseTo(3*Math.PI/2);expect(c.needle?.to).toBeCloseTo(3*Math.PI/2+Math.PI*.72);expect(f.observations[0]?.value).toBe(72);expect(f.series.find(s=>s.id==='reading')?.commands?.some(c=>c.type==='Z')).toBe(true);expect(f.series.find(s=>s.id==='reading')?.circles?.[0]?.pointId).toBe('value');expect(c.ticks!.length).toBeGreaterThan(1);expect(c.ticks!.length).toBeLessThanOrEqual(16);expect(f.series.some(s=>s.id==='band:safe')).toBe(true);expect(f.series.some(s=>s.id==='target')).toBe(true);finiteDrawing(f);
  });
  it.each([{value:-20,state:'under',fraction:0},{value:0,state:'within',fraction:0},{value:150,state:'over',fraction:1}])('keeps original scalar $value while bounding only the needle',({value,state,fraction})=>{
   const f=frame({...gauge,value},{circular:{gaugeStyle:'needle'}});expect(f.observations[0]?.value).toBe(value);expect(f.circular?.valueState).toBe(state);expect(f.circular!.needle!.to!-f.circular!.needle!.from).toBeCloseTo(Math.PI*fraction);finiteDrawing(f);
@@ -52,7 +52,7 @@ describe('bounded circular display without changing source values',()=>{
   const f=frame({...gauge,preset:'ring'},{circular:{gaugeStyle:'needle',tickCount:12}});expect(f.circular?.ticks?.some(t=>t.value===100)).toBe(false);expect(f.circular?.ticks?.some(t=>t.value===0)).toBe(true);finiteDrawing(f);
  });
  it('custom solid gauge sweeps keep a genuine sector fill',()=>{
-  const f=frame(gauge,{circular:{startAngle:-135,endAngle:135,gaugeStyle:'solid'}});expect(f.circular?.style).toBe('solid-gauge');expect(f.circular?.needle).toBeUndefined();expect(f.series.find(s=>s.id==='reading')?.commands?.some(c=>c.kind==='A')).toBe(true);finiteDrawing(f);
+  const f=frame(gauge,{circular:{startAngle:-135,endAngle:135,gaugeStyle:'solid'}});expect(f.circular?.style).toBe('solid-gauge');expect(f.circular?.needle).toBeUndefined();expect(f.series.find(s=>s.id==='reading')?.commands?.some(c=>c.type==='A')).toBe(true);finiteDrawing(f);
  });
  it.each([[-360,720],[0,0],[1,0],[0,.5],[0,361],[361,400],[NaN,90]])('rejects the unusable sweep %s to %s',(startAngle,endAngle)=>{expect(planChart(pie,{width:320,height:300,circular:{startAngle,endAngle}}).status).toBe('invalid');});
  it.each([1,13,2.5,NaN])('rejects an unbounded or invalid needle tick count %s',tickCount=>{expect(planChart(gauge,{width:320,height:300,circular:{gaugeStyle:'needle',tickCount}}).status).toBe('invalid');});

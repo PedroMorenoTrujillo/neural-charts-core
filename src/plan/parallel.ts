@@ -20,11 +20,11 @@ export function planParallel(spec:PlanParallelSpec,options:PlanOptions):PlanResu
   const polar=spec.coordinates==='polar';if(polar&&spec.axes.length<3)return bad('POLAR_PARALLEL_REQUIRES_THREE_AXES','axes');
   const axisIds=new Set<string>();
   for(const [i,a]of spec.axes.entries()){
-    if(!a||typeof a!=='object'||Object.keys(a).some(k=>!['id','label','kind','unit','domain','reversed','nice','ticks'].includes(k))||a.kind!=='linear'||!text(a.id,128)||!a.id||axisIds.has(a.id)||a.label!==undefined&&!text(a.label,200)||a.unit!==undefined&&!text(a.unit,64)||a.reversed!==undefined&&typeof a.reversed!=='boolean'||a.nice!==undefined&&typeof a.nice!=='boolean')return bad('BAD_PARALLEL_AXIS','axes.'+i);
+    if(!a||typeof a!=='object'||Object.keys(a).some(k=>!['id','label','type','unit','domain','reversed','nice','ticks'].includes(k))||a.type!=='linear'||!text(a.id,128)||!a.id||axisIds.has(a.id)||a.label!==undefined&&!text(a.label,200)||a.unit!==undefined&&!text(a.unit,64)||a.reversed!==undefined&&typeof a.reversed!=='boolean'||a.nice!==undefined&&typeof a.nice!=='boolean')return bad('BAD_PARALLEL_AXIS','axes.'+i);
     if(a.ticks!==undefined&&(!a.ticks||typeof a.ticks!=='object'||Array.isArray(a.ticks)||Object.keys(a.ticks).some(k=>k!=='targetCount')))return bad('BAD_PARALLEL_TICKS','axes.'+i+'.ticks');
     axisIds.add(a.id);
   }
-  const checked=validateLine({family:'line',title:spec.title,...(spec.description===undefined?{}:{description:spec.description}),axes:{x:{kind:'category',values:spec.axes.map(a=>({id:a.id,...(a.label===undefined?{}:{label:a.label})}))},y:{kind:'linear'}},series:spec.series.map(s=>({...s,data:Array.isArray(s?.data)?s.data.map((p:PlanParallelPoint)=>({id:p?.id,x:p?.axisId,y:p?.value})):s?.data}))});if(checked.status==='invalid')return checked;
+  const checked=validateLine({family:'line',title:spec.title,...(spec.description===undefined?{}:{description:spec.description}),axes:{x:{type:'category',values:spec.axes.map(a=>({id:a.id,...(a.label===undefined?{}:{label:a.label})}))},y:{type:'linear'}},series:spec.series.map(s=>({...s,data:Array.isArray(s?.data)?s.data.map((p:PlanParallelPoint)=>({id:p?.id,x:p?.axisId,y:p?.value})):s?.data}))});if(checked.status==='invalid')return checked;
   for(const s of spec.series){
     if(Object.keys(s).some(k=>!['id','name','color','data'].includes(k)))return bad('BAD_PARALLEL_SERIES','series');
     if(s.data.some((p:PlanParallelPoint)=>Object.keys(p).some(k=>!['id','axisId','value'].includes(k))))return bad('BAD_PARALLEL_POINT','series.data');
@@ -49,7 +49,7 @@ export function planParallel(spec:PlanParallelSpec,options:PlanOptions):PlanResu
     const position=(fraction:number)=>({x:from.x+(to.x-from.x)*fraction,y:from.y+(to.y-from.y)*fraction});
     const ticks=tickPlan?.value.ticks.map(value=>({value,label:String(value),...position(map!(value)!)}))??[];
     axes.push({id:a.id,label:a.label??a.id,unit:a.unit??'',sourceCount:values.length,...(domain?{domain}:{}),from,to,labelAnchor,ticks});
-    commands.push({kind:'M',...from},{kind:'L',...to});
+    commands.push({type:'M',...from},{type:'L',...to});
   }
   const palette=defaultPalette('light',false).series,legend=source.map((s,i)=>({id:s.id,name:s.name,color:s.color??palette[i%palette.length]!,visible:!hidden.has(s.id)}));
   const series:PlanSeries[]=[],observations:PlanObservation[]=[];
@@ -57,11 +57,11 @@ export function planParallel(spec:PlanParallelSpec,options:PlanOptions):PlanResu
     if(hidden.has(s.id))continue;const color=legend[si]!.color;
     const points=axes.map((a,i)=>{const p=indexes[si]!.get(a.id),fraction=p?.value===null||p?.value===undefined?null:maps[i]?.(p.value)??null;if(fraction===null||!p||p.value===null)return null;
       const point={x:a.from.x+(a.to.x-a.from.x)*fraction,y:a.from.y+(a.to.y-a.from.y)*fraction};
-      observations.push({id:{seriesId:s.id,pointId:p.id},label:a.label,seriesName:s.name,value:p.value,color,...point,hit:{kind:'circle',cx:point.x,cy:point.y,radius:5},parallel:{axisId:a.id,axisLabel:a.label,unit:a.unit},group:{key:JSON.stringify(['parallel',a.id]),label:a.label,coordinate:i}});return {...point,pointId:p.id};
+      observations.push({id:{seriesId:s.id,pointId:p.id},label:a.label,seriesName:s.name,value:p.value,color,...point,hit:{type:'circle',cx:point.x,cy:point.y,radius:5},parallel:{axisId:a.id,axisLabel:a.label,unit:a.unit},group:{key:JSON.stringify(['parallel',a.id]),label:a.label,coordinate:i}});return {...point,pointId:p.id};
     });
     const path:PlanCommand[]=[];let connected=false;
-    for(const point of points){if(!point){connected=false;continue;}path.push({kind:connected?'L':'M',x:point.x,y:point.y});connected=true;}
-    if(polar&&points[0]&&points.at(-1))path.push({kind:'L',x:points[0].x,y:points[0].y});
+    for(const point of points){if(!point){connected=false;continue;}path.push({type:connected?'L':'M',x:point.x,y:point.y});connected=true;}
+    if(polar&&points[0]&&points.at(-1))path.push({type:'L',x:points[0].x,y:points[0].y});
     series.push({id:s.id,name:s.name,color,commands:path,circles:points.flatMap(p=>p?[{pointId:p.pointId,cx:p.x,cy:p.y,radius:3}]:[])});
   }
   const parallel:PlanParallelLayout={coordinates:polar?'polar':'cartesian',axes,commands};

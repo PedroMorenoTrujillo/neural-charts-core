@@ -90,11 +90,11 @@ function hasArea(vertices:readonly Vertex[]):boolean {
   let area=0;for(let i=0;i<vertices.length;i++){const a=vertices[i]!,b=vertices[(i+1)%vertices.length]!;area+=a.x*b.y-b.x*a.y;}
   return Math.abs(area)>1e-8;
 }
-const commands=(vertices:readonly Vertex[]):PlanCommand[]=>vertices.length?[...vertices.map((vertex,index)=>({kind:index?'L' as const:'M' as const,...vertex})),{kind:'Z'}]:[];
+const commands=(vertices:readonly Vertex[]):PlanCommand[]=>vertices.length?[...vertices.map((vertex,index)=>({type:index?'L' as const:'M' as const,...vertex})),{type:'Z'}]:[];
 
 function viewport(options:PlanOptions,plot:Plot){
   const config=options.viewport??{axes:'xy' as const};if(config.axes!=='xy')fail('options.viewport.axes','XY_VIEWPORT_REQUIRED');
-  const axes={x:{kind:'linear' as const,domain:[0,1] as const,nice:false},y:{kind:'linear' as const,domain:[0,1] as const,nice:false,reversed:true}},domains={x:[0,1] as const,y:[0,1] as const};
+  const axes={x:{type:'linear' as const,domain:[0,1] as const,nice:false},y:{type:'linear' as const,domain:[0,1] as const,nice:false,reversed:true}},domains={x:[0,1] as const,y:[0,1] as const};
   const prepared=preparePlanViewport(axes,domains,config);if(prepared.status==='invalid')throw new ValidationFailure(prepared.diagnostic);
   const displayed=withViewportDomains(domains,prepared.value),x=createLinearScale(displayed.x!,[plot.x,plot.x+plot.width],false),y=createLinearScale(displayed.y!,[plot.y,plot.y+plot.height],false);
   if(x.status==='invalid')throw new ValidationFailure(x.diagnostic);if(y.status==='invalid')throw new ValidationFailure(y.diagnostic);
@@ -184,7 +184,7 @@ export function planSankey(spec:PlanSankeySpec,options:PlanOptions):PlanResult {
         const center=point(view.map(orient((start+end)/2,(edge.fromCross+edge.toCross+thickness)/2)));
         // A clipped ribbon can remain visible while its original midpoint is outside.
         const anchor=center.x>=plot.x&&center.x<=plot.x+plot.width&&center.y>=plot.y&&center.y<=plot.y+plot.height?center:clipped[0]!;
-        observations.push({id:{seriesId:group.id,pointId:edge.id},label:edge.from.label+' → '+edge.to.label,seriesName:group.label,value:edge.value!,...anchor,color,...(geometryOmitted?{}:{hit:{kind:'polygon' as const,vertices:clipped}}),sankey:{kind:'link',from:edge.from.id,to:edge.to.id,fromLabel:edge.from.label,toLabel:edge.to.label,...(geometryOmitted?{geometryOmitted:true as const}:{})}});
+        observations.push({id:{seriesId:group.id,pointId:edge.id},label:edge.from.label+' → '+edge.to.label,seriesName:group.label,value:edge.value!,...anchor,color,...(geometryOmitted?{}:{hit:{type:'polygon' as const,vertices:clipped}}),sankey:{type:'link',from:edge.from.id,to:edge.to.id,fromLabel:edge.from.label,toLabel:edge.to.label,...(geometryOmitted?{geometryOmitted:true as const}:{})}});
       }
       for(const node of visible.filter(value=>value.groupId===group.id)){
         const first=view.map(orient(node.main,node.cross)),last=view.map(orient(node.main+nodeWidth,node.cross+node.length));
@@ -193,7 +193,7 @@ export function planSankey(spec:PlanSankeySpec,options:PlanOptions):PlanResult {
         const geometryOmitted=right<=x||bottom<=y;
         if(!geometryOmitted)bars.push({pointId:node.id,x,y,width:round(right-x),height:round(bottom-y)});
         const hit:Vertex[]=[{x,y},{x:right,y},{x:right,y:bottom},{x,y:bottom}];
-        observations.push({id:{seriesId:group.id,pointId:node.id},label:node.label,seriesName:group.label,value:node.value,x:round((x+right)/2),y:round((y+bottom)/2),color,...(geometryOmitted?{}:{hit:{kind:'polygon' as const,vertices:hit}}),sankey:{kind:'node',incoming:node.incomingValue,outgoing:node.outgoingValue,...(geometryOmitted?{geometryOmitted:true as const}:{})},...(node.incomplete?{incomplete:true}:{})});
+        observations.push({id:{seriesId:group.id,pointId:node.id},label:node.label,seriesName:group.label,value:node.value,x:round((x+right)/2),y:round((y+bottom)/2),color,...(geometryOmitted?{}:{hit:{type:'polygon' as const,vertices:hit}}),sankey:{type:'node',incoming:node.incomingValue,outgoing:node.outgoingValue,...(geometryOmitted?{geometryOmitted:true as const}:{})},...(node.incomplete?{incomplete:true}:{})});
         const labelWidth=Math.min(110,vertical?right-x:mainSize/Math.max(1,layers.length)-requestedWidth-10);
         if(labelWidth>=14&&bottom-y>=12){const labelX=vertical?(x+right)/2:node.layer===layers.length-1?Math.max(plot.x+labelWidth/2,x-labelWidth/2-4):Math.min(plot.x+plot.width-labelWidth/2,right+labelWidth/2+4);annotations.push({x:round(labelX),y:round((y+bottom)/2),text:shortLabel(node.label,labelWidth),role:'label',box:{width:labelWidth,height:16,seriesId:group.id}});}
       }

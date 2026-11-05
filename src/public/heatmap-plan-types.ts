@@ -1,7 +1,7 @@
 import type {PlanFrame,PlanObservation,PlanOptions,PlanResult} from './plan-types.js';
 import type {PlanColorAxisSpec,PlanColorAxisFrame,PlanValueColor} from './color-axis-types.js';
 export interface PlanHeatmapCategory {readonly id:string;readonly label?:string;}
-export interface PlanHeatmapAxis {readonly kind:'category';readonly values:readonly PlanHeatmapCategory[];readonly reversed?:boolean;}
+export interface PlanHeatmapAxis {readonly type:'category';readonly values:readonly PlanHeatmapCategory[];readonly reversed?:boolean;}
 export interface PlanHeatmapCell {readonly id:string;readonly rowId:string;readonly columnId:string;readonly value:number|null;}
 export interface PlanHeatmapSpec {
   readonly family:'heatmap';readonly title:string;readonly description?:string;readonly unit?:string;
@@ -10,7 +10,7 @@ export interface PlanHeatmapSpec {
   readonly data:readonly PlanHeatmapCell[];
   readonly gapRatio?:number;readonly opacity?:number;readonly colorAxis?:PlanColorAxisSpec;
 }
-export interface PlanHeatmapValue {readonly rowId:string;readonly columnId:string;readonly rowLabel:string;readonly columnLabel:string;readonly color:Exclude<PlanValueColor,{kind:'missing'}>;}
+export interface PlanHeatmapValue {readonly rowId:string;readonly columnId:string;readonly rowLabel:string;readonly columnLabel:string;readonly color:Exclude<PlanValueColor,{type:'missing'}>;}
 export interface PlanHeatmapSummary extends PlanHeatmapCell {readonly row:number;readonly column:number;readonly rowLabel:string;readonly columnLabel:string;readonly color:PlanValueColor;readonly painted:boolean;}
 /** Exact painted band extents, in original category order even on reversed axes. */
 export interface PlanHeatmapBand {readonly id:string;readonly index:number;readonly from:number;readonly to:number;}

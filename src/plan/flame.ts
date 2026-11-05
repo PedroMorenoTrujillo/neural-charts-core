@@ -34,7 +34,7 @@ export function planFlame(spec:PlanFlameSpec,options:PlanOptions):PlanResult{
     if(!Number.isFinite(self)||self< -tolerance)return bad('UNREPRESENTABLE_FLAME_DURATION','data['+span.index+']');
     roles.set(span.source.id,{...(span.source.parentId===undefined?{}:{parentId:span.source.parentId}),depth:span.depth!,childCount:span.children.length,selfDuration:Math.max(0,self)});
   }
-  const result=planXRange({family:'xrange',title:spec.title,...(spec.description===undefined?{}:{description:spec.description}),axes:{x:spec.axes.x,y:{kind:'category',values:spans.length?Array.from({length:maxDepth+1},(_,depth)=>({id:'depth-'+depth,label:String(depth)})):[]}},series:[{id:'profile',name:spec.title,data:spans.map(({source,depth})=>({id:source.id,label:source.label,rowId:'depth-'+depth,start:source.start,end:source.end}))}],grouping:'overlap',rowPadding:spec.rowPadding??.08},options);
+  const result=planXRange({family:'xrange',title:spec.title,...(spec.description===undefined?{}:{description:spec.description}),axes:{x:spec.axes.x,y:{type:'category',values:spans.length?Array.from({length:maxDepth+1},(_,depth)=>({id:'depth-'+depth,label:String(depth)})):[]}},series:[{id:'profile',name:spec.title,data:spans.map(({source,depth})=>({id:source.id,label:source.label,rowId:'depth-'+depth,start:source.start,end:source.end}))}],grouping:'overlap',rowPadding:spec.rowPadding??.08},options);
   if(result.status==='invalid')return result;
   return freezePlan({status:result.status,frame:{...result.frame,family:'flame',legend:[],flame:{maxDepth:spans.length?maxDepth:0,nodeCount:spans.length,rootCount:roots.length},observations:result.frame.observations.map(({group,...point})=>({...point,flame:roles.get(point.id.pointId)!}))}});
 }

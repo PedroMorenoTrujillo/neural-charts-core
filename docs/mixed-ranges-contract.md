@@ -7,12 +7,12 @@ import {planChart, type PlanMixedRangeSpec} from '@neural-charts/core/plan';
 
 const data = {
   family:'mixed',title:'Observed temperature and supplied limits',
-  axes:{x:{kind:'category',values:[{id:'mon'},{id:'tue'}]},y:{kind:'linear'}},
+  axes:{x:{type:'category',values:[{id:'mon'},{id:'tue'}]},y:{type:'linear'}},
   series:[
-    {id:'limits',name:'Supplied limits',kind:'arearange',data:[
+    {id:'limits',name:'Supplied limits',type:'arearange',data:[
       {id:'mon',x:'mon',low:10,high:30},{id:'tue',x:'tue',low:15,high:35},
     ]},
-    {id:'measured',name:'Measured',kind:'line',data:[
+    {id:'measured',name:'Measured',type:'line',data:[
       {id:'mon',x:'mon',y:20},{id:'tue',x:'tue',y:25},
     ]},
   ],

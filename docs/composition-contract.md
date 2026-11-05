@@ -35,15 +35,15 @@ import type {PlanMixedSpec} from '@neural-charts/core/plan';
 const source = {
   family:'mixed', title:'Volume and temperature',
   axes:{
-    x:{kind:'category', values:[{id:'mon'},{id:'tue'}]},
-    y:{kind:'linear', domain:[0,400]},
-    secondaryY:{kind:'linear', domain:[0,50]},
+    x:{type:'category', values:[{id:'mon'},{id:'tue'}]},
+    y:{type:'linear', domain:[0,400]},
+    secondaryY:{type:'linear', domain:[0,50]},
   },
   series:[
-    {id:'volume', name:'Volume', kind:'column', data:[
+    {id:'volume', name:'Volume', type:'column', data:[
       {id:'a',x:'mon',y:200},{id:'b',x:'tue',y:300},
     ]},
-    {id:'temperature', name:'Temperature', kind:'line', yAxis:'secondary', data:[
+    {id:'temperature', name:'Temperature', type:'line', yAxis:'secondary', data:[
       {id:'a',x:'mon',y:25},{id:'b',x:'tue',y:30},
     ]},
   ],

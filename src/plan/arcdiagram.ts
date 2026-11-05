@@ -27,16 +27,16 @@ export function planArcDiagram(spec:PlanArcDiagramSpec,options:PlanOptions):Plan
         // The two tapered sides are exact axis-aligned half ellipses. Keep
         // the bounded hit polygon, but never render its sample edges as ink.
         if(visible)areaCommands.push(
-          {kind:'M',...vertex(left,baseline)},
-          {kind:'A',radius:rx,radiusY:ry+thickness/2,largeArc:0,sweep:reversed?0:1,...vertex(right,baseline)},
-          {kind:'A',radius:rx,radiusY:ry-thickness/2,largeArc:0,sweep:reversed?1:0,...vertex(left,baseline)},
-          {kind:'Z'},
+          {type:'M',...vertex(left,baseline)},
+          {type:'A',radius:rx,radiusY:ry+thickness/2,largeArc:0,sweep:reversed?0:1,...vertex(right,baseline)},
+          {type:'A',radius:rx,radiusY:ry-thickness/2,largeArc:0,sweep:reversed?1:0,...vertex(left,baseline)},
+          {type:'Z'},
         );
-        observations.push({id:{seriesId:group.id,pointId:edge.id},label:edge.from.label+' ↔ '+edge.to.label,seriesName:group.label,value:edge.value,...vertex(cx,baseline+sign*ry),color:group.color,...(visible?{hit:{kind:'polygon' as const,vertices:shape}}:{}),relationship:{kind:'link',from:edge.from.id,to:edge.to.id,fromLabel:edge.from.label,toLabel:edge.to.label,directed:false,...(!visible?{geometryOmitted:true as const}:{})}});
+        observations.push({id:{seriesId:group.id,pointId:edge.id},label:edge.from.label+' ↔ '+edge.to.label,seriesName:group.label,value:edge.value,...vertex(cx,baseline+sign*ry),color:group.color,...(visible?{hit:{type:'polygon' as const,vertices:shape}}:{}),relationship:{type:'link',from:edge.from.id,to:edge.to.id,fromLabel:edge.from.label,toLabel:edge.to.label,directed:false,...(!visible?{geometryOmitted:true as const}:{})}});
       }
       for(const node of nodes.filter(node=>node.groupId===group.id)){
         const cx=positions.get(node.id)!,cy=baseline;circles.push({pointId:node.id,cx,cy,radius:nodeRadius});
-        observations.push({id:{seriesId:group.id,pointId:node.id},label:node.label,seriesName:group.label,value:node.incident,x:cx,y:cy,color:group.color,hit:{kind:'circle',cx,cy,radius:nodeRadius},relationship:{kind:'node',incoming:node.incoming,outgoing:node.outgoing,incident:node.incident},...(node.incomplete?{incomplete:true}:{})});
+        observations.push({id:{seriesId:group.id,pointId:node.id},label:node.label,seriesName:group.label,value:node.incident,x:cx,y:cy,color:group.color,hit:{type:'circle',cx,cy,radius:nodeRadius},relationship:{type:'node',incoming:node.incoming,outgoing:node.outgoing,incident:node.incident},...(node.incomplete?{incomplete:true}:{})});
         const labelWidth=Math.min(100,spacing*.9,cx*2,(width-cx)*2),labelY=cy-sign*(nodeRadius+12);if(labelWidth>=18&&labelY>=8&&labelY<=height-8)annotations.push({x:cx,y:labelY,text:shortLabel(node.label,labelWidth),role:'label',box:{width:labelWidth,height:16,seriesId:group.id}});
       }
       if(areaCommands.length||circles.length||observations.length>startCount)series.push({id:group.id,name:group.label,color:group.color,...(areaCommands.length?{areaCommands}:{}),...(circles.length?{circles}:{}),fill:true});

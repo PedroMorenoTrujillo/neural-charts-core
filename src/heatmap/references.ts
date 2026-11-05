@@ -32,5 +32,5 @@ export function heatmapReferencesScene(references: readonly HeatmapReference[] |
   const projected = references.flatMap<ReferenceInput>(reference => reference.axis === 'x' ? x.has(reference.value) ? [reference] : [] : y.has(reference.value) ? [{ ...reference, value: y.get(reference.value)! }] : []);
   const firstLabel = layers.labels.length;
   referenceScene(projected, plan, palette, layers, (text, width) => { const fitted = ellipsis(text, width, text => measurer.measure(text, plan.font, plan.direction)), metrics = measurer.measure(fitted ?? '', plan.font, plan.direction); return { text: fitted, width: metrics.width, height: metrics.height }; }, x);
-  for (const node of layers.labels.splice(firstLabel)) if (node.kind === 'text') referenceLabelScene(node, plan, palette, layers, measurer);
+  for (const node of layers.labels.splice(firstLabel)) if (node.type === 'text') referenceLabelScene(node, plan, palette, layers, measurer);
 }

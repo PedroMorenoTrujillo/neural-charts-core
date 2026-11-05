@@ -3,7 +3,7 @@ import {planChart,type PlanSpec,type PlanPictorialSpec,type PlanPictorialGlyphId
 import {pictorialExample,exampleIds} from '../fixtures/pictorial/examples.js';
 import {maximumSpec} from '../fixtures/pictorial/maximum.js';
 const size={width:390,height:360};
-const serialize=(commands:readonly PlanCommand[])=>commands.map(c=>c.kind==='Z'?'Z':c.kind==='M'||c.kind==='L'?`${c.kind}${c.x} ${c.y}`:(()=>{throw Error('Pictorial must emit only M/L/Z');})()).join('');
+const serialize=(commands:readonly PlanCommand[])=>commands.map(c=>c.type==='Z'?'Z':c.type==='M'||c.type==='L'?`${c.type}${c.x} ${c.y}`:(()=>{throw Error('Pictorial must emit only M/L/Z');})()).join('');
 
 for(const locale of ['en','es'] as const)for(const id of exampleIds)it(`dispatches the complete Pictorial ${locale}/${id} example through the public entry`,()=>{
   const {spec,options}=pictorialExample(id,locale),result=planChart(spec,options);
@@ -16,7 +16,7 @@ for(const locale of ['en','es'] as const)for(const id of exampleIds)it(`dispatch
 });
 
 it('lets Pictorial report its own percent/domain incompatibility through the public entry',()=>{
-  const example=pictorialExample('percent','en'),spec:PlanPictorialSpec={...example.spec,axes:{...example.spec.axes,y:{kind:'linear',domain:[0,100]}}};
+  const example=pictorialExample('percent','en'),spec:PlanPictorialSpec={...example.spec,axes:{...example.spec.axes,y:{type:'linear',domain:[0,100]}}};
   const result=planChart(spec,example.options);
   expect(result.status).toBe('invalid');
   if(result.status==='invalid')expect(result.diagnostic.reason).toBe('PERCENT_DOMAIN_UNSUPPORTED');
@@ -29,7 +29,7 @@ it('exposes typed background/fill/source roles and compound hit through the publ
   const glyph=result.frame.pictorialGlyphs![0]!,fill=result.frame.series[0]!.pictorialFills![0]!,observation=result.frame.observations[0]!;
   const id:PlanPictorialGlyphId=glyph.id,hit:PlanHitRegion=observation.hit!;
   expect(fill.glyphId).toBe(id);expect(observation.pictorial?.glyphId).toBe(id);
-  expect(hit.kind).toBe('compoundPolygon');expect(glyph.backgroundCommands.length).toBeGreaterThan(0);
+  expect(hit.type).toBe('compoundPolygon');expect(glyph.backgroundCommands.length).toBeGreaterThan(0);
   expect(Object.isFrozen(hit)).toBe(true);expect(Object.isFrozen(fill.commands[0])).toBe(true);
   expect(result.frame.pictorialData).toHaveLength(source.series.reduce((n,s)=>n+s.data.length,0));
 });
@@ -41,7 +41,7 @@ it('keeps maximum numeric paths inside explicit current Native transport charact
   expect(paths.every(p=>p.length<1_000_000)).toBe(true);expect(backgrounds.length).toBeLessThan(1_000_000);
   expect(paths.reduce((n,p)=>n+p.length,backgrounds.length)).toBeLessThan(2_000_000);
   expect(frame.observations).toHaveLength(64);expect(frame.pictorialData).toHaveLength(64);
-  const hits=frame.observations.map(o=>o.hit).filter((hit):hit is Extract<PlanHitRegion,{kind:'compoundPolygon'}>=>hit?.kind==='compoundPolygon');
+  const hits=frame.observations.map(o=>o.hit).filter((hit):hit is Extract<PlanHitRegion,{type:'compoundPolygon'}>=>hit?.type==='compoundPolygon');
   expect(hits.reduce((n,h)=>n+h.polygons.length,0)).toBeLessThanOrEqual(4096);
   expect(hits.every(h=>h.polygons.length<=64&&h.polygons.every(p=>p.length<=5))).toBe(true);
   // Numeric path budgets only: private Native data/scene adapters and mobile FPS remain separate gates.

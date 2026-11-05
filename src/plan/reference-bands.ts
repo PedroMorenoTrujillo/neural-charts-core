@@ -14,7 +14,7 @@ export function validatePlanReferenceBands(input:unknown,spec:PlanSpec):ChartRes
   if(input===undefined)return ok(undefined);
   if(spec.family!=='line'&&spec.family!=='area'&&spec.family!=='spline'&&spec.family!=='areaspline'&&spec.family!=='column'&&spec.family!=='mixed'&&spec.family!=='scatter'&&spec.family!=='bubble')return invalid('INVALID_CONFIG','UNSUPPORTED_REFERENCE_BANDS','options.referenceBands');
   if(!Array.isArray(input)||input.length>32)return invalid('INVALID_CONFIG','BAD_REFERENCE_BANDS','options.referenceBands');
-  const contract=(axis:AxisInput|undefined):ReferenceAxisContract=>axis?.kind==='category'?{kind:'category',ranks:new Map((Array.isArray(axis.values)?axis.values:[]).map((value,index)=>[value?.id,index]))}:{kind:axis?.kind==='time'?'time':'linear'};
+  const contract=(axis:AxisInput|undefined):ReferenceAxisContract=>axis?.type==='category'?{type:'category',ranks:new Map((Array.isArray(axis.values)?axis.values:[]).map((value,index)=>[value?.id,index]))}:{type:axis?.type==='time'?'time':'linear'};
   const axes={x:contract(spec.axes?.x),y:contract(spec.axes?.y)},ids=new Set<string>(),output:PlanReferenceBand[]=[];
   for(const [index,raw]of input.entries()){
     const path='options.referenceBands['+index+']';
@@ -42,7 +42,7 @@ function bandAxes(context:PlanReferenceContext):Readonly<{x:ReferenceBandAxis;y:
   const source=context.bandSourceAxes;
   if(!source)return undefined;
   const {plot}=context,empty={ticks:[],labels:[],interval:null,target:0};
-  const scopedX=source.x.kind==='category'?{...source.x,values:(source.x.values??[]).filter(value=>{
+  const scopedX=source.x.type==='category'?{...source.x,values:(source.x.values??[]).filter(value=>{
     if(context.categorySlot)return context.categorySlot(value.id)!==null;
     const coordinate=context.mapX?.(value.id);return coordinate!==undefined&&coordinate!==null&&coordinate>=plot.x&&coordinate<=plot.x+plot.width;
   })}:source.x;
@@ -51,11 +51,11 @@ function bandAxes(context:PlanReferenceContext):Readonly<{x:ReferenceBandAxis;y:
   // Horizontal bar maps retain logical X=category and Y=value. The category
   // owner supplies the real physical slot, including its configured gap.
   let x:ReferenceBandAxis;
-  if(source.x.kind==='category'){
+  if(source.x.type==='category'){
     const values=source.x.values??[],ranks=new Map(values.map((value,index)=>[value.id,index])),visible=values.flatMap((value,index)=>context.categorySlot?.(value.id)?[index]:[]);
-    x={kind:'category',dimension:context.horizontal?'y':'x',ranks,first:visible[0]??0,last:visible[visible.length-1]??-1,slot:rank=>{const id=values[rank]?.id;return id===undefined?null:context.categorySlot?.(id)??null;}};
-  }else x={kind:source.x.kind,dimension:context.horizontal?'y':'x',domain:context.domains.x,map:value=>context.mapX?.(value)??null};
-  return {x,y:{kind:source.y.kind==='time'?'time':'linear',dimension:context.horizontal?'x':'y',domain:context.domains.y,map:value=>context.mapY?.(value)??null}};
+    x={type:'category',dimension:context.horizontal?'y':'x',ranks,first:visible[0]??0,last:visible[visible.length-1]??-1,slot:rank=>{const id=values[rank]?.id;return id===undefined?null:context.categorySlot?.(id)??null;}};
+  }else x={type:source.x.type,dimension:context.horizontal?'y':'x',domain:context.domains.x,map:value=>context.mapX?.(value)??null};
+  return {x,y:{type:source.y.type==='time'?'time':'linear',dimension:context.horizontal?'x':'y',domain:context.domains.y,map:value=>context.mapY?.(value)??null}};
 }
 
 export function withPlanReferenceBands(frame:PlanFrame,bands:readonly PlanReferenceBand[]|undefined,context?:PlanReferenceContext):PlanFrame{
@@ -64,8 +64,8 @@ export function withPlanReferenceBands(frame:PlanFrame,bands:readonly PlanRefere
   const projected:readonly PlanProjectedReferenceBand[]=bands.map(band=>{
     if(!context||!axes)return {...band,status:'unavailable' as const};
     const secondary=band.axis==='y'&&band.valueAxis==='secondary';
-    const axis=secondary?context.secondaryY?{kind:'linear' as const,dimension:'y' as const,...context.secondaryY}:undefined:axes[band.axis];
-    if(!axis||axis.kind!=='category'&&!axis.domain)return {...band,status:'unavailable' as const};
+    const axis=secondary?context.secondaryY?{type:'linear' as const,dimension:'y' as const,...context.secondaryY}:undefined:axes[band.axis];
+    if(!axis||axis.type!=='category'&&!axis.domain)return {...band,status:'unavailable' as const};
     const checked=projectReferenceBands([band],context.plot,secondary?{...axes,y:axis}:axes);
     if(checked.status==='invalid')return {...band,status:'unavailable' as const};
     const box=checked.value[0]?.box;

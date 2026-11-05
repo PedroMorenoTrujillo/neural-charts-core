@@ -48,8 +48,8 @@ export interface PlanWordCloudPrepareOptions {
 export interface PlanWordCloudOptions extends PlanOptions {readonly wordcloudText?: PlanWordCloudTextInput;}
 export type PlanWordCloudNotDisplayedReason = 'hidden' | 'unknown' | 'zero' | 'budget' | 'noInk' | 'noSpace';
 export type PlanWordCloudDecision =
-  | Readonly<{kind: 'displayed'; fontSize: number; rotation: PlanWordCloudRotation}>
-  | Readonly<{kind: 'notDisplayed'; reason: PlanWordCloudNotDisplayedReason}>;
+  | Readonly<{type: 'displayed'; fontSize: number; rotation: PlanWordCloudRotation}>
+  | Readonly<{type: 'notDisplayed'; reason: PlanWordCloudNotDisplayedReason}>;
 export interface PlanWordCloudSourceValue {
   readonly id: Readonly<{seriesId: string; pointId: string}>;
   readonly text: string;
@@ -57,7 +57,7 @@ export interface PlanWordCloudSourceValue {
 }
 export interface PlanWordCloudSummary extends PlanWordCloudSourceValue {readonly decision: PlanWordCloudDecision;}
 export interface PlanWordCloudPreparedSummary extends PlanWordCloudSourceValue {
-  readonly decision: PlanWordCloudDecision | Readonly<{kind: 'measurementPending'; fontSize: number}>;
+  readonly decision: PlanWordCloudDecision | Readonly<{type: 'measurementPending'; fontSize: number}>;
 }
 export interface PlanWordCloudPreparation {
   readonly requests: readonly PlanWordCloudMeasurementRequest[];

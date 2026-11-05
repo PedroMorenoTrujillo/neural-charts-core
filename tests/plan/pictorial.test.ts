@@ -4,7 +4,7 @@ import {planPictorial} from '../../src/plan/pictorial.js';
 import type {PlanPictorialSpec,PlanPictorialOptions} from '../../src/plan.js';
 const size={width:360,height:320};
 function spec(values:readonly (readonly (number|null)[])[]=[[60,30],[40,20]]){
-  return{family:'pictorial',title:'Capacity',axes:{x:{kind:'category',values:[{id:'a',label:'A'},{id:'b',label:'B'}]},y:{kind:'linear' as const} as {kind:'linear';domain?:readonly [number,number]}},series:values.map((ys,i)=>({id:'s'+i,name:'Series '+i,data:ys.map((y,j)=>({id:'p'+j,x:j?'b':'a',y}))}))};
+  return{family:'pictorial',title:'Capacity',axes:{x:{type:'category',values:[{id:'a',label:'A'},{id:'b',label:'B'}]},y:{type:'linear' as const} as {type:'linear';domain?:readonly [number,number]}},series:values.map((ys,i)=>({id:'s'+i,name:'Series '+i,data:ys.map((y,j)=>({id:'p'+j,x:j?'b':'a',y}))}))};
 }
 function ok(source:unknown,options:unknown=size){const result=planPictorial(source as PlanPictorialSpec,options as PlanPictorialOptions);if(result.status==='invalid')throw Error(JSON.stringify(result));return result;}
 const invalid=(source:unknown,options:unknown=size,reason?:string)=>{const r=planPictorial(source,options);assert.equal(r.status,'invalid');if(r.status!=='invalid')throw Error('Expected invalid');if(reason)assert.equal(r.diagnostic.reason,reason);};
@@ -14,7 +14,7 @@ test('grouped, absolute and percent modes have real distinct fills and shared-st
   const sum=ok(spec(),{...size,stacking:'sum'}).frame;assert.equal(sum.pictorialGlyphs.length,2);assert.equal(sum.pictorialLayout.capacity,100);
   const a=sum.observations.filter(o=>o.pictorial.categoryId==='a');assert.equal(a[0]!.pictorial.high,a[1]!.pictorial.low);assert.equal(a[1]!.pictorial.high,1);assert.equal(a[0]!.pictorial.glyphId,a[1]!.pictorial.glyphId);
   const percent=ok(spec(),{...size,stacking:'percent'}).frame;assert.ok(Math.abs(percent.observations[0]!.percentage-60)<1e-10);assert.ok(Math.abs(percent.observations[1]!.percentage-40)<1e-10);assert.equal(percent.pictorialLayout.capacity,100);
-  assert.ok(sum.series.every(s=>s.pictorialFills.every(f=>f.commands.some(c=>c.kind==='Z'))));
+  assert.ok(sum.series.every(s=>s.pictorialFills.every(f=>f.commands.some(c=>c.type==='Z'))));
 });
 
 test('source capacity remains fixed when hiding a series, with restore equality',()=>{
@@ -77,8 +77,8 @@ test('only bounded summation roundoff can reach a declared capacity, without cha
 
 test('strict shape/options reject ignored or contradictory keys',()=>{
   invalid({...spec(),unexpected:true});invalid(spec(),{...size,viewport:{axes:'x'}});invalid(spec(),{...size,references:[]});invalid(spec(),{...size,wordcloudText:{}});
-  invalid({...spec(),pictorial:{shape:{kind:'preset',name:'person',mesh:{}}}});
-  invalid({...spec(),pictorial:{shape:{kind:'mesh',name:'person',mesh:{}}}});
+  invalid({...spec(),pictorial:{shape:{type:'preset',name:'person',mesh:{}}}});
+  invalid({...spec(),pictorial:{shape:{type:'mesh',name:'person',mesh:{}}}});
   invalid(spec(),{...size,hiddenSeriesIds:null});
   invalid({...spec(),pictorial:null});
 });
@@ -101,7 +101,7 @@ test('typed glyph identities preserve maximum quotes, backslashes and lone surro
   assert.equal(category.length,128);assert.equal(series.length,128);
   source.axes.x.values=[{id:category,label:'Opaque identity'}];source.series[0]!.id=series;source.series[0]!.data[0]!.x=category;
   const frame=ok(source).frame,glyph=frame.pictorialGlyphs[0]!;
-  assert.deepEqual(glyph.id,{kind:'grouped',categoryId:category,seriesId:series});
+  assert.deepEqual(glyph.id,{type:'grouped',categoryId:category,seriesId:series});
   assert.strictEqual(frame.series[0]!.pictorialFills[0]!.glyphId,glyph.id);
   assert.strictEqual(frame.observations[0]!.pictorial.glyphId,glyph.id);
   assert.equal(frame.observations[0]!.id.seriesId,series);

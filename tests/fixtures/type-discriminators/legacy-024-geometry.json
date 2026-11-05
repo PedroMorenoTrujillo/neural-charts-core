@@ -1,0 +1,2489 @@
+{
+  "baselineCommit": "ac64b2172a60665283cc5c3fa00ac21cbfcd3bd1",
+  "scope": "Actual pre-migration Core outputs with discriminator keys renamed; all other geometry, values and identities preserved.",
+  "cases": [
+    {
+      "id": "line-zero-missing-negative",
+      "spec": {
+        "family": "line",
+        "title": "Line",
+        "axes": {
+          "x": {
+            "type": "category",
+            "values": [
+              {
+                "id": "a",
+                "label": "A"
+              },
+              {
+                "id": "b",
+                "label": "B"
+              },
+              {
+                "id": "c",
+                "label": "C"
+              }
+            ]
+          },
+          "y": {
+            "type": "linear"
+          }
+        },
+        "series": [
+          {
+            "id": "source",
+            "name": "Source",
+            "data": [
+              {
+                "id": "a",
+                "x": "a",
+                "y": 0
+              },
+              {
+                "id": "b",
+                "x": "b",
+                "y": null
+              },
+              {
+                "id": "c",
+                "x": "c",
+                "y": -4
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "width": 390,
+        "height": 320
+      },
+      "result": {
+        "status": "ok",
+        "frame": {
+          "schema": "nc-plan/1",
+          "family": "line",
+          "width": 390,
+          "height": 320,
+          "title": "Line",
+          "description": "",
+          "unit": "",
+          "legend": [
+            {
+              "id": "source",
+              "name": "Source",
+              "color": "#255eb8",
+              "visible": true
+            }
+          ],
+          "series": [
+            {
+              "id": "source",
+              "name": "Source",
+              "color": "#255eb8",
+              "commands": []
+            }
+          ],
+          "observations": [
+            {
+              "id": {
+                "seriesId": "source",
+                "pointId": "a"
+              },
+              "label": "A",
+              "seriesName": "Source",
+              "value": 0,
+              "x": 75.66666666666666,
+              "y": 14,
+              "color": "#255eb8",
+              "group": {
+                "key": "[\"category\",\"a\"]",
+                "label": "A",
+                "coordinate": 75.66666666666666
+              }
+            },
+            {
+              "id": {
+                "seriesId": "source",
+                "pointId": "c"
+              },
+              "label": "C",
+              "seriesName": "Source",
+              "value": -4,
+              "x": 314.33333333333337,
+              "y": 306,
+              "color": "#255eb8",
+              "group": {
+                "key": "[\"category\",\"c\"]",
+                "label": "C",
+                "coordinate": 314.33333333333337
+              }
+            }
+          ],
+          "labels": [
+            {
+              "x": 75.66666666666666,
+              "label": "A"
+            },
+            {
+              "x": 195,
+              "label": "B"
+            },
+            {
+              "x": 314.33333333333337,
+              "label": "C"
+            }
+          ],
+          "grid": [
+            {
+              "y": 306,
+              "label": "-4",
+              "value": -4,
+              "type": "number"
+            },
+            {
+              "y": 233,
+              "label": "-3",
+              "value": -3,
+              "type": "number"
+            },
+            {
+              "y": 160,
+              "label": "-2",
+              "value": -2,
+              "type": "number"
+            },
+            {
+              "y": 87,
+              "label": "-1",
+              "value": -1,
+              "type": "number"
+            },
+            {
+              "y": 14,
+              "label": "0",
+              "value": 0,
+              "type": "number"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "mixed-lines-area-columns",
+      "spec": {
+        "family": "mixed",
+        "title": "Mixed",
+        "axes": {
+          "x": {
+            "type": "category",
+            "values": [
+              {
+                "id": "a",
+                "label": "A"
+              },
+              {
+                "id": "b",
+                "label": "B"
+              },
+              {
+                "id": "c",
+                "label": "C"
+              }
+            ]
+          },
+          "y": {
+            "type": "linear"
+          }
+        },
+        "series": [
+          {
+            "id": "line",
+            "name": "line",
+            "type": "line",
+            "data": [
+              {
+                "id": "a",
+                "x": "a",
+                "y": -1
+              },
+              {
+                "id": "b",
+                "x": "b",
+                "y": 0
+              },
+              {
+                "id": "c",
+                "x": "c",
+                "y": 1
+              }
+            ]
+          },
+          {
+            "id": "area",
+            "name": "area",
+            "type": "area",
+            "data": [
+              {
+                "id": "a",
+                "x": "a",
+                "y": -2
+              },
+              {
+                "id": "b",
+                "x": "b",
+                "y": 0
+              },
+              {
+                "id": "c",
+                "x": "c",
+                "y": 2
+              }
+            ]
+          },
+          {
+            "id": "column",
+            "name": "column",
+            "type": "column",
+            "data": [
+              {
+                "id": "a",
+                "x": "a",
+                "y": -3
+              },
+              {
+                "id": "b",
+                "x": "b",
+                "y": 0
+              },
+              {
+                "id": "c",
+                "x": "c",
+                "y": 3
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "width": 390,
+        "height": 320
+      },
+      "result": {
+        "status": "ok",
+        "frame": {
+          "schema": "nc-plan/1",
+          "family": "mixed",
+          "width": 390,
+          "height": 320,
+          "title": "Mixed",
+          "description": "",
+          "unit": "",
+          "legend": [
+            {
+              "id": "line",
+              "name": "line",
+              "color": "#255eb8",
+              "visible": true
+            },
+            {
+              "id": "area",
+              "name": "area",
+              "color": "#9a3b72",
+              "visible": true
+            },
+            {
+              "id": "column",
+              "name": "column",
+              "color": "#26715b",
+              "visible": true
+            }
+          ],
+          "series": [
+            {
+              "id": "area",
+              "name": "area",
+              "color": "#9a3b72",
+              "commands": [
+                {
+                  "type": "M",
+                  "x": 75.66666666666666,
+                  "y": 233
+                },
+                {
+                  "type": "L",
+                  "x": 195,
+                  "y": 160
+                },
+                {
+                  "type": "L",
+                  "x": 314.33333333333337,
+                  "y": 87
+                }
+              ],
+              "areaCommands": [
+                {
+                  "type": "M",
+                  "x": 75.66666666666666,
+                  "y": 233
+                },
+                {
+                  "type": "L",
+                  "x": 195,
+                  "y": 160
+                },
+                {
+                  "type": "L",
+                  "x": 314.33333333333337,
+                  "y": 87
+                },
+                {
+                  "type": "L",
+                  "x": 314.33333333333337,
+                  "y": 160
+                },
+                {
+                  "type": "L",
+                  "x": 75.66666666666666,
+                  "y": 160
+                },
+                {
+                  "type": "Z"
+                }
+              ]
+            },
+            {
+              "id": "column",
+              "name": "column",
+              "color": "#26715b",
+              "bars": [
+                {
+                  "pointId": "a",
+                  "x": 27.933333333333323,
+                  "y": 160,
+                  "width": 95.46666666666667,
+                  "height": 109.5
+                },
+                {
+                  "pointId": "b",
+                  "x": 147.26666666666665,
+                  "y": 160,
+                  "width": 95.46666666666667,
+                  "height": 0
+                },
+                {
+                  "pointId": "c",
+                  "x": 266.6,
+                  "y": 50.5,
+                  "width": 95.46666666666667,
+                  "height": 109.5
+                }
+              ]
+            },
+            {
+              "id": "line",
+              "name": "line",
+              "color": "#255eb8",
+              "commands": [
+                {
+                  "type": "M",
+                  "x": 75.66666666666666,
+                  "y": 196.5
+                },
+                {
+                  "type": "L",
+                  "x": 195,
+                  "y": 160
+                },
+                {
+                  "type": "L",
+                  "x": 314.33333333333337,
+                  "y": 123.5
+                }
+              ]
+            }
+          ],
+          "observations": [
+            {
+              "id": {
+                "seriesId": "line",
+                "pointId": "a"
+              },
+              "label": "A",
+              "seriesName": "line",
+              "value": -1,
+              "x": 75.66666666666666,
+              "y": 196.5,
+              "color": "#255eb8",
+              "group": {
+                "key": "[\"category\",\"a\"]",
+                "label": "A",
+                "coordinate": 75.66666666666666
+              }
+            },
+            {
+              "id": {
+                "seriesId": "line",
+                "pointId": "b"
+              },
+              "label": "B",
+              "seriesName": "line",
+              "value": 0,
+              "x": 195,
+              "y": 160,
+              "color": "#255eb8",
+              "group": {
+                "key": "[\"category\",\"b\"]",
+                "label": "B",
+                "coordinate": 195
+              }
+            },
+            {
+              "id": {
+                "seriesId": "line",
+                "pointId": "c"
+              },
+              "label": "C",
+              "seriesName": "line",
+              "value": 1,
+              "x": 314.33333333333337,
+              "y": 123.5,
+              "color": "#255eb8",
+              "group": {
+                "key": "[\"category\",\"c\"]",
+                "label": "C",
+                "coordinate": 314.33333333333337
+              }
+            },
+            {
+              "id": {
+                "seriesId": "area",
+                "pointId": "a"
+              },
+              "label": "A",
+              "seriesName": "area",
+              "value": -2,
+              "x": 75.66666666666666,
+              "y": 233,
+              "color": "#9a3b72",
+              "group": {
+                "key": "[\"category\",\"a\"]",
+                "label": "A",
+                "coordinate": 75.66666666666666
+              }
+            },
+            {
+              "id": {
+                "seriesId": "area",
+                "pointId": "b"
+              },
+              "label": "B",
+              "seriesName": "area",
+              "value": 0,
+              "x": 195,
+              "y": 160,
+              "color": "#9a3b72",
+              "group": {
+                "key": "[\"category\",\"b\"]",
+                "label": "B",
+                "coordinate": 195
+              }
+            },
+            {
+              "id": {
+                "seriesId": "area",
+                "pointId": "c"
+              },
+              "label": "C",
+              "seriesName": "area",
+              "value": 2,
+              "x": 314.33333333333337,
+              "y": 87,
+              "color": "#9a3b72",
+              "group": {
+                "key": "[\"category\",\"c\"]",
+                "label": "C",
+                "coordinate": 314.33333333333337
+              }
+            },
+            {
+              "id": {
+                "seriesId": "column",
+                "pointId": "a"
+              },
+              "label": "A",
+              "seriesName": "column",
+              "value": -3,
+              "x": 75.66666666666666,
+              "y": 269.5,
+              "color": "#26715b",
+              "group": {
+                "key": "[\"category\",\"a\"]",
+                "label": "A",
+                "coordinate": 75.66666666666666
+              }
+            },
+            {
+              "id": {
+                "seriesId": "column",
+                "pointId": "b"
+              },
+              "label": "B",
+              "seriesName": "column",
+              "value": 0,
+              "x": 195,
+              "y": 160,
+              "color": "#26715b",
+              "group": {
+                "key": "[\"category\",\"b\"]",
+                "label": "B",
+                "coordinate": 195
+              }
+            },
+            {
+              "id": {
+                "seriesId": "column",
+                "pointId": "c"
+              },
+              "label": "C",
+              "seriesName": "column",
+              "value": 3,
+              "x": 314.33333333333337,
+              "y": 50.5,
+              "color": "#26715b",
+              "group": {
+                "key": "[\"category\",\"c\"]",
+                "label": "C",
+                "coordinate": 314.33333333333337
+              }
+            }
+          ],
+          "labels": [
+            {
+              "x": 75.66666666666666,
+              "label": "A"
+            },
+            {
+              "x": 195,
+              "label": "B"
+            },
+            {
+              "x": 314.33333333333337,
+              "label": "C"
+            }
+          ],
+          "grid": [
+            {
+              "y": 306,
+              "label": "-4",
+              "value": -4,
+              "type": "number"
+            },
+            {
+              "y": 233,
+              "label": "-2",
+              "value": -2,
+              "type": "number"
+            },
+            {
+              "y": 160,
+              "label": "0",
+              "value": 0,
+              "type": "number"
+            },
+            {
+              "y": 87,
+              "label": "2",
+              "value": 2,
+              "type": "number"
+            },
+            {
+              "y": 14,
+              "label": "4",
+              "value": 4,
+              "type": "number"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "waterfall-checkpoints",
+      "spec": {
+        "family": "waterfall",
+        "title": "Flow",
+        "axes": {
+          "x": {
+            "type": "category",
+            "values": [
+              {
+                "id": "a",
+                "label": "A"
+              },
+              {
+                "id": "b",
+                "label": "B"
+              },
+              {
+                "id": "c",
+                "label": "C"
+              }
+            ]
+          },
+          "y": {
+            "type": "linear"
+          }
+        },
+        "series": [
+          {
+            "id": "cash",
+            "name": "Cash",
+            "data": [
+              {
+                "id": "a",
+                "x": "a",
+                "type": "delta",
+                "value": 12
+              },
+              {
+                "id": "b",
+                "x": "b",
+                "type": "delta",
+                "value": -3
+              },
+              {
+                "id": "c",
+                "x": "c",
+                "type": "total"
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "width": 390,
+        "height": 320
+      },
+      "result": {
+        "status": "ok",
+        "frame": {
+          "schema": "nc-plan/1",
+          "family": "waterfall",
+          "width": 390,
+          "height": 320,
+          "title": "Flow",
+          "description": "",
+          "unit": "",
+          "legend": [
+            {
+              "id": "cash",
+              "name": "Cash",
+              "color": "#2C6DCD",
+              "visible": true
+            }
+          ],
+          "series": [
+            {
+              "id": "cash",
+              "name": "Cash",
+              "color": "#2C6DCD",
+              "bars": [
+                {
+                  "pointId": "a",
+                  "x": 27.933333333333323,
+                  "y": 25.68000000000001,
+                  "width": 95.46666666666667,
+                  "height": 280.32
+                },
+                {
+                  "pointId": "b",
+                  "x": 147.26666666666665,
+                  "y": 25.68000000000001,
+                  "width": 95.46666666666667,
+                  "height": 70.08
+                },
+                {
+                  "pointId": "c",
+                  "x": 266.6,
+                  "y": 95.76,
+                  "width": 95.46666666666667,
+                  "height": 210.24
+                }
+              ],
+              "commands": [
+                {
+                  "type": "M",
+                  "x": 123.39999999999999,
+                  "y": 25.68000000000001
+                },
+                {
+                  "type": "L",
+                  "x": 147.26666666666665,
+                  "y": 25.68000000000001
+                },
+                {
+                  "type": "M",
+                  "x": 242.73333333333332,
+                  "y": 95.76
+                },
+                {
+                  "type": "L",
+                  "x": 266.6,
+                  "y": 95.76
+                }
+              ]
+            }
+          ],
+          "observations": [
+            {
+              "id": {
+                "seriesId": "cash",
+                "pointId": "a"
+              },
+              "label": "A",
+              "seriesName": "Cash",
+              "value": 12,
+              "x": 75.66666666666666,
+              "y": 25.68000000000001,
+              "color": "#2F8C5A"
+            },
+            {
+              "id": {
+                "seriesId": "cash",
+                "pointId": "b"
+              },
+              "label": "B",
+              "seriesName": "Cash",
+              "value": -3,
+              "x": 195,
+              "y": 95.76,
+              "color": "#CC4F55"
+            },
+            {
+              "id": {
+                "seriesId": "cash",
+                "pointId": "c"
+              },
+              "label": "C",
+              "seriesName": "Cash",
+              "value": 9,
+              "x": 314.33333333333337,
+              "y": 95.76,
+              "color": "#2C6DCD",
+              "computedKind": "total"
+            }
+          ],
+          "grid": [
+            {
+              "y": 306,
+              "label": "0",
+              "value": 0,
+              "type": "number"
+            },
+            {
+              "y": 247.60000000000002,
+              "label": "2.5",
+              "value": 2.5,
+              "type": "number"
+            },
+            {
+              "y": 189.2,
+              "label": "5",
+              "value": 5,
+              "type": "number"
+            },
+            {
+              "y": 130.8,
+              "label": "7.5",
+              "value": 7.5,
+              "type": "number"
+            },
+            {
+              "y": 72.39999999999999,
+              "label": "10",
+              "value": 10,
+              "type": "number"
+            },
+            {
+              "y": 14,
+              "label": "12.5",
+              "value": 12.5,
+              "type": "number"
+            }
+          ],
+          "labels": [
+            {
+              "x": 75.66666666666666,
+              "label": "A"
+            },
+            {
+              "x": 195,
+              "label": "B"
+            },
+            {
+              "x": 314.33333333333337,
+              "label": "C"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "heatmap-colour-classes",
+      "spec": {
+        "family": "heatmap",
+        "title": "Cells",
+        "axes": {
+          "x": {
+            "type": "category",
+            "values": [
+              {
+                "id": "a"
+              },
+              {
+                "id": "b"
+              }
+            ]
+          },
+          "y": {
+            "type": "category",
+            "values": [
+              {
+                "id": "row"
+              }
+            ]
+          }
+        },
+        "data": [
+          {
+            "id": "zero",
+            "columnId": "a",
+            "rowId": "row",
+            "value": 0
+          },
+          {
+            "id": "missing",
+            "columnId": "b",
+            "rowId": "row",
+            "value": null
+          }
+        ],
+        "colorAxis": {
+          "type": "classes",
+          "classes": [
+            {
+              "id": "nonnegative",
+              "label": "Non-negative",
+              "minInclusive": 0,
+              "color": "#669933"
+            }
+          ],
+          "missingColor": "#cccccc",
+          "unclassifiedColor": "#aaaaaa"
+        }
+      },
+      "options": {
+        "width": 390,
+        "height": 320
+      },
+      "result": {
+        "status": "ok",
+        "frame": {
+          "schema": "nc-plan/1",
+          "family": "heatmap",
+          "title": "Cells",
+          "description": "",
+          "unit": "",
+          "width": 390,
+          "height": 320,
+          "legend": [],
+          "series": [
+            {
+              "id": "cells",
+              "name": "Cells",
+              "color": "#245DC1",
+              "cells": [
+                {
+                  "pointId": "zero",
+                  "color": "#669933",
+                  "opacity": 1,
+                  "geometry": {
+                    "type": "polygon",
+                    "vertices": [
+                      {
+                        "x": 3.9000000000000057,
+                        "y": 6.400000000000006
+                      },
+                      {
+                        "x": 191.1,
+                        "y": 6.400000000000006
+                      },
+                      {
+                        "x": 191.1,
+                        "y": 313.6
+                      },
+                      {
+                        "x": 3.9000000000000057,
+                        "y": 313.6
+                      }
+                    ]
+                  }
+                },
+                {
+                  "pointId": "missing",
+                  "color": "#cccccc",
+                  "opacity": 1,
+                  "geometry": {
+                    "type": "polygon",
+                    "vertices": [
+                      {
+                        "x": 198.9,
+                        "y": 6.400000000000006
+                      },
+                      {
+                        "x": 386.1,
+                        "y": 6.400000000000006
+                      },
+                      {
+                        "x": 386.1,
+                        "y": 313.6
+                      },
+                      {
+                        "x": 198.9,
+                        "y": 313.6
+                      }
+                    ]
+                  }
+                }
+              ]
+            }
+          ],
+          "observations": [
+            {
+              "id": {
+                "seriesId": "cells",
+                "pointId": "zero"
+              },
+              "label": "a · row",
+              "seriesName": "Cells",
+              "value": 0,
+              "x": 97.5,
+              "y": 160,
+              "color": "#669933",
+              "hit": {
+                "type": "polygon",
+                "vertices": [
+                  {
+                    "x": 3.9000000000000057,
+                    "y": 6.400000000000006
+                  },
+                  {
+                    "x": 191.1,
+                    "y": 6.400000000000006
+                  },
+                  {
+                    "x": 191.1,
+                    "y": 313.6
+                  },
+                  {
+                    "x": 3.9000000000000057,
+                    "y": 313.6
+                  }
+                ]
+              },
+              "heatmap": {
+                "rowId": "row",
+                "columnId": "a",
+                "rowLabel": "row",
+                "columnLabel": "a",
+                "color": {
+                  "type": "class",
+                  "value": 0,
+                  "classId": "nonnegative",
+                  "color": "#669933"
+                }
+              }
+            }
+          ],
+          "annotations": [
+            {
+              "x": 97.5,
+              "y": 160,
+              "text": "0",
+              "role": "value",
+              "box": {
+                "width": 187.2,
+                "height": 307.2,
+                "seriesId": "cells"
+              }
+            }
+          ],
+          "grid": [],
+          "labels": [
+            {
+              "x": 97.5,
+              "label": "a"
+            },
+            {
+              "x": 292.5,
+              "label": "b"
+            }
+          ],
+          "yLabels": [
+            {
+              "id": "row",
+              "y": 160,
+              "label": "row"
+            }
+          ],
+          "colorAxis": {
+            "type": "classes",
+            "classes": [
+              {
+                "id": "nonnegative",
+                "label": "Non-negative",
+                "color": "#669933",
+                "minInclusive": 0
+              }
+            ],
+            "missingColor": "#cccccc",
+            "unclassifiedColor": "#aaaaaa"
+          },
+          "heatmapData": [
+            {
+              "id": "zero",
+              "rowId": "row",
+              "columnId": "a",
+              "value": 0,
+              "row": 0,
+              "column": 0,
+              "rowLabel": "row",
+              "columnLabel": "a",
+              "color": {
+                "type": "class",
+                "value": 0,
+                "classId": "nonnegative",
+                "color": "#669933"
+              },
+              "painted": true
+            },
+            {
+              "id": "missing",
+              "rowId": "row",
+              "columnId": "b",
+              "value": null,
+              "row": 0,
+              "column": 1,
+              "rowLabel": "row",
+              "columnLabel": "b",
+              "color": {
+                "type": "missing",
+                "color": "#cccccc"
+              },
+              "painted": true
+            }
+          ],
+          "heatmapLayout": {
+            "status": "ready",
+            "rowCount": 1,
+            "columnCount": 2,
+            "sourceCount": 2,
+            "knownCount": 1,
+            "missingCount": 1,
+            "absentCount": 0,
+            "paintedCellCount": 2,
+            "gapRatio": 0.04,
+            "opacity": 1,
+            "rows": [
+              {
+                "id": "row",
+                "index": 0,
+                "from": 6.400000000000006,
+                "to": 313.6
+              }
+            ],
+            "columns": [
+              {
+                "id": "a",
+                "index": 0,
+                "from": 3.9000000000000057,
+                "to": 191.1
+              },
+              {
+                "id": "b",
+                "index": 1,
+                "from": 198.9,
+                "to": 386.1
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "tilemap-circle-colours",
+      "spec": {
+        "family": "tilemap",
+        "title": "Tiles",
+        "tileShape": "circle",
+        "series": [
+          {
+            "id": "s",
+            "name": "Tiles",
+            "data": [
+              {
+                "id": "a",
+                "x": 0,
+                "y": 0,
+                "value": 0
+              },
+              {
+                "id": "b",
+                "x": 1,
+                "y": 0,
+                "value": -4
+              },
+              {
+                "id": "c",
+                "x": 2,
+                "y": 0,
+                "value": null
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "width": 390,
+        "height": 320
+      },
+      "result": {
+        "status": "ok",
+        "frame": {
+          "schema": "nc-plan/1",
+          "family": "tilemap",
+          "title": "Tiles",
+          "description": "",
+          "unit": "",
+          "width": 390,
+          "height": 320,
+          "legend": [
+            {
+              "id": "s",
+              "name": "Tiles",
+              "color": "#245DC1",
+              "visible": true
+            }
+          ],
+          "series": [
+            {
+              "id": "s",
+              "name": "Tiles",
+              "color": "#245DC1",
+              "cells": [
+                {
+                  "pointId": "a",
+                  "color": "#245DC1",
+                  "opacity": 1,
+                  "geometry": {
+                    "type": "circle",
+                    "cx": 71.37495373796554,
+                    "cy": 124.31252313101723,
+                    "radius": 70.37495373796554
+                  }
+                },
+                {
+                  "pointId": "b",
+                  "color": "#E8F0FE",
+                  "opacity": 1,
+                  "geometry": {
+                    "type": "circle",
+                    "cx": 195,
+                    "cy": 195.68747686898277,
+                    "radius": 70.37495373796554
+                  }
+                },
+                {
+                  "pointId": "c",
+                  "color": "#CBD5E1",
+                  "opacity": 1,
+                  "geometry": {
+                    "type": "circle",
+                    "cx": 318.62504626203446,
+                    "cy": 124.31252313101723,
+                    "radius": 70.37495373796554
+                  }
+                }
+              ]
+            }
+          ],
+          "observations": [
+            {
+              "id": {
+                "seriesId": "s",
+                "pointId": "a"
+              },
+              "label": "0, 0",
+              "seriesName": "Tiles",
+              "value": 0,
+              "x": 71.37495373796554,
+              "y": 124.31252313101723,
+              "color": "#245DC1",
+              "hit": {
+                "type": "circle",
+                "cx": 71.37495373796554,
+                "cy": 124.31252313101723,
+                "radius": 70.37495373796554
+              },
+              "tilemap": {
+                "sourceX": 0,
+                "sourceY": 0,
+                "color": {
+                  "type": "continuous",
+                  "value": 0,
+                  "ratio": 1,
+                  "clamped": false,
+                  "color": "#245DC1"
+                }
+              }
+            },
+            {
+              "id": {
+                "seriesId": "s",
+                "pointId": "b"
+              },
+              "label": "1, 0",
+              "seriesName": "Tiles",
+              "value": -4,
+              "x": 195,
+              "y": 195.68747686898277,
+              "color": "#E8F0FE",
+              "hit": {
+                "type": "circle",
+                "cx": 195,
+                "cy": 195.68747686898277,
+                "radius": 70.37495373796554
+              },
+              "tilemap": {
+                "sourceX": 1,
+                "sourceY": 0,
+                "color": {
+                  "type": "continuous",
+                  "value": -4,
+                  "ratio": 0,
+                  "clamped": false,
+                  "color": "#E8F0FE"
+                }
+              }
+            }
+          ],
+          "grid": [],
+          "labels": [],
+          "colorAxis": {
+            "type": "continuous",
+            "domain": [
+              -4,
+              0
+            ],
+            "domainSource": "source",
+            "stops": [
+              {
+                "at": 0,
+                "color": "#E8F0FE"
+              },
+              {
+                "at": 1,
+                "color": "#245DC1"
+              }
+            ],
+            "missingColor": "#CBD5E1"
+          },
+          "tilemapData": [
+            {
+              "id": {
+                "seriesId": "s",
+                "pointId": "a"
+              },
+              "x": 0,
+              "y": 0,
+              "value": 0,
+              "visible": true,
+              "geometryDecision": "painted",
+              "color": {
+                "type": "continuous",
+                "value": 0,
+                "ratio": 1,
+                "clamped": false,
+                "color": "#245DC1"
+              },
+              "observed": true
+            },
+            {
+              "id": {
+                "seriesId": "s",
+                "pointId": "b"
+              },
+              "x": 1,
+              "y": 0,
+              "value": -4,
+              "visible": true,
+              "geometryDecision": "painted",
+              "color": {
+                "type": "continuous",
+                "value": -4,
+                "ratio": 0,
+                "clamped": false,
+                "color": "#E8F0FE"
+              },
+              "observed": true
+            },
+            {
+              "id": {
+                "seriesId": "s",
+                "pointId": "c"
+              },
+              "x": 2,
+              "y": 0,
+              "value": null,
+              "visible": true,
+              "geometryDecision": "painted",
+              "color": {
+                "type": "missing",
+                "color": "#CBD5E1"
+              },
+              "observed": false
+            }
+          ],
+          "tilemapLayout": {
+            "status": "ready",
+            "shape": "circle",
+            "sourceCount": 3,
+            "knownCount": 2,
+            "missingCount": 1,
+            "paintedCellCount": 3,
+            "observedCellCount": 2,
+            "omittedCellCount": 0,
+            "scale": 71.37495373796554,
+            "bounds": {
+              "x": 0,
+              "y": 52.93756939305169,
+              "width": 390,
+              "height": 214.12486121389662
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "regression-samples-and-fit",
+      "spec": {
+        "family": "regression",
+        "title": "Fit",
+        "axes": {
+          "x": {
+            "type": "linear"
+          },
+          "y": {
+            "type": "linear"
+          }
+        },
+        "series": [
+          {
+            "id": "s",
+            "name": "S",
+            "data": [
+              {
+                "id": "a",
+                "x": 1,
+                "y": 3
+              },
+              {
+                "id": "b",
+                "x": 2,
+                "y": 5
+              },
+              {
+                "id": "c",
+                "x": 3,
+                "y": 7
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "width": 390,
+        "height": 320
+      },
+      "result": {
+        "status": "ok",
+        "frame": {
+          "schema": "nc-plan/1",
+          "family": "regression",
+          "width": 390,
+          "height": 320,
+          "title": "Fit",
+          "description": "",
+          "unit": "",
+          "legend": [
+            {
+              "id": "s",
+              "name": "S",
+              "color": "#255eb8",
+              "visible": true
+            },
+            {
+              "id": "ols:s",
+              "name": "OLS · S",
+              "color": "#9a3b72",
+              "visible": true
+            }
+          ],
+          "series": [
+            {
+              "id": "s",
+              "name": "S",
+              "color": "#255eb8",
+              "circles": [
+                {
+                  "pointId": "a",
+                  "cx": 48,
+                  "cy": 272,
+                  "radius": 3
+                },
+                {
+                  "pointId": "b",
+                  "cx": 195,
+                  "cy": 160,
+                  "radius": 3
+                },
+                {
+                  "pointId": "c",
+                  "cx": 342,
+                  "cy": 48,
+                  "radius": 3
+                }
+              ]
+            },
+            {
+              "id": "ols:s",
+              "name": "OLS · S",
+              "color": "#9a3b72",
+              "commands": [
+                {
+                  "type": "M",
+                  "x": 48,
+                  "y": 272
+                },
+                {
+                  "type": "L",
+                  "x": 342,
+                  "y": 48
+                }
+              ]
+            }
+          ],
+          "observations": [
+            {
+              "id": {
+                "seriesId": "s",
+                "pointId": "a"
+              },
+              "label": "a",
+              "seriesName": "S",
+              "value": 3,
+              "x": 48,
+              "y": 272,
+              "color": "#255eb8",
+              "xValue": 1,
+              "hit": {
+                "type": "circle",
+                "cx": 48,
+                "cy": 272,
+                "radius": 3
+              },
+              "regression": {
+                "type": "sample",
+                "modelId": "s"
+              }
+            },
+            {
+              "id": {
+                "seriesId": "s",
+                "pointId": "b"
+              },
+              "label": "b",
+              "seriesName": "S",
+              "value": 5,
+              "x": 195,
+              "y": 160,
+              "color": "#255eb8",
+              "xValue": 2,
+              "hit": {
+                "type": "circle",
+                "cx": 195,
+                "cy": 160,
+                "radius": 3
+              },
+              "regression": {
+                "type": "sample",
+                "modelId": "s"
+              }
+            },
+            {
+              "id": {
+                "seriesId": "s",
+                "pointId": "c"
+              },
+              "label": "c",
+              "seriesName": "S",
+              "value": 7,
+              "x": 342,
+              "y": 48,
+              "color": "#255eb8",
+              "xValue": 3,
+              "hit": {
+                "type": "circle",
+                "cx": 342,
+                "cy": 48,
+                "radius": 3
+              },
+              "regression": {
+                "type": "sample",
+                "modelId": "s"
+              }
+            },
+            {
+              "id": {
+                "seriesId": "ols:s",
+                "pointId": "start"
+              },
+              "label": "OLS · S",
+              "seriesName": "OLS · S",
+              "value": 3,
+              "xValue": 1,
+              "x": 48,
+              "y": 272,
+              "color": "#9a3b72",
+              "regression": {
+                "type": "fit",
+                "modelId": "s"
+              },
+              "hit": {
+                "type": "polygon",
+                "vertices": [
+                  {
+                    "x": 55.27251858315427,
+                    "y": 281.54518064038996
+                  },
+                  {
+                    "x": 349.2725185831543,
+                    "y": 57.54518064038999
+                  },
+                  {
+                    "x": 334.7274814168457,
+                    "y": 38.45481935961001
+                  },
+                  {
+                    "x": 40.72748141684573,
+                    "y": 262.45481935961004
+                  }
+                ]
+              }
+            },
+            {
+              "id": {
+                "seriesId": "ols:s",
+                "pointId": "end"
+              },
+              "label": "OLS · S",
+              "seriesName": "OLS · S",
+              "value": 7,
+              "xValue": 3,
+              "x": 342,
+              "y": 48,
+              "color": "#9a3b72",
+              "regression": {
+                "type": "fit",
+                "modelId": "s"
+              },
+              "hit": {
+                "type": "polygon",
+                "vertices": [
+                  {
+                    "x": 55.27251858315427,
+                    "y": 281.54518064038996
+                  },
+                  {
+                    "x": 349.2725185831543,
+                    "y": 57.54518064038999
+                  },
+                  {
+                    "x": 334.7274814168457,
+                    "y": 38.45481935961001
+                  },
+                  {
+                    "x": 40.72748141684573,
+                    "y": 262.45481935961004
+                  }
+                ]
+              }
+            }
+          ],
+          "labels": [
+            {
+              "x": 48,
+              "label": "1",
+              "value": 1,
+              "type": "number"
+            },
+            {
+              "x": 121.5,
+              "label": "1.5",
+              "value": 1.5,
+              "type": "number"
+            },
+            {
+              "x": 195,
+              "label": "2",
+              "value": 2,
+              "type": "number"
+            },
+            {
+              "x": 268.5,
+              "label": "2.5",
+              "value": 2.5,
+              "type": "number"
+            },
+            {
+              "x": 342,
+              "label": "3",
+              "value": 3,
+              "type": "number"
+            }
+          ],
+          "grid": [
+            {
+              "y": 272,
+              "label": "3",
+              "value": 3,
+              "type": "number"
+            },
+            {
+              "y": 216,
+              "label": "4",
+              "value": 4,
+              "type": "number"
+            },
+            {
+              "y": 160,
+              "label": "5",
+              "value": 5,
+              "type": "number"
+            },
+            {
+              "y": 104,
+              "label": "6",
+              "value": 6,
+              "type": "number"
+            },
+            {
+              "y": 48,
+              "label": "7",
+              "value": 7,
+              "type": "number"
+            }
+          ],
+          "regression": {
+            "method": "ordinary-least-squares",
+            "models": [
+              {
+                "sourceSeriesId": "s",
+                "fitSeriesId": "ols:s",
+                "sampleCount": 3,
+                "missingCount": 0,
+                "status": "ready",
+                "slope": 2,
+                "intercept": 1,
+                "rSquared": 1,
+                "minX": 1,
+                "maxX": 3
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "fan-estimates-and-intervals",
+      "spec": {
+        "family": "fan",
+        "title": "Fan",
+        "axes": {
+          "x": {
+            "type": "linear"
+          },
+          "y": {
+            "type": "linear"
+          }
+        },
+        "bands": [
+          {
+            "id": "inner",
+            "label": "50%",
+            "coverage": 0.5
+          }
+        ],
+        "data": [
+          {
+            "id": "a",
+            "x": 1,
+            "value": 12,
+            "intervals": [
+              {
+                "bandId": "inner",
+                "low": 10,
+                "high": 14
+              }
+            ]
+          },
+          {
+            "id": "b",
+            "x": 2,
+            "value": 16,
+            "intervals": [
+              {
+                "bandId": "inner",
+                "low": 12,
+                "high": 20
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "width": 390,
+        "height": 320
+      },
+      "result": {
+        "status": "ok",
+        "frame": {
+          "schema": "nc-plan/1",
+          "family": "fan",
+          "title": "Fan",
+          "description": "",
+          "unit": "",
+          "width": 390,
+          "height": 320,
+          "legend": [
+            {
+              "id": "center",
+              "name": "Fan",
+              "color": "#255eb8",
+              "visible": true
+            },
+            {
+              "id": "inner",
+              "name": "50%",
+              "color": "#255eb8",
+              "visible": true
+            }
+          ],
+          "series": [
+            {
+              "id": "inner",
+              "name": "50%",
+              "color": "#255eb8",
+              "commands": [
+                {
+                  "type": "M",
+                  "x": 16,
+                  "y": 189.2
+                },
+                {
+                  "type": "L",
+                  "x": 374,
+                  "y": 14
+                },
+                {
+                  "type": "M",
+                  "x": 16,
+                  "y": 306
+                },
+                {
+                  "type": "L",
+                  "x": 374,
+                  "y": 247.60000000000002
+                }
+              ],
+              "areaCommands": [
+                {
+                  "type": "M",
+                  "x": 16,
+                  "y": 189.2
+                },
+                {
+                  "type": "L",
+                  "x": 374,
+                  "y": 14
+                },
+                {
+                  "type": "L",
+                  "x": 374,
+                  "y": 247.60000000000002
+                },
+                {
+                  "type": "L",
+                  "x": 16,
+                  "y": 306
+                },
+                {
+                  "type": "Z"
+                }
+              ]
+            },
+            {
+              "id": "center",
+              "name": "Fan",
+              "color": "#255eb8",
+              "commands": [
+                {
+                  "type": "M",
+                  "x": 16,
+                  "y": 247.60000000000002
+                },
+                {
+                  "type": "L",
+                  "x": 374,
+                  "y": 130.8
+                }
+              ],
+              "circles": [
+                {
+                  "pointId": "a",
+                  "cx": 16,
+                  "cy": 247.60000000000002,
+                  "radius": 3
+                },
+                {
+                  "pointId": "b",
+                  "cx": 374,
+                  "cy": 130.8,
+                  "radius": 3
+                }
+              ]
+            }
+          ],
+          "observations": [
+            {
+              "id": {
+                "seriesId": "center",
+                "pointId": "a"
+              },
+              "label": "1",
+              "seriesName": "Fan",
+              "value": 12,
+              "x": 16,
+              "y": 247.60000000000002,
+              "color": "#255eb8",
+              "xValue": 1,
+              "group": {
+                "key": "[\"linear\",1]",
+                "label": "1",
+                "coordinate": 16
+              },
+              "fan": {
+                "type": "center"
+              }
+            },
+            {
+              "id": {
+                "seriesId": "center",
+                "pointId": "b"
+              },
+              "label": "2",
+              "seriesName": "Fan",
+              "value": 16,
+              "x": 374,
+              "y": 130.8,
+              "color": "#255eb8",
+              "xValue": 2,
+              "group": {
+                "key": "[\"linear\",2]",
+                "label": "2",
+                "coordinate": 374
+              },
+              "fan": {
+                "type": "center"
+              }
+            },
+            {
+              "id": {
+                "seriesId": "inner",
+                "pointId": "a"
+              },
+              "label": "1",
+              "seriesName": "50%",
+              "value": 12,
+              "lowValue": 10,
+              "highValue": 14,
+              "x": 16,
+              "y": 247.6,
+              "color": "#255eb8",
+              "xValue": 1,
+              "group": {
+                "key": "[\"linear\",1]",
+                "label": "1",
+                "coordinate": 16
+              },
+              "fan": {
+                "type": "interval",
+                "coverage": 0.5,
+                "low": 10,
+                "high": 14
+              }
+            },
+            {
+              "id": {
+                "seriesId": "inner",
+                "pointId": "b"
+              },
+              "label": "2",
+              "seriesName": "50%",
+              "value": 16,
+              "lowValue": 12,
+              "highValue": 20,
+              "x": 374,
+              "y": 130.8,
+              "color": "#255eb8",
+              "xValue": 2,
+              "group": {
+                "key": "[\"linear\",2]",
+                "label": "2",
+                "coordinate": 374
+              },
+              "fan": {
+                "type": "interval",
+                "coverage": 0.5,
+                "low": 12,
+                "high": 20
+              }
+            }
+          ],
+          "labels": [
+            {
+              "x": 16,
+              "label": "1",
+              "value": 1,
+              "type": "number"
+            },
+            {
+              "x": 87.59999999999998,
+              "label": "1.2",
+              "value": 1.2,
+              "type": "number"
+            },
+            {
+              "x": 159.19999999999996,
+              "label": "1.4",
+              "value": 1.4,
+              "type": "number"
+            },
+            {
+              "x": 230.80000000000004,
+              "label": "1.6",
+              "value": 1.6,
+              "type": "number"
+            },
+            {
+              "x": 302.4,
+              "label": "1.8",
+              "value": 1.8,
+              "type": "number"
+            },
+            {
+              "x": 374,
+              "label": "2",
+              "value": 2,
+              "type": "number"
+            }
+          ],
+          "grid": [
+            {
+              "y": 306,
+              "label": "10",
+              "value": 10,
+              "type": "number"
+            },
+            {
+              "y": 233,
+              "label": "12.5",
+              "value": 12.5,
+              "type": "number"
+            },
+            {
+              "y": 160,
+              "label": "15",
+              "value": 15,
+              "type": "number"
+            },
+            {
+              "y": 87,
+              "label": "17.5",
+              "value": 17.5,
+              "type": "number"
+            },
+            {
+              "y": 14,
+              "label": "20",
+              "value": 20,
+              "type": "number"
+            }
+          ],
+          "fan": {
+            "centerId": "center",
+            "bands": [
+              {
+                "id": "inner",
+                "label": "50%",
+                "coverage": 0.5
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "line-category-window",
+      "spec": {
+        "family": "line",
+        "title": "Window",
+        "axes": {
+          "x": {
+            "type": "category",
+            "values": [
+              {
+                "id": "a",
+                "label": "A"
+              },
+              {
+                "id": "b",
+                "label": "B"
+              },
+              {
+                "id": "c",
+                "label": "C"
+              }
+            ]
+          },
+          "y": {
+            "type": "linear"
+          }
+        },
+        "series": [
+          {
+            "id": "source",
+            "name": "Source",
+            "data": [
+              {
+                "id": "a",
+                "x": "a",
+                "y": 0
+              },
+              {
+                "id": "b",
+                "x": "b",
+                "y": null
+              },
+              {
+                "id": "c",
+                "x": "c",
+                "y": -4
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "width": 390,
+        "height": 320,
+        "viewport": {
+          "axes": "x",
+          "value": {
+            "x": {
+              "firstId": "b",
+              "lastId": "c"
+            }
+          }
+        }
+      },
+      "result": {
+        "status": "ok",
+        "frame": {
+          "schema": "nc-plan/1",
+          "family": "line",
+          "width": 390,
+          "height": 320,
+          "title": "Window",
+          "description": "",
+          "unit": "",
+          "legend": [
+            {
+              "id": "source",
+              "name": "Source",
+              "color": "#255eb8",
+              "visible": true
+            }
+          ],
+          "series": [
+            {
+              "id": "source",
+              "name": "Source",
+              "color": "#255eb8",
+              "commands": []
+            }
+          ],
+          "observations": [
+            {
+              "id": {
+                "seriesId": "source",
+                "pointId": "c"
+              },
+              "label": "C",
+              "seriesName": "Source",
+              "value": -4,
+              "x": 284.5,
+              "y": 306,
+              "color": "#255eb8",
+              "group": {
+                "key": "[\"category\",\"c\"]",
+                "label": "C",
+                "coordinate": 284.5
+              }
+            }
+          ],
+          "labels": [
+            {
+              "x": 105.5,
+              "label": "B"
+            },
+            {
+              "x": 284.5,
+              "label": "C"
+            }
+          ],
+          "grid": [
+            {
+              "y": 306,
+              "label": "-4",
+              "value": -4,
+              "type": "number"
+            },
+            {
+              "y": 233,
+              "label": "-3",
+              "value": -3,
+              "type": "number"
+            },
+            {
+              "y": 160,
+              "label": "-2",
+              "value": -2,
+              "type": "number"
+            },
+            {
+              "y": 87,
+              "label": "-1",
+              "value": -1,
+              "type": "number"
+            },
+            {
+              "y": 14,
+              "label": "0",
+              "value": 0,
+              "type": "number"
+            }
+          ],
+          "viewport": {
+            "axes": "x",
+            "value": {
+              "x": {
+                "firstId": "b",
+                "lastId": "c"
+              }
+            },
+            "bounds": {
+              "x": {
+                "type": "category",
+                "ids": [
+                  "a",
+                  "b",
+                  "c"
+                ],
+                "edgeSpacing": 0.5
+              },
+              "y": {
+                "type": "linear",
+                "domain": [
+                  -4,
+                  0
+                ]
+              }
+            },
+            "displayed": {
+              "x": null,
+              "y": [
+                -4,
+                0
+              ]
+            },
+            "reversed": {
+              "x": false,
+              "y": false
+            },
+            "plot": {
+              "x": 16,
+              "y": 14,
+              "width": 358,
+              "height": 292
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "scatter-log-window",
+      "spec": {
+        "family": "scatter",
+        "title": "Log",
+        "axes": {
+          "x": {
+            "type": "linear"
+          },
+          "y": {
+            "type": "linear"
+          }
+        },
+        "series": [
+          {
+            "id": "s",
+            "name": "S",
+            "data": [
+              {
+                "id": "a",
+                "x": 1,
+                "y": 1
+              },
+              {
+                "id": "b",
+                "x": 10,
+                "y": 10
+              },
+              {
+                "id": "c",
+                "x": 100,
+                "y": 100
+              }
+            ]
+          }
+        ]
+      },
+      "options": {
+        "width": 390,
+        "height": 320,
+        "scales": {
+          "x": {
+            "type": "log"
+          },
+          "y": {
+            "type": "log"
+          }
+        },
+        "viewport": {
+          "axes": "xy"
+        }
+      },
+      "result": {
+        "status": "ok",
+        "frame": {
+          "schema": "nc-plan/1",
+          "family": "scatter",
+          "width": 390,
+          "height": 320,
+          "title": "Log",
+          "description": "",
+          "unit": "",
+          "legend": [
+            {
+              "id": "s",
+              "name": "S",
+              "color": "#255eb8",
+              "visible": true
+            }
+          ],
+          "series": [
+            {
+              "id": "s",
+              "name": "S",
+              "color": "#255eb8",
+              "circles": [
+                {
+                  "pointId": "a",
+                  "cx": 48,
+                  "cy": 272,
+                  "radius": 3
+                },
+                {
+                  "pointId": "b",
+                  "cx": 195,
+                  "cy": 160,
+                  "radius": 3
+                },
+                {
+                  "pointId": "c",
+                  "cx": 342,
+                  "cy": 48,
+                  "radius": 3
+                }
+              ]
+            }
+          ],
+          "observations": [
+            {
+              "id": {
+                "seriesId": "s",
+                "pointId": "a"
+              },
+              "label": "a",
+              "seriesName": "S",
+              "value": 1,
+              "x": 48,
+              "y": 272,
+              "color": "#255eb8",
+              "xValue": 1,
+              "hit": {
+                "type": "circle",
+                "cx": 48,
+                "cy": 272,
+                "radius": 3
+              }
+            },
+            {
+              "id": {
+                "seriesId": "s",
+                "pointId": "b"
+              },
+              "label": "b",
+              "seriesName": "S",
+              "value": 10,
+              "x": 195,
+              "y": 160,
+              "color": "#255eb8",
+              "xValue": 10,
+              "hit": {
+                "type": "circle",
+                "cx": 195,
+                "cy": 160,
+                "radius": 3
+              }
+            },
+            {
+              "id": {
+                "seriesId": "s",
+                "pointId": "c"
+              },
+              "label": "c",
+              "seriesName": "S",
+              "value": 100,
+              "x": 342,
+              "y": 48,
+              "color": "#255eb8",
+              "xValue": 100,
+              "hit": {
+                "type": "circle",
+                "cx": 342,
+                "cy": 48,
+                "radius": 3
+              }
+            }
+          ],
+          "labels": [
+            {
+              "x": 48,
+              "label": "1"
+            },
+            {
+              "x": 195,
+              "label": "10"
+            },
+            {
+              "x": 342,
+              "label": "100"
+            }
+          ],
+          "grid": [
+            {
+              "y": 272,
+              "label": "1",
+              "value": 1,
+              "type": "number"
+            },
+            {
+              "y": 160,
+              "label": "10",
+              "value": 10,
+              "type": "number"
+            },
+            {
+              "y": 48,
+              "label": "100",
+              "value": 100,
+              "type": "number"
+            }
+          ],
+          "viewport": {
+            "axes": "xy",
+            "value": {},
+            "bounds": {
+              "x": {
+                "type": "log",
+                "base": 10,
+                "domain": [
+                  1,
+                  100
+                ]
+              },
+              "y": {
+                "type": "log",
+                "base": 10,
+                "domain": [
+                  1,
+                  100
+                ]
+              }
+            },
+            "displayed": {
+              "x": [
+                1,
+                100
+              ],
+              "y": [
+                1,
+                100
+              ]
+            },
+            "reversed": {
+              "x": false,
+              "y": false
+            },
+            "plot": {
+              "x": 48,
+              "y": 48,
+              "width": 294,
+              "height": 224
+            }
+          }
+        }
+      }
+    }
+  ]
+}

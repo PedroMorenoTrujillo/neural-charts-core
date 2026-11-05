@@ -16,17 +16,17 @@ function deepFrozen(value){if(value&&typeof value==='object'){assert.ok(Object.i
 check('sunburst has genuine nested annular levels and original leaf/computed subtotal semantics',()=>{
   const f=frame(sunburst),root=byId(f,'root'),a=byId(f,'a'),a1=byId(f,'a1'),b=byId(f,'b');assert.equal(f.family,'sunburst');assert.equal(f.observations.length,5);assert.deepEqual(f.legend.map(l=>l.id),['a','b']);assert.equal(f.series.length,3);
   assert.equal(root.value,9);assert.equal(root.subtotal,true);assert.equal(a.value,6);assert.equal(a.subtotal,true);assert.equal(a1.value,2);assert.equal(a1.subtotal,undefined);assert.equal(root.hit.innerRadius,0);close(root.hit.radius,a.hit.innerRadius);close(a.hit.radius,a1.hit.innerRadius);close(a1.hit.radius,136);
-  close(a.hit.end-a.hit.start,Math.PI*2*6/9);close(a1.hit.end-a1.hit.start,(a.hit.end-a.hit.start)*2/6);close(b.hit.start,a.hit.end);assert.equal(a1.id.seriesId,'a');assert.ok(f.observations.every(o=>o.hit.kind==='sector'&&!Object.hasOwn(o,'percentage')));
+  close(a.hit.end-a.hit.start,Math.PI*2*6/9);close(a1.hit.end-a1.hit.start,(a.hit.end-a.hit.start)*2/6);close(b.hit.start,a.hit.end);assert.equal(a1.id.seriesId,'a');assert.ok(f.observations.every(o=>o.hit.type==='sector'&&!Object.hasOwn(o,'percentage')));
 });
 check('sunburst root-branch hiding recomputes pure totals/ring depth while preserving color, legend and restore',()=>{
   const before=frame(sunburst),hidden=frame(sunburst,{...options,hiddenSeriesIds:['a']});assert.deepEqual(hidden.observations.map(o=>o.id.pointId),['root','b']);assert.equal(byId(hidden,'root').value,3);assert.equal(byId(hidden,'b').value,3);assert.equal(hidden.legend.length,2);assert.equal(hidden.legend[0].visible,false);assert.equal(byId(hidden,'b').color,byId(before,'b').color);close(byId(hidden,'b').hit.innerRadius,68);close(byId(hidden,'b').hit.radius,136);
-  assert.equal(hidden.series.find(s=>s.id==='b').commands.filter(c=>c.kind==='A').length,4);assert.deepEqual(frame(sunburst),before);
+  assert.equal(hidden.series.find(s=>s.id==='b').commands.filter(c=>c.type==='A').length,4);assert.deepEqual(frame(sunburst),before);
   const all=planChart(sunburst,{...options,hiddenSeriesIds:['a','b']});assert.equal(all.status,'empty');assert.equal(all.frame.observations.length,0);assert.equal(all.frame.legend.length,2);assert.equal(planChart(sunburst,{...options,hiddenSeriesIds:['a1']}).status,'invalid');
 });
 check('sunburst missing leaves preserve incomplete subtotals and zero nodes never acquire invisible sectors',()=>{
   const missing=structuredClone(sunburst);missing.root.children[0].children.push({id:'missing',label:'Missing',value:null});const f=frame(missing);assert.equal(byId(f,'root').incomplete,true);assert.equal(byId(f,'a').incomplete,true);assert.equal(byId(f,'a').value,6);assert.equal(byId(f,'missing'),undefined);
   const zero=structuredClone(sunburst);for(const branch of zero.root.children)if(branch.children)for(const leaf of branch.children)leaf.value=0;else branch.value=0;const z=frame(zero);assert.equal(z.observations.length,5);assert.ok(z.observations.every(o=>o.value===0&&o.hit===undefined));assert.ok(z.series.every(s=>s.commands.length===0));
-  const leaf=frame({family:'sunburst',title:'Single root',root:{id:'single',value:5}});assert.equal(leaf.observations.length,1);assert.equal(leaf.series[0].commands.filter(c=>c.kind==='A').length,2);assert.equal(leaf.observations[0].id.pointId,'single');
+  const leaf=frame({family:'sunburst',title:'Single root',root:{id:'single',value:5}});assert.equal(leaf.observations.length,1);assert.equal(leaf.series[0].commands.filter(c=>c.type==='A').length,2);assert.equal(leaf.observations[0].id.pointId,'single');
 });
 check('sunburst exact 512-node/15-branch bounds are real while deep or overflowing trees fail explicitly',()=>{
   const root={id:'root',children:Array.from({length:15},(_,i)=>({id:'g'+i,children:Array.from({length:i===0?34:33},(_,j)=>({id:`g${i}n${j}`,value:1}))}))},f=frame({family:'sunburst',title:'Bounded hierarchy',root});assert.equal(f.observations.length,512);assert.equal(f.legend.length,15);assert.equal(f.series.length,16);
@@ -36,19 +36,19 @@ check('sunburst exact 512-node/15-branch bounds are real while deep or overflowi
 });
 check('treegraph has one source-node observation with exact computed visible directed degree/depth',()=>{
   const f=frame(tree);assert.equal(f.unit,'Connections');assert.deepEqual(f.observations.map(o=>o.id.pointId),tree.nodes.map(n=>n.id));assert.deepEqual(f.legend.map(l=>l.id),['one','two']);assert.ok(!f.legend.some(l=>l.id==='links'));assert.equal(f.series[0].id,'links');assert.ok(f.series[0].commands.length>0);
-  const expected={r:[0,2,0],a:[1,1,1],b:[1,0,1],leaf:[1,0,2],isolated:[0,0,0]};for(const o of f.observations){const [incoming,outgoing,depth]=expected[o.id.pointId];assert.deepEqual(o.node,{incoming,outgoing,depth});assert.equal(o.value,incoming+outgoing);assert.equal(o.hit.kind,'circle');assert.equal(o.label,tree.nodes.find(n=>n.id===o.id.pointId).label);}
+  const expected={r:[0,2,0],a:[1,1,1],b:[1,0,1],leaf:[1,0,2],isolated:[0,0,0]};for(const o of f.observations){const [incoming,outgoing,depth]=expected[o.id.pointId];assert.deepEqual(o.node,{incoming,outgoing,depth});assert.equal(o.value,incoming+outgoing);assert.equal(o.hit.type,'circle');assert.equal(o.label,tree.nodes.find(n=>n.id===o.id.pointId).label);}
   assert.equal(f.series.flatMap(s=>s.circles??[]).length,5);assert.deepEqual(f.viewport.bounds.x.domain,[0,1]);assert.deepEqual(f.viewport.bounds.y.domain,[0,1]);assert.deepEqual(f.grid,[]);assert.deepEqual(f.labels,[]);
 });
 check('tree tidy leaf spans center parents; layouts remain deterministic across link order and do not invent nodes',()=>{
   const f=frame(tree);close(byId(f,'r').x,(byId(f,'a').x+byId(f,'b').x)/2);close(byId(f,'a').x,byId(f,'leaf').x);assert.ok(byId(f,'r').y<byId(f,'a').y&&byId(f,'a').y<byId(f,'leaf').y);
   const reordered=frame({...tree,links:[...tree.links].reverse()});assert.deepEqual(reordered.observations.map(o=>({id:o.id,x:o.x,y:o.y,node:o.node})),f.observations.map(o=>({id:o.id,x:o.x,y:o.y,node:o.node})));
-  const curve=f.series.find(s=>s.id==='links').commands;assert.ok(curve.length>tree.links.length*2,'smooth connectors have real interpolation samples');assert.ok(curve.every(c=>c.kind==='M'||c.kind==='L'));assert.ok(f.observations.every(o=>tree.nodes.some(n=>n.id===o.id.pointId)));
+  const curve=f.series.find(s=>s.id==='links').commands;assert.ok(curve.length>tree.links.length*2,'smooth connectors have real interpolation samples');assert.ok(curve.every(c=>c.type==='M'||c.type==='L'));assert.ok(f.observations.every(o=>tree.nodes.some(n=>n.id===o.id.pointId)));
   const branched=frame({family:'treegraph',title:'Left and right',nodes:[{id:'r',label:'Root'},{id:'left',label:'Left'},{id:'right',label:'Right'}],links:[{id:'left-edge',from:'r',to:'left'},{id:'right-edge',from:'r',to:'right'}]});assert.equal(branched.observations.length,3);assert.ok(byId(branched,'left').x<byId(branched,'r').x&&byId(branched,'r').x<byId(branched,'right').x);const paths=branched.series.find(s=>s.id==='links').commands;assert.ok(paths.some(c=>c.x<byId(branched,'r').x)&&paths.some(c=>c.x>byId(branched,'r').x));
 });
 check('organization allows multi-parent DAGs and emits real rectangular boxes and orthogonal connectors',()=>{
   const f=frame(organization);assert.equal(f.observations.length,5);assert.deepEqual(byId(f,'engineering').node,{incoming:2,outgoing:1,depth:1});assert.deepEqual(byId(f,'delivery').node,{incoming:2,outgoing:0,depth:2});assert.equal(byId(f,'engineering').value,3);
   const bars=f.series.flatMap(s=>s.bars??[]);assert.equal(bars.length,5);assert.equal(f.series.flatMap(s=>s.circles??[]).length,0);for(const bar of bars){const o=byId(f,bar.pointId);assert.deepEqual(o.hit.vertices,[{x:bar.x,y:bar.y},{x:bar.x+bar.width,y:bar.y},{x:bar.x+bar.width,y:bar.y+bar.height},{x:bar.x,y:bar.y+bar.height}]);}
-  const lines=f.series.find(s=>s.id==='links').commands;for(let i=0;i<lines.length;i+=2){assert.equal(lines[i].kind,'M');assert.equal(lines[i+1].kind,'L');assert.ok(lines[i].x===lines[i+1].x||lines[i].y===lines[i+1].y);}
+  const lines=f.series.find(s=>s.id==='links').commands;for(let i=0;i<lines.length;i+=2){assert.equal(lines[i].type,'M');assert.equal(lines[i+1].type,'L');assert.ok(lines[i].x===lines[i+1].x||lines[i].y===lines[i+1].y);}
   assert.equal(planChart({...organization,family:'treegraph'},options).status,'invalid');
 });
 check('hidden groups remove incident links and recompute topology/degree without bypassing source DAG validation',()=>{
@@ -89,7 +89,7 @@ check('hierarchy outputs own frozen geometry and do not mutate node/link/tree so
 
 check('sunburst label boxes stay completely inside their actual ring and angular sector at phone and tablet sizes',()=>{
  for(const [width,height]of [[64,64],[320,300],[390,300],[768,520]]){const result=planChart(sunburst,{width,height});assert.equal(result.status,'ok');const f=result.frame;if(width>=320)assert.ok(f.annotations.length>0);
- for(const a of f.annotations){const p=f.observations.find(p=>p.x===a.x&&p.y===a.y&&p.hit?.kind==='sector');assert.ok(p,'Source label anchor must be retained');const h=p.hit,w=a.box.width/2,v=a.box.height/2,span=h.end-h.start,mid=(h.start+h.end)/2;
+ for(const a of f.annotations){const p=f.observations.find(p=>p.x===a.x&&p.y===a.y&&p.hit?.type==='sector');assert.ok(p,'Source label anchor must be retained');const h=p.hit,w=a.box.width/2,v=a.box.height/2,span=h.end-h.start,mid=(h.start+h.end)/2;
  const nearest=Math.hypot(Math.max(0,Math.abs(a.x-h.cx)-w),Math.max(0,Math.abs(a.y-h.cy)-v));if(h.innerRadius>0)assert.ok(nearest>=h.innerRadius+1.99);
  for(const x of [a.x-w,a.x+w])for(const y of [a.y-v,a.y+v]){assert.ok(Math.hypot(x-h.cx,y-h.cy)<=h.radius-1.99,'Text box exceeds the outer ring');if(span<Math.PI*2-1e-10){const angle=Math.atan2(x-h.cx,h.cy-y),delta=((angle-mid+Math.PI)%(Math.PI*2)+Math.PI*2)%(Math.PI*2)-Math.PI;assert.ok(Math.abs(delta)<span/2,'Text box crosses a sibling sector');}}
  }}

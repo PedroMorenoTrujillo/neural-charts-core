@@ -31,7 +31,7 @@ export interface PlanXRangeSpec {
   readonly description?: string;
   readonly axes: Readonly<{
     x: PlanTemporalAxis;
-    y: Readonly<{kind: 'category'; values: readonly PlanXRangeRow[]; reversed?: boolean}>;
+    y: Readonly<{type: 'category'; values: readonly PlanXRangeRow[]; reversed?: boolean}>;
   }>;
   readonly series: readonly PlanXRangeSeries[];
   readonly grouping?: 'grouped' | 'overlap';
@@ -39,7 +39,7 @@ export interface PlanXRangeSpec {
 }
 
 export interface PlanIntervalValue {
-  readonly kind: 'linear' | 'time';
+  readonly type: 'linear' | 'time';
   readonly rowId: string;
   readonly rowLabel: string;
   readonly start: number;

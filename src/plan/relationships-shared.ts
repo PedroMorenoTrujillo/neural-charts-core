@@ -81,7 +81,7 @@ export function relationshipGraph(spec:PlanRelationshipSpec,options:PlanOptions,
 }
 
 export function polygonCommands(vertices:readonly Vertex[]):PlanCommand[] {
-  return vertices.length<3?[]:[{kind:'M',...vertices[0]!},...vertices.slice(1).map(point=>({kind:'L' as const,...point})),{kind:'Z'}];
+  return vertices.length<3?[]:[{type:'M',...vertices[0]!},...vertices.slice(1).map(point=>({type:'L' as const,...point})),{type:'Z'}];
 }
 
 /** Quantization may collapse thin ribbons; preserve their observation without inventing area. */

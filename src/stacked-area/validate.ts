@@ -13,7 +13,7 @@ export function validateStackedArea<T>(input: unknown): ChartResult<StackedAreaC
     delete descriptors.stacking; descriptors.family = { ...family, value: 'line' };
     const result = validateLine<T>(Object.create(Object.getPrototypeOf(input), descriptors)); if (result.status === 'invalid') return result;
     const spec = result.value;
-    if (spec.series.length > 16 || spec.series.reduce((count, series) => count + series.data.length, 0) > 10000 || spec.axes.x.kind === 'category' && spec.axes.x.values.length > 10000) return invalid('INVALID_CONFIG', 'RESOURCE_LIMIT', 'series');
+    if (spec.series.length > 16 || spec.series.reduce((count, series) => count + series.data.length, 0) > 10000 || spec.axes.x.type === 'category' && spec.axes.x.values.length > 10000) return invalid('INVALID_CONFIG', 'RESOURCE_LIMIT', 'series');
     if (spec.axes.y.includeZero === false) return invalid('INVALID_CONFIG', 'BASELINE_REQUIRES_ZERO', 'axes.y.includeZero');
     for (let si = 0; si < spec.series.length; si++) {
       const series = spec.series[si]!;

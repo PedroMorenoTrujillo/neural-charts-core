@@ -27,13 +27,13 @@ Cartesian axes, viewport/zoom, stacking and references are unsupported and rejec
 
 ```ts
 interface PlanContinuousColorAxisSpec {
-  readonly kind: 'continuous';
+  readonly type: 'continuous';
   readonly domain?: readonly [number, number];
   readonly stops: readonly {readonly at: number; readonly color: string}[];
   readonly missingColor: string;
 }
 interface PlanClassColorAxisSpec {
-  readonly kind: 'classes';
+  readonly type: 'classes';
   readonly classes: readonly PlanColorClass[];
   readonly missingColor: string;
   readonly unclassifiedColor: string;

@@ -4,7 +4,7 @@ import type {PlanBulletResult, PlanBulletSpec} from '../../src/public/bullet-pla
 
 const size = {width: 400, height: 320};
 function spec(): PlanBulletSpec {
-  return {family: 'bullet', title: 'Measured output and targets', axes: {x: {kind: 'category', values: [{id: 'one', label: 'One'}, {id: 'two', label: 'Two'}]}, y: {kind: 'linear', domain: [-10, 20]}},
+  return {family: 'bullet', title: 'Measured output and targets', axes: {x: {type: 'category', values: [{id: 'one', label: 'One'}, {id: 'two', label: 'Two'}]}, y: {type: 'linear', domain: [-10, 20]}},
     bands: [{id: 'low', from: -10, to: 5, label: 'Low'}, {id: 'high', from: 5, to: 20, label: 'High'}],
     series: [{id: 'output', name: 'Output', data: [{id: 'p1', x: 'one', y: 8, target: 12}, {id: 'p2', x: 'two', y: -4, target: 0}]}]};
 }
@@ -37,7 +37,7 @@ describe('bullet values, independent targets and decorative bands', () => {
       expect(hidden.observations.find(point => point.group?.key === category.id)?.group?.coordinate).toBe(axisCenter);
     }
     expect(grouped.observations.find(point => point.id.pointId === 'second-one')?.bullet)
-      .toEqual({kind: 'target', measure: null, target: 0});
+      .toEqual({type: 'target', measure: null, target: 0});
   });
 
   it('returns genuine measurements and separate target lines in the same frame', () => {
@@ -54,7 +54,7 @@ describe('bullet values, independent targets and decorative bands', () => {
   });
 
   it('does not use decorative bands to alter automatic numeric domains or selection', () => {
-    const source = spec(), auto = {...source, axes: {...source.axes, y: {kind: 'linear' as const}}};
+    const source = spec(), auto = {...source, axes: {...source.axes, y: {type: 'linear' as const}}};
     const a = frame(planBullet({...auto, bands: []}, size)), b = frame(planBullet({...auto, bands: [{id: 'enormous', from: -Number.MAX_VALUE, to: Number.MAX_VALUE}]}, size));
     expect(b.series).toEqual(a.series); expect(b.observations).toEqual(a.observations); expect(b.labels).toEqual(a.labels);
     expect(b.legend).toEqual(a.legend); expect(b.bulletData).toEqual(a.bulletData);
@@ -62,7 +62,7 @@ describe('bullet values, independent targets and decorative bands', () => {
   });
 
   it('includes actual targets in auto-domain independently from measured values', () => {
-    const source = spec(), result = frame(planBullet({...source, axes: {...source.axes, y: {kind: 'linear'}}, series: [{...source.series[0]!, data: [{id: 'p1', x: 'one', y: 2, target: 100}]}]}, size));
+    const source = spec(), result = frame(planBullet({...source, axes: {...source.axes, y: {type: 'linear'}}, series: [{...source.series[0]!, data: [{id: 'p1', x: 'one', y: 2, target: 100}]}]}, size));
     expect(result.bulletTargets[0]).toMatchObject({value: 100, status: 'visible', line: {x1: 388, x2: 388}});
     expect(result.observations[0]!.x).toBeCloseTo(95.96);
   });
@@ -70,8 +70,8 @@ describe('bullet values, independent targets and decorative bands', () => {
   it('preserves unknown, absent and exact zero targets distinctly', () => {
     const source = spec(), data = [{id: 'p1', x: 'one', y: 0, target: null}, {id: 'p2', x: 'two', y: 4}];
     const result = frame(planBullet({...source, series: [{...source.series[0]!, data}]}, size));
-    expect(result.observations[0]!.bullet).toEqual({kind: 'measure', measure: 0, target: null});
-    expect(result.observations[1]!.bullet).toEqual({kind: 'measure', measure: 4});
+    expect(result.observations[0]!.bullet).toEqual({type: 'measure', measure: 0, target: null});
+    expect(result.observations[1]!.bullet).toEqual({type: 'measure', measure: 4});
     expect(result.bulletTargets).toEqual([]); expect(result.series[0]!.circles).toHaveLength(1);
     expect(result.series[0]!.bars).toHaveLength(1);
     expect(frame(planBullet(spec(), size)).bulletTargets[1]).toMatchObject({value: 0, status: 'visible'});
@@ -79,7 +79,7 @@ describe('bullet values, independent targets and decorative bands', () => {
 
   it('keeps a known target accessible when its measurement is unknown without announcing zero', () => {
     const source = spec(), result = frame(planBullet({...source, series: [{...source.series[0]!, data: [{id: 'p1', x: 'one', y: null, target: 0}]}]}, size));
-    expect(result.observations[0]).toMatchObject({id: {seriesId: 'output', pointId: 'p1'}, value: 0, bullet: {kind: 'target', measure: null, target: 0}});
+    expect(result.observations[0]).toMatchObject({id: {seriesId: 'output', pointId: 'p1'}, value: 0, bullet: {type: 'target', measure: null, target: 0}});
     expect(result.series[0]!.bars).toEqual([]); expect(result.series[0]!.circles).toEqual([]);
     expect(result.bulletTargets[0]!.line).toBeDefined();
     expect(result.bulletData[0]).toMatchObject({measure: null, target: 0, visible: true});

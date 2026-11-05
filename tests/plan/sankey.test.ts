@@ -37,18 +37,18 @@ function curvedSource(seed:number,exponent:number):PlanSankeySpec{
 
 describe('public Sankey planning',()=>{
   it('preserves source IDs and values for nodes and actual flow ribbons',()=>{
-    const chart=frame(),nodes=chart.observations.filter(p=>p.sankey?.kind==='node'),links=chart.observations.filter(p=>p.sankey?.kind==='link');
+    const chart=frame(),nodes=chart.observations.filter(p=>p.sankey?.type==='node'),links=chart.observations.filter(p=>p.sankey?.type==='link');
     expect(chart.family).toBe('sankey');expect(nodes.map(p=>p.id.pointId)).toEqual(['solar','wind','grid','homes']);
     expect(links.map(p=>[p.id.pointId,p.value])).toEqual([['solar-grid',8],['wind-grid',4],['grid-homes',12]]);
-    expect(nodes.find(p=>p.id.pointId==='grid')?.sankey).toEqual({kind:'node',incoming:12,outgoing:12});
+    expect(nodes.find(p=>p.id.pointId==='grid')?.sankey).toEqual({type:'node',incoming:12,outgoing:12});
     expect(nodes.find(p=>p.id.pointId==='grid')?.value).toBe(12);
-    expect(links[0]?.sankey).toEqual({kind:'link',from:'solar',to:'grid',fromLabel:'Solar',toLabel:'Grid'});
-    expect(chart.series[0]?.bars).toHaveLength(4);expect(chart.series[0]?.areaCommands?.filter(c=>c.kind==='Z')).toHaveLength(3);
+    expect(links[0]?.sankey).toEqual({type:'link',from:'solar',to:'grid',fromLabel:'Solar',toLabel:'Grid'});
+    expect(chart.series[0]?.bars).toHaveLength(4);expect(chart.series[0]?.areaCommands?.filter(c=>c.type==='Z')).toHaveLength(3);
   });
 
   it('uses the same quantitative scale for flow thickness and node throughput',()=>{
-    const chart=frame(),links=chart.observations.filter(p=>p.sankey?.kind==='link');
-    const thickness=(id:string)=>{const hit=links.find(p=>p.id.pointId===id)!.hit;if(hit?.kind!=='polygon')throw Error('Expected ribbon');return Math.abs(hit.vertices[0]!.y-hit.vertices.at(-1)!.y);};
+    const chart=frame(),links=chart.observations.filter(p=>p.sankey?.type==='link');
+    const thickness=(id:string)=>{const hit=links.find(p=>p.id.pointId===id)!.hit;if(hit?.type!=='polygon')throw Error('Expected ribbon');return Math.abs(hit.vertices[0]!.y-hit.vertices.at(-1)!.y);};
     expect(thickness('solar-grid')/thickness('wind-grid')).toBeCloseTo(2,4);
     const grid=chart.series.flatMap(series=>series.bars??[]).find(bar=>bar.pointId==='grid')!;
     expect(thickness('grid-homes')).toBeCloseTo(grid.height,4);
@@ -56,7 +56,7 @@ describe('public Sankey planning',()=>{
 
   it('attaches ribbon endpoints to the corresponding node faces',()=>{
     const chart=frame(),bars=chart.series.flatMap(s=>s.bars??[]),link=chart.observations.find(p=>p.id.pointId==='solar-grid')!;
-    if(link.hit?.kind!=='polygon')throw Error('Expected ribbon');
+    if(link.hit?.type!=='polygon')throw Error('Expected ribbon');
     const solar=bars.find(bar=>bar.pointId==='solar')!,grid=bars.find(bar=>bar.pointId==='grid')!;
     expect(link.hit.vertices[0]?.x).toBeCloseTo(solar.x+solar.width,4);
     expect(Math.max(...link.hit.vertices.map(p=>p.x))).toBeCloseTo(grid.x,4);
@@ -72,13 +72,13 @@ describe('public Sankey planning',()=>{
     const chart=frame({...source(),orientation:'vertical'}),bars=chart.series.flatMap(s=>s.bars??[]);
     const solar=bars.find(bar=>bar.pointId==='solar')!,grid=bars.find(bar=>bar.pointId==='grid')!,homes=bars.find(bar=>bar.pointId==='homes')!;
     expect(solar.y).toBeLessThan(grid.y);expect(grid.y).toBeLessThan(homes.y);
-    expect(solar.height).toBeCloseTo(14,3);expect(chart.observations.some(p=>p.hit?.kind==='polygon'&&p.sankey?.kind==='link')).toBe(true);
+    expect(solar.height).toBeCloseTo(14,3);expect(chart.observations.some(p=>p.hit?.type==='polygon'&&p.sankey?.type==='link')).toBe(true);
   });
 
   it('distinguishes missing edges from zero throughput',()=>{
     const base=source(),missing=frame({...base,links:base.links.map(link=>({...link,value:null}))});
-    expect(missing.observations.filter(p=>p.sankey?.kind==='link')).toHaveLength(0);
-    expect(missing.observations.filter(p=>p.sankey?.kind==='node').every(p=>p.incomplete===true)).toBe(true);
+    expect(missing.observations.filter(p=>p.sankey?.type==='link')).toHaveLength(0);
+    expect(missing.observations.filter(p=>p.sankey?.type==='node').every(p=>p.incomplete===true)).toBe(true);
     const zeros=frame({...base,links:base.links.map(link=>({...link,value:0}))});
     expect(zeros.observations.every(p=>p.value===0&&!p.incomplete)).toBe(true);
     expect(zeros.series.flatMap(s=>s.areaCommands??[])).toHaveLength(0);
@@ -87,7 +87,7 @@ describe('public Sankey planning',()=>{
   it('keeps known partial node totals explicit when one measurement is absent',()=>{
     const base=source(),chart=frame({...base,links:base.links.map(link=>link.id==='wind-grid'?{...link,value:null}:link)});
     const grid=chart.observations.find(p=>p.id.pointId==='grid')!;
-    expect(grid.sankey).toEqual({kind:'node',incoming:8,outgoing:12});expect(grid.incomplete).toBe(true);expect(grid.value).toBe(12);
+    expect(grid.sankey).toEqual({type:'node',incoming:8,outgoing:12});expect(grid.incomplete).toBe(true);expect(grid.value).toBe(12);
   });
 
   it('supports parallel source/target flows with distinct stable link identities',()=>{
@@ -101,7 +101,7 @@ describe('public Sankey planning',()=>{
     const chart=frame(grouped,{...dimensions,hiddenSeriesIds:['generation']});
     expect(chart.legend.map(item=>[item.id,item.visible])).toEqual([['generation',false],['delivery',true]]);
     expect(chart.observations.map(p=>p.id.pointId).sort()).toEqual(['grid','grid-homes','homes']);
-    expect(chart.observations.find(p=>p.id.pointId==='grid')?.sankey).toEqual({kind:'node',incoming:0,outgoing:12});
+    expect(chart.observations.find(p=>p.id.pointId==='grid')?.sankey).toEqual({type:'node',incoming:0,outgoing:12});
     expect(planChart(grouped,{...dimensions,hiddenSeriesIds:['generation','delivery']}).status).toBe('empty');
   });
 
@@ -127,13 +127,13 @@ describe('public Sankey planning',()=>{
   });
 
   it('provides controlled xy zoom and clips actual hit polygons and node rectangles',()=>{
-    const initial=frame(),transformed=transformPlanViewport(initial.viewport!,{kind:'zoom',factor:2,anchor:{x:.5,y:.5}});
+    const initial=frame(),transformed=transformPlanViewport(initial.viewport!,{type:'zoom',factor:2,anchor:{x:.5,y:.5}});
     expect(transformed.status).toBe('ok');if(transformed.status!=='ok')throw Error('Expected viewport');
     const chart=frame(source(),{...dimensions,viewport:{axes:'xy',value:transformed.value}});
     for(const observation of chart.observations){
       expect(observation.x).toBeGreaterThanOrEqual(16);expect(observation.x).toBeLessThanOrEqual(374);
       expect(observation.y).toBeGreaterThanOrEqual(14);expect(observation.y).toBeLessThanOrEqual(286);
-      if(observation.hit?.kind==='polygon')for(const vertex of observation.hit.vertices){expect(vertex.x).toBeGreaterThanOrEqual(16);expect(vertex.x).toBeLessThanOrEqual(374);expect(vertex.y).toBeGreaterThanOrEqual(14);expect(vertex.y).toBeLessThanOrEqual(286);}
+      if(observation.hit?.type==='polygon')for(const vertex of observation.hit.vertices){expect(vertex.x).toBeGreaterThanOrEqual(16);expect(vertex.x).toBeLessThanOrEqual(374);expect(vertex.y).toBeGreaterThanOrEqual(14);expect(vertex.y).toBeLessThanOrEqual(286);}
     }
     for(const bar of chart.series.flatMap(s=>s.bars??[])){expect(bar.width).toBeGreaterThan(0);expect(bar.height).toBeGreaterThan(0);expect(bar.x+bar.width).toBeLessThanOrEqual(374.0001);expect(bar.y+bar.height).toBeLessThanOrEqual(286.0001);}
   });
@@ -141,7 +141,7 @@ describe('public Sankey planning',()=>{
   it.each([[64,64],[320,240],[390,300],[768,480],[10000,10000]])('keeps geometry finite and bounded at %i × %i',(width,height)=>{
     const chart=frame(source(),{width,height});
     for(const observation of chart.observations){expect(Number.isFinite(observation.x)).toBe(true);expect(Number.isFinite(observation.y)).toBe(true);}
-    for(const series of chart.series)for(const command of series.areaCommands??[])if(command.kind!=='Z'){expect(Number.isFinite(command.x)).toBe(true);expect(Number.isFinite(command.y)).toBe(true);}
+    for(const series of chart.series)for(const command of series.areaCommands??[])if(command.type!=='Z'){expect(Number.isFinite(command.x)).toBe(true);expect(Number.isFinite(command.y)).toBe(true);}
   });
 
   it('retains complete labels for inspection while limiting visible label hints',()=>{
@@ -190,14 +190,14 @@ describe('public Sankey planning',()=>{
   it('removes a duplicated closing vertex introduced by clipping a normal 0.17 flow',()=>{
     const chart=frame(curvedSource(4,4),{width:324,height:300}),flow=chart.observations.find(point=>point.id.pointId==='other')!;
     expect(flow.value).toBeCloseTo(.17,14);expect(flow.sankey?.geometryOmitted).toBeUndefined();
-    expect(flow.hit?.kind).toBe('polygon');if(flow.hit?.kind!=='polygon')throw Error('Expected actual ribbon');assertSimplePolygon(flow.hit.vertices);
+    expect(flow.hit?.type).toBe('polygon');if(flow.hit?.type!=='polygon')throw Error('Expected actual ribbon');assertSimplePolygon(flow.hit.vertices);
   });
 
   it('keeps the positive identity and exact value when a ribbon is below representable precision',()=>{
     const input=curvedSource(0,7),before=JSON.stringify(input),chart=frame(input),flow=chart.observations.find(point=>point.id.pointId==='tiny')!;
     expect(flow.value).toBe(1e-7);expect(flow.sankey?.geometryOmitted).toBe(true);expect(flow.hit).toBeUndefined();
     expect(chart.series.some(series=>series.id===flow.id.seriesId)).toBe(true);expect(JSON.stringify(input)).toBe(before);
-    expect(chart.observations.some(point=>point.sankey?.geometryOmitted!==true&&point.hit?.kind==='polygon')).toBe(true);
+    expect(chart.observations.some(point=>point.sankey?.geometryOmitted!==true&&point.hit?.type==='polygon')).toBe(true);
   });
 
   it('emits simple native-compatible polygons through tiny curved flows and plot-edge clipping',()=>{
@@ -207,7 +207,7 @@ describe('public Sankey planning',()=>{
       {width:320+seed,height:300,viewport:{axes:'xy' as const,value:{x:[.45,.6] as const,y:[.35,.63] as const}}},
     ]){
       const chart=frame(curvedSource(seed,exponent),options);
-      for(const point of chart.observations)if(point.hit?.kind==='polygon')assertSimplePolygon(point.hit.vertices);
+      for(const point of chart.observations)if(point.hit?.type==='polygon')assertSimplePolygon(point.hit.vertices);
     }
   });
 

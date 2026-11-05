@@ -3,17 +3,17 @@ export interface PlanPictorialVertex {readonly x:number;readonly y:number;}
 export interface PlanPictorialMesh {readonly id:string;readonly aspectRatio:number;readonly vertices:readonly PlanPictorialVertex[];readonly triangles:readonly (readonly [number,number,number])[];}
 export interface PlanPictorialPoint {readonly id:string;readonly x:string;readonly y:number|null;}
 export interface PlanPictorialSeries {readonly id:string;readonly name:string;readonly color?:string;readonly data:readonly PlanPictorialPoint[];}
-export type PlanPictorialShape=Readonly<{kind:'preset';name:'person'|'bottle'|'heart'}>|Readonly<{kind:'mesh';mesh:PlanPictorialMesh}>;
+export type PlanPictorialShape=Readonly<{type:'preset';name:'person'|'bottle'|'heart'}>|Readonly<{type:'mesh';mesh:PlanPictorialMesh}>;
 export interface PlanPictorialSpec {
   readonly family:'pictorial';readonly title:string;readonly description?:string;
-  readonly axes:Readonly<{x:Readonly<{kind:'category';values:readonly Readonly<{id:string;label:string}>[]}>;y:Readonly<{kind:'linear';domain?:readonly [0,number];unit?:string}>}>;
+  readonly axes:Readonly<{x:Readonly<{type:'category';values:readonly Readonly<{id:string;label:string}>[]}>;y:Readonly<{type:'linear';domain?:readonly [0,number];unit?:string}>}>;
   readonly series:readonly PlanPictorialSeries[];
   readonly pictorial?:Readonly<{shape?:PlanPictorialShape;gap?:number;background?:boolean}>;
 }
-export type PlanPictorialGlyphId=Readonly<{kind:'grouped';categoryId:string;seriesId:string}>|Readonly<{kind:'stacked';categoryId:string}>;
+export type PlanPictorialGlyphId=Readonly<{type:'grouped';categoryId:string;seriesId:string}>|Readonly<{type:'stacked';categoryId:string}>;
 export interface PlanPictorialGlyph {readonly id:PlanPictorialGlyphId;readonly shapeId:string;readonly categoryId:string;readonly bounds:Readonly<{x:number;y:number;width:number;height:number}>;readonly backgroundCommands:readonly PlanCommand[];}
 export interface PlanPictorialFill {readonly pointId:string;readonly glyphId:PlanPictorialGlyphId;readonly shapeId:string;readonly commands:readonly PlanCommand[];}
-export interface PlanCompoundPolygonHit {readonly kind:'compoundPolygon';readonly polygons:readonly (readonly PlanPictorialVertex[])[];}
+export interface PlanCompoundPolygonHit {readonly type:'compoundPolygon';readonly polygons:readonly (readonly PlanPictorialVertex[])[];}
 export interface PlanPictorialValue {
   readonly categoryId:string;readonly glyphId:PlanPictorialGlyphId;readonly shapeId:string;
   readonly status:'displayed'|'zero'|'noInk';readonly low:number;readonly high:number;

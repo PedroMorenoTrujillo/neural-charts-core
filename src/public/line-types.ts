@@ -17,15 +17,15 @@ export type LineTickSpec = Readonly<{ targetCount?: number }>;
 export type LineLabelSpec = Readonly<{ maxWidth?: number }>;
 export type LineCategory = Readonly<{ id: string; label?: string }>;
 export type LineCategoryAxis = Readonly<{
-  kind: 'category'; values: readonly LineCategory[]; title?: string;
+  type: 'category'; values: readonly LineCategory[]; title?: string;
   grid?: boolean; edgeSpacing?: number; ticks?: LineTickSpec; labels?: LineLabelSpec;
 }>;
 export type LineContinuousXAxis = Readonly<{
-  kind: 'linear' | 'time'; domain?: readonly [number, number]; nice?: boolean;
+  type: 'linear' | 'time'; domain?: readonly [number, number]; nice?: boolean;
   title?: string; grid?: boolean; ticks?: LineTickSpec; labels?: LineLabelSpec;
 }>;
 export type LineYAxis = Readonly<{
-  kind: 'linear'; domain?: readonly [number, number]; nice?: boolean;
+  type: 'linear'; domain?: readonly [number, number]; nice?: boolean;
   includeZero?: boolean; reversed?: boolean; title?: string; grid?: boolean;
   ticks?: LineTickSpec; labels?: LineLabelSpec;
 }>;
@@ -54,11 +54,11 @@ export type LineChartSpec<T = unknown> = LineCommon & (
   | Readonly<{ axes: Readonly<{ x: LineCategoryAxis; y: LineYAxis }>; viewport?: ChartViewportBinding<ChartCategoryWindow>;
       series: readonly LineSeries<T, string>[];
       references?: readonly LineReference<string>[]; referenceBands?: readonly ChartReferenceBand<string>[] }>
-  | Readonly<{ axes: Readonly<{ x: LineContinuousXAxis & { readonly kind: 'linear' };
+  | Readonly<{ axes: Readonly<{ x: LineContinuousXAxis & { readonly type: 'linear' };
       y: LineYAxis }>; viewport?: ChartViewportBinding<ChartNumericWindow>;
       series: readonly LineSeries<T, number>[];
       references?: readonly LineReference<number>[]; referenceBands?: readonly ChartReferenceBand<number>[] }>
-  | Readonly<{ axes: Readonly<{ x: LineContinuousXAxis & { readonly kind: 'time' };
+  | Readonly<{ axes: Readonly<{ x: LineContinuousXAxis & { readonly type: 'time' };
       y: LineYAxis }>; viewport?: ChartViewportBinding<ChartNumericWindow>;
       series: readonly LineSeries<T, number>[];
       references?: readonly LineReference<number>[]; referenceBands?: readonly ChartReferenceBand<number>[] }>

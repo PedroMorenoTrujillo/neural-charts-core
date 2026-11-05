@@ -38,7 +38,7 @@ export function planComparison(spec:PlanLollipopSpec|PlanDumbbellSpec|PlanColumn
     if(pyramid&&Object.hasOwn(input,'markerRadius'))fail('markerRadius','ENDPOINT_MARKER_OPTION_ONLY');
     const radius=Object.hasOwn(input,'markerRadius')?number(input.markerRadius,'markerRadius',1,16):4;
     const axes=record(input.axes,['x','y'],['x','y'],'axes');
-    const y=record(axes.y,['kind','domain','nice','includeZero','reversed','title','grid','ticks','labels'],['kind'],'axes.y');
+    const y=record(axes.y,['type','domain','nice','includeZero','reversed','title','grid','ticks','labels'],['type'],'axes.y');
     if(!dumbbell){
       if(y.includeZero===false)fail('axes.y.includeZero','ZERO_BASELINE_REQUIRED');
       if(Object.hasOwn(y,'domain')){const domain=array(y.domain,2,'axes.y.domain');if(domain.length!==2||number(domain[0],'axes.y.domain[0]')>0||number(domain[1],'axes.y.domain[1]')<0)fail('axes.y.domain','ZERO_BASELINE_REQUIRED');}
@@ -74,15 +74,15 @@ export function planComparison(spec:PlanLollipopSpec|PlanDumbbellSpec|PlanColumn
         let hit:PlanObservation['hit'],stem:PlanObservation['stem'];
         if(pyramid){
           const vertices=clipTriangle([{x:x-slot.width/2,y:a},{x:x+slot.width/2,y:a},{x,y:b}],plot);
-          if(vertices.length){if(vertices.length>6)fail('series.data','UNREPRESENTABLE_TRIANGLE');glyph.commands.push(...vertices.map((p,i):PlanCommand=>({kind:i?'L':'M',...p})),{kind:'Z'});hit={kind:'polygon',vertices};}
+          if(vertices.length){if(vertices.length>6)fail('series.data','UNREPRESENTABLE_TRIANGLE');glyph.commands.push(...vertices.map((p,i):PlanCommand=>({type:i?'L':'M',...p})),{type:'Z'});hit={type:'polygon',vertices};}
         }else{
           let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
           const include=(x1:number,y1:number,x2:number,y2:number)=>{minX=Math.min(minX,x1);maxX=Math.max(maxX,x2);minY=Math.min(minY,y1);maxY=Math.max(maxY,y2);};
-          if(x>=left&&x<=right&&Math.max(a,b)>=top&&Math.min(a,b)<=bottom){const first=Math.max(top,Math.min(bottom,a)),last=Math.max(top,Math.min(bottom,b));if(first!==last){glyph.commands.push({kind:'M',x,y:first},{kind:'L',x,y:last});stem={x,startY:first,endY:last};include(x-1,Math.min(first,last),x+1,Math.max(first,last));}}
+          if(x>=left&&x<=right&&Math.max(a,b)>=top&&Math.min(a,b)<=bottom){const first=Math.max(top,Math.min(bottom,a)),last=Math.max(top,Math.min(bottom,b));if(first!==last){glyph.commands.push({type:'M',x,y:first},{type:'L',x,y:last});stem={x,startY:first,endY:last};include(x-1,Math.min(first,last),x+1,Math.max(first,last));}}
           const endpoint=(y:number)=>{if(x<left||x>right||y<top||y>bottom)return;if(++primitiveCount>10000)fail('series.data','RESOURCE_LIMIT');glyph.circles.push({pointId:source.id,cx:x,cy:y,radius});include(x-radius,y-radius,x+radius,y+radius);};
           if(dumbbell){endpoint(a);if(b!==a)endpoint(b);}else endpoint(b);
           minX=Math.max(left,minX);maxX=Math.min(right,maxX);minY=Math.max(top,minY);maxY=Math.min(bottom,maxY);
-          if(maxX>minX&&maxY>minY)hit={kind:'polygon',vertices:[{x:minX,y:minY},{x:maxX,y:minY},{x:maxX,y:maxY},{x:minX,y:maxY}]};
+          if(maxX>minX&&maxY>minY)hit={type:'polygon',vertices:[{x:minX,y:minY},{x:maxX,y:minY},{x:maxX,y:maxY},{x:minX,y:maxY}]};
         }
         const {hit:_hit,lowValue:_low,highValue:_high,...semantic}=observation;
         observations.push({...semantic,value:dumbbell?observation.value:source.value!,x:Math.max(left,Math.min(right,x)),y:Math.max(top,Math.min(bottom,dumbbell?a/2+b/2:b)),...(dumbbell?{lowValue:source.low!,highValue:source.high!}:{}),...(stem?{stem}:{}),...(hit?{hit}:{})});
