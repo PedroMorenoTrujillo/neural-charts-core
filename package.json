@@ -1,6 +1,6 @@
 {
   "name": "@neural-charts/core",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Renderer-independent TypeScript chart planning, geometry and viewport calculations.",
   "license": "MIT",
   "type": "module",
@@ -17,6 +17,10 @@
       "types": "./dist/plan.d.ts",
       "import": "./dist/plan.js",
       "default": "./dist/plan.js"
+    },
+    "./drilldown": {
+      "types": "./dist/drilldown.d.ts",
+      "import": "./dist/drilldown.js"
     },
     "./cartesian": {
       "types": "./dist/cartesian.d.ts",

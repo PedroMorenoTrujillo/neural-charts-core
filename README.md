@@ -2,14 +2,14 @@
 
 Renderer-independent chart planning and geometry in strict TypeScript. The Core converts source data and a viewport size into a read-only frame that a renderer can paint.
 
-**Version 0.1.0 is experimental.** Public contracts can change before 1.0. Pin the version while integrating a renderer.
+**Version 0.1.1 is experimental.** Public contracts can change before 1.0. Pin the version while integrating a renderer.
 
 Version 0.1.0 replaces the public `kind` discriminator with `type`. This is a breaking contract change from 0.0.24; chart geometry, calculations, source identities and values are unchanged.
 
 ## Install
 
 ```sh
-npm install @neural-charts/core@0.1.0
+npm install @neural-charts/core@0.1.1
 ```
 
 The package ships ESM JavaScript and TypeScript declarations. It has no runtime dependencies, framework peer dependencies, browser globals, native bridges or module initialization side effects. Its declarations compile with `lib: ["ES2022"]`, without DOM types. Development and package verification use Node.js 22 or newer.
@@ -228,6 +228,12 @@ viewport bounds add `type: 'log'` to `PlanViewportAxis`; use
 known log coordinates and unsupported chart families are explicit errors. See
 the [logarithmic contract](https://github.com/PedroMorenoTrujillo/neural-charts-core/blob/main/docs/logarithmic-contract.md)
 for gaps, clipping, reversed axes, precision and original-unit decorations.
+
+### Renderer-independent drilldown
+
+`@neural-charts/core/drilldown` validates bounded navigation graphs and original-datum destinations, and owns pure history, saved visibility/viewports and generation cancellation. Generic chart payloads keep their strict types and source references. Hosts retain chart validation, option resolution, rendering, controls and output events. Optional typed source adapters support different chart DTOs without bypassing Core's identity checks.
+
+See [the drilldown API and examples](https://github.com/PedroMorenoTrujillo/neural-charts-core/blob/main/docs/drilldown.md) for ownership, semantic keys, limits and all public functions. This entry has no framework, browser or native dependencies.
 
 ## Supported planning families
 
