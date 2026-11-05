@@ -6,6 +6,27 @@ const validateMesh=(input:unknown)=>validateMeshInput(input as Mesh);
 const near=(a:number,b:number)=>assert.ok(Math.abs(a-b)<1e-9,`${a} != ${b}`);
 const square=()=>validateMesh({id:'square',aspectRatio:1,vertices:[{x:0,y:0},{x:1,y:0},{x:1,y:1},{x:0,y:1}],triangles:[[0,1,2],[0,2,3]]});
 
+test('rounded presets remain bounded and partition every fill level without gaps',()=>{
+  for(const name of ['person','bottle','heart'] as const){
+    const mesh=presetMesh(name);
+    assert.ok(mesh.triangles.length<=64);
+    assert.equal(Math.min(...mesh.vertices.map(vertex=>vertex.x)),0);
+    assert.equal(Math.max(...mesh.vertices.map(vertex=>vertex.x)),1);
+    assert.equal(Math.min(...mesh.vertices.map(vertex=>vertex.y)),0);
+    assert.equal(Math.max(...mesh.vertices.map(vertex=>vertex.y)),1);
+    const complete=fillBand(mesh,0,1);
+    for(const fraction of [.01,.1,.25,.5,.75,.9,.99]){
+      const lower=fillBand(mesh,0,fraction),upper=fillBand(mesh,fraction,1);
+      near(lower.area+upper.area,complete.area);
+      for(const piece of lower.pieces)for(const point of piece)assert.ok(point.y>=1-fraction-1e-10);
+      for(const piece of upper.pieces)for(const point of piece)assert.ok(point.y<=1-fraction+1e-10);
+    }
+    assert.equal(presetMesh(name),mesh);
+    assert.throws(()=>{(mesh.vertices[0] as {x:number}).x=.4;},TypeError);
+    assert.throws(()=>{(mesh.triangles[0] as number[])[0]=999;},TypeError);
+  }
+});
+
 test('presets have valid original concave silhouettes and preserve all shape ink',()=>{
   for(const name of ['person','bottle','heart'] as const){
     const mesh=presetMesh(name),band=fillBand(mesh,0,1);
