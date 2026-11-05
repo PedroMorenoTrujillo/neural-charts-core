@@ -2,14 +2,14 @@
 
 Renderer-independent chart planning and geometry in strict TypeScript. The Core converts source data and a viewport size into a read-only frame that a renderer can paint.
 
-**Version 0.1.1 is experimental.** Public contracts can change before 1.0. Pin the version while integrating a renderer.
+**Version 0.1.2 is experimental.** Public contracts can change before 1.0. Pin the version while integrating a renderer.
 
 Version 0.1.0 replaces the public `kind` discriminator with `type`. This is a breaking contract change from 0.0.24; chart geometry, calculations, source identities and values are unchanged.
 
 ## Install
 
 ```sh
-npm install @neural-charts/core@0.1.1
+npm install @neural-charts/core@0.1.2
 ```
 
 The package ships ESM JavaScript and TypeScript declarations. It has no runtime dependencies, framework peer dependencies, browser globals, native bridges or module initialization side effects. Its declarations compile with `lib: ["ES2022"]`, without DOM types. Development and package verification use Node.js 22 or newer.
@@ -305,6 +305,8 @@ Each input is a strict discriminated interface. Do not build a single object con
 ### Pictorial: filled silhouette heights
 
 Pictorial fills an original vector silhouette to the height represented by each value. Grouped series have separate silhouettes; sum and percent stacks divide one silhouette into actual contiguous bands. The filled geometry respects holes. Height proportion does not claim area proportion or the physical volume of a bottle-like shape.
+
+The built-in `person`, `bottle` and `heart` presets use rounded outlines. Fill bands and hit geometry follow that same outline; no decorative overlay changes the visible silhouette independently of selection.
 
 ```ts
 import {planChart, type PlanPictorialSpec} from '@neural-charts/core/plan';
