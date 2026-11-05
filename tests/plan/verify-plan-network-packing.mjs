@@ -17,7 +17,7 @@ function deepFrozen(value){if(value&&typeof value==='object'){assert.ok(Object.i
 
 check('network cycles are valid and source-node metrics are explicit exact undirected degree',()=>{
   const f=frame(network);assert.equal(f.family,'networkgraph');assert.equal(f.unit,'Connections');assert.deepEqual(f.observations.map(o=>o.id.pointId),network.nodes.map(n=>n.id));assert.equal(circles(f).length,4);assert.equal(f.series[0].id,'links');assert.ok(!f.legend.some(g=>g.id==='links'));
-  for(const id of ['a','b','c']){const o=byId(f,id);assert.equal(o.value,2);assert.deepEqual(o.node,{incoming:1,outgoing:1,directed:false});assert.equal(Object.hasOwn(o.node,'depth'),false);assert.equal(o.hit.kind,'circle');}
+  for(const id of ['a','b','c']){const o=byId(f,id);assert.equal(o.value,2);assert.deepEqual(o.node,{incoming:1,outgoing:1,directed:false});assert.equal(Object.hasOwn(o.node,'depth'),false);assert.equal(o.hit.type,'circle');}
   const isolated=byId(f,'isolated');assert.equal(isolated.value,0);assert.deepEqual(isolated.node,{incoming:0,outgoing:0,directed:false});assert.ok(circle(f,'two','isolated'));assert.deepEqual(f.grid,[]);assert.deepEqual(f.labels,[]);
 });
 check('bounded force layout is static/deterministic and independent of undirected edge order/orientation',()=>{
@@ -44,7 +44,7 @@ check('network exact 128-node limit has no fake or dropped isolated observations
 check('packed circles retain one GLOBAL area scale across split source series, without parent observations',()=>{
   const f=frame(packed);assert.equal(f.family,'packedbubble');assert.deepEqual(f.observations.map(o=>o.id.pointId),['one','four','zero','sixteen']);assert.deepEqual(f.observations.map(o=>o.value),[1,4,0,16]);assert.equal(f.series.length,2);assert.deepEqual(f.legend.map(l=>l.id),['a','b']);assert.equal(circles(f).length,3);
   const one=circle(f,'a','one'),four=circle(f,'a','four'),sixteen=circle(f,'b','sixteen');close(four.radius/one.radius,2);close(sixteen.radius/one.radius,4);const scale=one.radius*one.radius;close(four.radius*four.radius/4,scale);close(sixteen.radius*sixteen.radius/16,scale);nonoverlap(circles(f));
-  for(const c of circles(f)){const o=f.observations.find(o=>o.id.seriesId===c.seriesId&&o.id.pointId===c.pointId);assert.deepEqual(o.hit,{kind:'circle',cx:c.cx,cy:c.cy,radius:c.radius});assert.equal(o.x,c.cx);assert.equal(o.y,c.cy);assert.equal(Object.hasOwn(o,'node'),false);}
+  for(const c of circles(f)){const o=f.observations.find(o=>o.id.seriesId===c.seriesId&&o.id.pointId===c.pointId);assert.deepEqual(o.hit,{type:'circle',cx:c.cx,cy:c.cy,radius:c.radius});assert.equal(o.x,c.cx);assert.equal(o.y,c.cy);assert.equal(Object.hasOwn(o,'node'),false);}
 });
 check('split packing keeps true enclosing group extents apart; unsplit mode preserves raw area ratios',()=>{
   const split=frame(packed),envelope=id=>{const cs=circles(split).filter(c=>c.seriesId===id),left=Math.min(...cs.map(c=>c.cx-c.radius)),right=Math.max(...cs.map(c=>c.cx+c.radius)),top=Math.min(...cs.map(c=>c.cy-c.radius)),bottom=Math.max(...cs.map(c=>c.cy+c.radius)),x=left/2+right/2,y=top/2+bottom/2;return {x,y,radius:Math.max(...cs.map(c=>Math.hypot(c.cx-x,c.cy-y)+c.radius))};},a=envelope('a'),b=envelope('b');assert.ok(Math.hypot(a.x-b.x,a.y-b.y)+1e-8>=a.radius+b.radius);
@@ -60,8 +60,8 @@ check('packed zero metrics stay semantic without fake circles; null observations
 });
 check('packing square viewport declares isotropic zoom8 limits and public zoom intent clamps at them',()=>{
   const single={family:'packedbubble',title:'Single value',series:[{id:'s',name:'S',data:[{id:'p',value:4}]}]},f=frame(single),v=f.viewport;assert.equal(v.plot.width,v.plot.height);assert.deepEqual(v.bounds.x.domain,[0,1]);assert.deepEqual(v.bounds.y.domain,[0,1]);assert.deepEqual(v.bounds.x.limits,{minSpan:.125});assert.deepEqual(v.bounds.y.limits,{minSpan:.125});
-  const intent=transformPlanViewport(v,{kind:'zoom',factor:100});assert.equal(intent.status,'ok');close(intent.value.x[1]-intent.value.x[0],.125);close(intent.value.y[1]-intent.value.y[0],.125);const zoom=frame(single,{...options,viewport:{axes:'xy',value:intent.value}});close(circles(zoom)[0].radius/circles(f)[0].radius,8);assert.equal(zoom.observations[0].value,4);
-  const atLimit=transformPlanViewport(zoom.viewport,{kind:'zoom',factor:2});assert.equal(atLimit.status,'ok');close(atLimit.value.x[0],intent.value.x[0]);close(atLimit.value.x[1],intent.value.x[1]);close(atLimit.value.y[0],intent.value.y[0]);close(atLimit.value.y[1],intent.value.y[1]);
+  const intent=transformPlanViewport(v,{type:'zoom',factor:100});assert.equal(intent.status,'ok');close(intent.value.x[1]-intent.value.x[0],.125);close(intent.value.y[1]-intent.value.y[0],.125);const zoom=frame(single,{...options,viewport:{axes:'xy',value:intent.value}});close(circles(zoom)[0].radius/circles(f)[0].radius,8);assert.equal(zoom.observations[0].value,4);
+  const atLimit=transformPlanViewport(zoom.viewport,{type:'zoom',factor:2});assert.equal(atLimit.status,'ok');close(atLimit.value.x[0],intent.value.x[0]);close(atLimit.value.x[1],intent.value.x[1]);close(atLimit.value.y[0],intent.value.y[0]);close(atLimit.value.y[1],intent.value.y[1]);
   const layout=frame(packed),cropped=frame(packed,{...options,viewport:{axes:'xy',value:{x:[.25,.75],y:[.25,.75]}}});for(const c of circles(cropped)){const original=circle(layout,c.seriesId,c.pointId),plot=layout.viewport.plot;close(c.cx,plot.x+((original.cx-plot.x)/plot.width-.25)/.5*plot.width);close(c.cy,plot.y+((original.cy-plot.y)/plot.height-.25)/.5*plot.height);close(c.radius,original.radius*2);}
   for(const value of [{x:[0,.5],y:[0,.75]},{x:[0,.1],y:[0,.1]},{x:[0,.5]}])assert.equal(planChart(single,{...options,viewport:{axes:'xy',value}}).status,'invalid');
 });

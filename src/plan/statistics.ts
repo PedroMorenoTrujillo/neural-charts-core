@@ -121,7 +121,7 @@ export function planStatistics(spec:PlanHistogramSpec|PlanBellcurveSpec,options:
     const densityX=new Map<string,number>();
     if(family==='histogram'){
       bins=histogram(samples,binCount);
-      const transformed:PlanColumnSpec={family:'column',...common,groupGap:0,barGap:0,axes:{x:{kind:'category',values:bins.map(bin=>({id:bin.id,label:bin.label}))},y:{kind:'linear'}},series:[{id:'distribution',name:'Frequency',data:bins.map(bin=>({id:bin.id,x:bin.id,y:bin.count}))}]};
+      const transformed:PlanColumnSpec={family:'column',...common,groupGap:0,barGap:0,axes:{x:{type:'category',values:bins.map(bin=>({id:bin.id,label:bin.label}))},y:{type:'linear'}},series:[{id:'distribution',name:'Frequency',data:bins.map(bin=>({id:bin.id,x:bin.id,y:bin.count}))}]};
       result=project(transformed,options);
     }else{
       const data:Readonly<{id:string;x:number;y:number}>[]=[];
@@ -136,7 +136,7 @@ export function planStatistics(spec:PlanHistogramSpec|PlanBellcurveSpec,options:
           const id='density-'+index;data.push({id,x,y});densityX.set(id,x);previous=x;
         }
       }
-      const transformed:PlanLineSpec={family:'line',...common,axes:{x:{kind:'linear'},y:{kind:'linear',includeZero:true}},series:[{id:'distribution',name:'Density',data}]};
+      const transformed:PlanLineSpec={family:'line',...common,axes:{x:{type:'linear'},y:{type:'linear',includeZero:true}},series:[{id:'distribution',name:'Density',data}]};
       result=project(transformed,options);
     }
     if(result.status==='invalid')return result;

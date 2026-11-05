@@ -59,7 +59,7 @@ describe('relationship showcase preparation', () => {
 
   it('keeps zero values and omitted positive geometry distinct in tooltip descriptions', () => {
     expect(relationshipNumber(0, value => value.toFixed(2))).toBe('0.00');
-    const zero = {value: 0, relationship: {kind: 'link' as const, from: 'a', to: 'b', fromLabel: 'A', toLabel: 'B', directed: false, geometryOmitted: true as const}};
+    const zero = {value: 0, relationship: {type: 'link' as const, from: 'a', to: 'b', fromLabel: 'A', toLabel: 'B', directed: false, geometryOmitted: true as const}};
     const positive = {...zero, value: Number.MIN_VALUE};
     expect(relationshipDetails(zero, 'chord', 'en', String).at(-1)?.value).toContain('Zero');
     expect(relationshipDetails(positive, 'chord', 'en', String).at(-1)?.value).toContain('precision');

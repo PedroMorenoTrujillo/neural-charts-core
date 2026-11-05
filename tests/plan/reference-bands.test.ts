@@ -2,8 +2,8 @@ import {describe,expect,it} from 'vitest';
 import {planChart} from '../../src/plan.js';
 import type {PlanColumnSpec,PlanFrame,PlanLineSpec,PlanMixedSpec,PlanOptions,PlanReferenceBand,PlanSpec} from '../../src/plan.js';
 
-const line:PlanLineSpec={family:'line',title:'Source units',axes:{x:{kind:'linear',domain:[0,10],nice:false},y:{kind:'linear',domain:[0,100],nice:false}},series:[{id:'series',name:'Original',data:[{id:'zero',x:0,y:0},{id:'middle',x:5,y:50},{id:'missing',x:7,y:null},{id:'last',x:10,y:100}]}]};
-const column:PlanColumnSpec={family:'column',title:'Category identities',groupGap:0,axes:{x:{kind:'category',values:[{id:'a',label:'Same'},{id:'b',label:'Same'},{id:'c'},{id:'d'}]},y:{kind:'linear',domain:[0,100],nice:false}},series:[{id:'one',name:'One',data:[{id:'a',x:'a',y:10},{id:'b',x:'b',y:20},{id:'c',x:'c',y:30},{id:'d',x:'d',y:40}]},{id:'two',name:'Two',data:[{id:'a',x:'a',y:5},{id:'b',x:'b',y:10},{id:'c',x:'c',y:15},{id:'d',x:'d',y:20}]}]};
+const line:PlanLineSpec={family:'line',title:'Source units',axes:{x:{type:'linear',domain:[0,10],nice:false},y:{type:'linear',domain:[0,100],nice:false}},series:[{id:'series',name:'Original',data:[{id:'zero',x:0,y:0},{id:'middle',x:5,y:50},{id:'missing',x:7,y:null},{id:'last',x:10,y:100}]}]};
+const column:PlanColumnSpec={family:'column',title:'Category identities',groupGap:0,axes:{x:{type:'category',values:[{id:'a',label:'Same'},{id:'b',label:'Same'},{id:'c'},{id:'d'}]},y:{type:'linear',domain:[0,100],nice:false}},series:[{id:'one',name:'One',data:[{id:'a',x:'a',y:10},{id:'b',x:'b',y:20},{id:'c',x:'c',y:30},{id:'d',x:'d',y:40}]},{id:'two',name:'Two',data:[{id:'a',x:'a',y:5},{id:'b',x:'b',y:10},{id:'c',x:'c',y:15},{id:'d',x:'d',y:20}]}]};
 const options={width:320,height:300} as const;
 function frame(spec:PlanSpec=line,extra:Partial<PlanOptions>={}):PlanFrame{
   const result=planChart(spec,{...options,...extra});
@@ -65,7 +65,7 @@ describe('style-free represented-axis reference bands',()=>{
     expect(bandBox(f)).toEqual({x:16,y:14,width:288,height:272});expect(bandBox(f,1)).toEqual(bandBox(f));expect(f.referenceBands?.[2]?.status).toBe('outside');expect(f.referenceBands?.[1]).toMatchObject({from:'a',to:'c'});
   });
   it.each(['area','spline','areaspline'] as const)('reuses existing %s maps without changing its geometry',family=>{
-    const source={...line,family,axes:{...line.axes,y:{kind:'linear' as const,nice:false}}},f=frame(source,{referenceBands:numericBands}),baseline=frame(source);expect(f.series).toEqual(baseline.series);expect(bandBox(f).width).toBeCloseTo(115.2);
+    const source={...line,family,axes:{...line.axes,y:{type:'linear' as const,nice:false}}},f=frame(source,{referenceBands:numericBands}),baseline=frame(source);expect(f.series).toEqual(baseline.series);expect(bandBox(f).width).toBeCloseTo(115.2);
   });
   it('supports stacked area and original category slots through the existing point-axis adapter',()=>{
     const source={family:'area' as const,title:column.title,axes:column.axes,series:column.series},f=frame(source,{stacking:'sum',referenceBands:[{id:'point-slot',axis:'x',from:'b',to:'b'}]});
@@ -76,25 +76,25 @@ describe('style-free represented-axis reference bands',()=>{
     const f=frame(source,{referenceBands:numericBands});expect(bandBox(f)).toMatchObject({y:48,height:204});expect(bandBox(f).x).toBeCloseTo(92.8);expect(bandBox(f).width).toBeCloseTo(89.6);expect(f.observations.some(point=>point.value===0)).toBe(true);
   });
   it('routes mixed secondary Y bands through the independent original scale and shared viewport',()=>{
-    const mixed:PlanMixedSpec={family:'mixed',title:'Mixed',axes:{x:column.axes.x,y:column.axes.y,secondaryY:{kind:'linear',domain:[10,30],nice:false}},series:[{...column.series[0]!,kind:'column'},{id:'temperature',name:'Temperature',kind:'line',yAxis:'secondary',data:[{id:'a',x:'a',y:15},{id:'b',x:'b',y:20},{id:'c',x:'c',y:25},{id:'d',x:'d',y:30}]}]};
+    const mixed:PlanMixedSpec={family:'mixed',title:'Mixed',axes:{x:column.axes.x,y:column.axes.y,secondaryY:{type:'linear',domain:[10,30],nice:false}},series:[{...column.series[0]!,type:'column'},{id:'temperature',name:'Temperature',type:'line',yAxis:'secondary',data:[{id:'a',x:'a',y:15},{id:'b',x:'b',y:20},{id:'c',x:'c',y:25},{id:'d',x:'d',y:30}]}]};
     const f=frame(mixed,{referenceBands:[{id:'primary',axis:'y',from:25,to:75},{id:'secondary',axis:'y',valueAxis:'secondary',from:15,to:25}],viewport:{axes:'y',value:{y:[25,75]}}});
     expect(bandBox(f)).toEqual({x:16,y:14,width:288,height:272});expect(bandBox(f,1)).toEqual(bandBox(f));expect(f.referenceBands?.[1]).toMatchObject({valueAxis:'secondary',from:15,to:25});
   });
   it('clips a reversed secondary Y band against its own coupled viewport',()=>{
-    const mixed:PlanMixedSpec={family:'mixed',title:'Independent reversed Y',axes:{x:column.axes.x,y:column.axes.y,secondaryY:{kind:'linear',domain:[10,30],nice:false,reversed:true}},series:[{...column.series[0]!,kind:'column'},{id:'temperature',name:'Temperature',kind:'line',yAxis:'secondary',data:[{id:'a',x:'a',y:15},{id:'b',x:'b',y:20},{id:'c',x:'c',y:25},{id:'d',x:'d',y:30}]}]};
+    const mixed:PlanMixedSpec={family:'mixed',title:'Independent reversed Y',axes:{x:column.axes.x,y:column.axes.y,secondaryY:{type:'linear',domain:[10,30],nice:false,reversed:true}},series:[{...column.series[0]!,type:'column'},{id:'temperature',name:'Temperature',type:'line',yAxis:'secondary',data:[{id:'a',x:'a',y:15},{id:'b',x:'b',y:20},{id:'c',x:'c',y:25},{id:'d',x:'d',y:30}]}]};
     const f=frame(mixed,{viewport:{axes:'y',value:{y:[0,50]}},referenceBands:[{id:'secondary',axis:'y',valueAxis:'secondary',from:15,to:25}]});
     expect(f.mixedAxes?.secondary.displayed).toEqual([20,30]);expect(f.mixedAxes?.secondary.reversed).toBe(true);expect(bandBox(f)).toEqual({x:16,y:14,width:288,height:136});expect(f.referenceBands?.[0]).toMatchObject({from:15,to:25,valueAxis:'secondary'});
   });
-  it.each(['column','arearange'] as const)('wires the scalar/range mixed owner with a %s and measured line',kind=>{
+  it.each(['column','arearange'] as const)('wires the scalar/range mixed owner with a %s and measured line',type=>{
     const mixed:PlanMixedSpec={family:'mixed',title:'One coordinated frame',axes:column.axes,series:[
-      kind==='column'?{...column.series[0]!,kind}:{id:'spread',name:'Range',kind,data:column.series[0]!.data.map(point=>({id:point.id,x:point.x,low:point.y,high:point.y===null?null:point.y+10}))},
-      {...column.series[1]!,kind:'line'},
+      type==='column'?{...column.series[0]!,type}:{id:'spread',name:'Range',type,data:column.series[0]!.data.map(point=>({id:point.id,x:point.x,low:point.y,high:point.y===null?null:point.y+10}))},
+      {...column.series[1]!,type:'line'},
     ]};
     const baseline=frame(mixed),f=frame(mixed,{referenceBands:[{id:'category',axis:'x',from:'b',to:'c'},{id:'target',axis:'y',from:20,to:40}]});
     expect(f.series).toEqual(baseline.series);expect(f.observations).toEqual(baseline.observations);expect(f.referenceBands?.every(band=>band.status==='visible')).toBe(true);expect(bandBox(f).width).toBeGreaterThan(0);
   });
   it('retains unavailable source metadata for empty/all-hidden charts without inventing observations',()=>{
-    const empty:PlanLineSpec={...line,axes:{x:{kind:'linear'},y:{kind:'linear'}},series:line.series.map(series=>({...series,data:series.data.map(point=>({...point,y:null}))}))};
+    const empty:PlanLineSpec={...line,axes:{x:{type:'linear'},y:{type:'linear'}},series:line.series.map(series=>({...series,data:series.data.map(point=>({...point,y:null}))}))};
     const f=frame(empty,{referenceBands:numericBands});expect(f.referenceBands).toEqual(numericBands.map(band=>({...band,status:'unavailable'})));expect(f.observations).toEqual([]);
     expect(frame(column,{hiddenSeriesIds:['one','two'],referenceBands:[{id:'category',axis:'x',from:'a',to:'b'}]}).referenceBands?.[0]?.status).toBe('unavailable');
   });
@@ -120,7 +120,7 @@ describe('style-free represented-axis reference bands',()=>{
     for(const band of [{id:'unknown',axis:'x',from:'z',to:'z'},{id:'reverse',axis:'x',from:'d',to:'a'},{id:'secondary-x',axis:'x',from:'a',to:'b',valueAxis:'secondary'}])expect(planChart(column,{...options,referenceBands:[band]} as unknown as PlanOptions).status).toBe('invalid');
   });
   it('uses existing time range validation and original timestamps',()=>{
-    const day=86400000,source:PlanLineSpec={...line,axes:{x:{kind:'time',domain:[0,10*day],nice:false},y:line.axes.y},series:[{id:'series',name:'Time',data:[{id:'a',x:0,y:0},{id:'b',x:10*day,y:100}]}]};
+    const day=86400000,source:PlanLineSpec={...line,axes:{x:{type:'time',domain:[0,10*day],nice:false},y:line.axes.y},series:[{id:'series',name:'Time',data:[{id:'a',x:0,y:0},{id:'b',x:10*day,y:100}]}]};
     expect(frame(source,{referenceBands:[{id:'days',axis:'x',from:2*day,to:6*day}]}).referenceBands?.[0]).toMatchObject({from:2*day,to:6*day,status:'visible'});
     expect(planChart(source,{...options,referenceBands:[{id:'fraction',axis:'x',from:.5,to:day}]}).status).toBe('invalid');
   });

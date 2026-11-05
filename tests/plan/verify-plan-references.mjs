@@ -12,11 +12,11 @@ function planned(spec,options={}){const result=planChart(spec,{width:400,height:
 function invalid(spec,options){const result=planChart(spec,{width:400,height:300,...options});assert.equal(result.status,'invalid');return result.diagnostic;}
 const close=(a,b)=>assert(Math.abs(a-b)<1e-8,`${a} != ${b}`);
 const reference=(frame,id)=>{const found=frame.references?.find(item=>item.id===id);assert(found);return found;};
-const numberLine={family:'line',title:'Numeric references',axes:{x:{kind:'linear',domain:[0,100]},y:{kind:'linear',domain:[0,100]}},series:[{id:'s',name:'Series',data:[{id:'start',x:0,y:0},{id:'middle',x:50,y:25},{id:'end',x:100,y:100}]}]};
+const numberLine={family:'line',title:'Numeric references',axes:{x:{type:'linear',domain:[0,100]},y:{type:'linear',domain:[0,100]}},series:[{id:'s',name:'Series',data:[{id:'start',x:0,y:0},{id:'middle',x:50,y:25},{id:'end',x:100,y:100}]}]};
 const categories=['a','b','c','d'].map(id=>({id,label:'Same label'}));
-const categoryLine={...numberLine,title:'Category references',axes:{x:{kind:'category',values:categories},y:{kind:'linear',domain:[0,100]}},series:[{id:'s',name:'Series',data:categories.map((category,index)=>({id:'point-'+category.id,x:category.id,y:20+index*10}))}]};
-const column={family:'column',title:'Primitive IDs',axes:{x:{kind:'category',values:[{id:'a'},{id:'b'}]},y:{kind:'linear'}},series:[{id:'first',name:'First',data:[{id:'first-b',x:'b',y:20},{id:'first-a',x:'a',y:10}]},{id:'second',name:'Second',data:[{id:'second-a',x:'a',y:30},{id:'second-b',x:'b',y:40}]}]};
-const bubbles={family:'bubble',title:'Coincident bubbles',axes:{x:{kind:'linear',domain:[0,100]},y:{kind:'linear',domain:[0,100]}},series:[{id:'s',name:'Series',data:[{id:'large',x:50,y:50,z:40},{id:'small',x:50,y:50,z:10},{id:'zero',x:80,y:20,z:0},{id:'missing',x:null,y:40,z:30}]}]};
+const categoryLine={...numberLine,title:'Category references',axes:{x:{type:'category',values:categories},y:{type:'linear',domain:[0,100]}},series:[{id:'s',name:'Series',data:categories.map((category,index)=>({id:'point-'+category.id,x:category.id,y:20+index*10}))}]};
+const column={family:'column',title:'Primitive IDs',axes:{x:{type:'category',values:[{id:'a'},{id:'b'}]},y:{type:'linear'}},series:[{id:'first',name:'First',data:[{id:'first-b',x:'b',y:20},{id:'first-a',x:'a',y:10}]},{id:'second',name:'Second',data:[{id:'second-a',x:'a',y:30},{id:'second-b',x:'b',y:40}]}]};
+const bubbles={family:'bubble',title:'Coincident bubbles',axes:{x:{type:'linear',domain:[0,100]},y:{type:'linear',domain:[0,100]}},series:[{id:'s',name:'Series',data:[{id:'large',x:50,y:50,z:40},{id:'small',x:50,y:50,z:10},{id:'zero',x:80,y:20,z:0},{id:'missing',x:null,y:40,z:30}]}]};
 
 check('numeric references align with existing point maps and do not expand domains',()=>{
   const base=planned(numberLine),frame=planned(numberLine,{references:[{id:'x',axis:'x',value:50},{id:'y',axis:'y',value:25},{id:'outside',axis:'x',value:101},{id:'lower',axis:'y',value:-1}]});
@@ -45,13 +45,13 @@ check('category references use IDs and current window, never duplicate labels',(
 });
 check('time references use exact UTC data coordinates',()=>{
   const start=Date.UTC(2026,0,1),middle=Date.UTC(2026,0,2),end=Date.UTC(2026,0,3);
-  const spec={...numberLine,axes:{x:{kind:'time',domain:[start,end]},y:numberLine.axes.y},series:[{id:'s',name:'Series',data:[{id:'a',x:start,y:0},{id:'b',x:middle,y:25},{id:'c',x:end,y:100}]}]};
+  const spec={...numberLine,axes:{x:{type:'time',domain:[start,end]},y:numberLine.axes.y},series:[{id:'s',name:'Series',data:[{id:'a',x:start,y:0},{id:'b',x:middle,y:25},{id:'c',x:end,y:100}]}]};
   const frame=planned(spec,{references:[{id:'utc',axis:'x',value:middle},{id:'early',axis:'x',value:start-1}]});
   close(reference(frame,'utc').line.x1,frame.observations.find(item=>item.id.pointId==='b').x);assert.equal(reference(frame,'early').status,'outside');
 });
 check('grouped, summed and percent references preserve semantic Y across both orientations and inversion',()=>{
   for(const orientation of ['vertical','horizontal'])for(const reversed of [false,true])for(const stacking of [undefined,'sum','percent']){
-    const spec={...column,orientation,axes:{...column.axes,y:{kind:'linear',reversed}}},value=stacking==='percent'?25:10;
+    const spec={...column,orientation,axes:{...column.axes,y:{type:'linear',reversed}}},value=stacking==='percent'?25:10;
     const options={...(stacking?{stacking}:{}),references:[{id:'threshold',axis:'y',value},{id:'out',axis:'y',value:10000}]};
     const frame=planned(spec,options),point=frame.observations.find(item=>item.id.seriesId==='first'&&item.id.pointId==='first-a'),line=reference(frame,'threshold').line;
     if(orientation==='vertical'){close(line.y1,point.y);close(line.y2,point.y);assert(line.x2>line.x1);}else{close(line.x1,point.x);close(line.x2,point.x);assert(line.y2>line.y1);}

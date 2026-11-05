@@ -17,11 +17,11 @@ export function planWaterfall(spec:PlanWaterfallSpec,options:PlanOptions,referen
   const flow=spec.series[0];if(!flow||Object.keys(flow).some(key=>!['id','name','color','data'].includes(key))||!Array.isArray(flow.data)||flow.data.length>64)return bad('FLOW_LIMIT','series');
   if(spec.startValue!==undefined&&!Number.isFinite(spec.startValue))return bad('NONFINITE_START','startValue');
   for(const point of flow.data){
-    if(!point||!['delta','subtotal','total'].includes(point.kind)||Object.keys(point).some(key=>!(point.kind==='delta'?['id','x','kind','value']:['id','x','kind']).includes(key)))return bad('BAD_FLOW_POINT','series.data');
-    if(point.kind==='delta'&&!Number.isFinite(point.value))return bad('COMPLETE_FLOW_REQUIRED','series.data.value','A waterfall requires finite deltas. Missing changes cannot be treated as zero.');
+    if(!point||!['delta','subtotal','total'].includes(point.type)||Object.keys(point).some(key=>!(point.type==='delta'?['id','x','type','value']:['id','x','type']).includes(key)))return bad('BAD_FLOW_POINT','series.data');
+    if(point.type==='delta'&&!Number.isFinite(point.value))return bad('COMPLETE_FLOW_REQUIRED','series.data.value','A waterfall requires finite deltas. Missing changes cannot be treated as zero.');
   }
   const {startValue:_start,family:_family,...input}=spec;
-  const checked=validateColumn({...input,family:'column',series:[{...flow,data:flow.data.map(point=>({id:point.id,x:point.x,y:point.kind==='delta'?point.value:0}))}],...(references?{references}:{})});if(checked.status==='invalid')return checked;
+  const checked=validateColumn({...input,family:'column',series:[{...flow,data:flow.data.map(point=>({id:point.id,x:point.x,y:point.type==='delta'?point.value:0}))}],...(references?{references}:{})});if(checked.status==='invalid')return checked;
   const axes=checked.value.axes,categories=axes.x.values;
   if(categories.length!==flow.data.length||flow.data.some((point,i)=>point.x!==categories[i]?.id))return bad('ORDERED_COMPLETE_CATEGORIES','series.data','Supply exactly one flow point per category, in category order.');
   const hidden=options.hiddenSeriesIds??[];if(hidden.some(id=>id!==flow.id))return bad('UNKNOWN_SERIES','options.hiddenSeriesIds');
@@ -32,8 +32,8 @@ export function planWaterfall(spec:PlanWaterfallSpec,options:PlanOptions,referen
   const rows:{point:typeof flow.data[number];base:number;end:number;value:number}[]=[],extent=[0,running];
   for(const point of flow.data){
     let from=running,value:number;
-    if(point.kind==='delta'){const adjusted=point.value-compensation,next=running+adjusted;compensation=(next-running)-adjusted;running=next;value=point.value;}
-    else if(point.kind==='total'){from=0;value=running;}
+    if(point.type==='delta'){const adjusted=point.value-compensation,next=running+adjusted;compensation=(next-running)-adjusted;running=next;value=point.value;}
+    else if(point.type==='total'){from=0;value=running;}
     else{from=checkpoint;value=running-checkpoint;checkpoint=running;}
     if(![from,running,value,compensation].every(Number.isFinite))return bad('FLOW_OVERFLOW','series.data');
     rows.push({point,base:from,end:running,value});extent.push(from,running);
@@ -51,13 +51,13 @@ export function planWaterfall(spec:PlanWaterfallSpec,options:PlanOptions,referen
   for(const row of rows.slice(first,last+1)){
     const band=frame.value.bands.band(row.point.x)!;
     const barWidth=Math.min(band.width,spec.maxBarWidth??band.width),left=band.center-barWidth/2,end=y.value.map(row.end)!,start=y.value.map(row.base)!;
-    if(previous&&previous.end>=ticks.value.domain[0]&&previous.end<=ticks.value.domain[1])commands.push({kind:'M',x:previous.right,y:y.value.map(previous.end)!},{kind:'L',x:left,y:y.value.map(previous.end)!});
+    if(previous&&previous.end>=ticks.value.domain[0]&&previous.end<=ticks.value.domain[1])commands.push({type:'M',x:previous.right,y:y.value.map(previous.end)!},{type:'L',x:left,y:y.value.map(previous.end)!});
     previous={right:left+barWidth,end:row.end};
     if(Math.max(row.base,row.end)<ticks.value.domain[0]||Math.min(row.base,row.end)>ticks.value.domain[1])continue;
     bars.push({pointId:row.point.id,x:left,y:Math.min(start,end),width:barWidth,height:Math.abs(end-start)});
-    const label=categories.find(c=>c.id===row.point.x)!.label??row.point.x,pointColor=row.point.kind==='delta'?(row.value<0?'#CC4F55':'#2F8C5A'):'#2C6DCD';
-    observations.push({id:{seriesId:flow.id,pointId:row.point.id},label,seriesName:flow.name,value:row.value,x:band.center,y:end,color:pointColor,...(row.point.kind==='delta'?{}:{computedKind:row.point.kind})});
+    const label=categories.find(c=>c.id===row.point.x)!.label??row.point.x,pointColor=row.point.type==='delta'?(row.value<0?'#CC4F55':'#2F8C5A'):'#2C6DCD';
+    observations.push({id:{seriesId:flow.id,pointId:row.point.id},label,seriesName:flow.name,value:row.value,x:band.center,y:end,color:pointColor,...(row.point.type==='delta'?{}:{computedKind:row.point.type})});
   }
-  const result=withPlanReferences({...base,series:[{id:flow.id,name:flow.name,color,bars,commands}],observations,grid:ticks.value.ticks.map(value=>({y:y.value.map(value)!,label:String(value),value:value,kind:'number' as const})),labels:visible.map(c=>({x:frame.value.points.center(c.id)!,label:c.label??c.id})),...(view?{viewport:planViewportState(view,{x:null,y:ticks.value.domain},axes,plot)!}:{})},references,{plot,domains:{x:null,y:ticks.value.domain},mapY:y.value.map});
+  const result=withPlanReferences({...base,series:[{id:flow.id,name:flow.name,color,bars,commands}],observations,grid:ticks.value.ticks.map(value=>({y:y.value.map(value)!,label:String(value),value:value,type:'number' as const})),labels:visible.map(c=>({x:frame.value.points.center(c.id)!,label:c.label??c.id})),...(view?{viewport:planViewportState(view,{x:null,y:ticks.value.domain},axes,plot)!}:{})},references,{plot,domains:{x:null,y:ticks.value.domain},mapY:y.value.map});
   return freezePlan({status:observations.length?'ok':'empty',frame:result});
 }

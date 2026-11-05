@@ -6,8 +6,8 @@ import type { ChartViewportBinding, ChartViewportValue, ChartViewportChange, Cha
 export type ColumnPoint<T = unknown> = Readonly<{ id: string; x: string; y: number | null; datum?: T }>;
 export type ColumnSeries<T = unknown> = Readonly<{ id: string; name: string; data: readonly ColumnPoint<T>[]; color?: string }>;
 export type ColumnCategory = Readonly<{ id: string; label?: string }>;
-export type ColumnCategoryAxis = Readonly<{ kind: 'category'; values: readonly ColumnCategory[]; title?: string; grid?: boolean; ticks?: Readonly<{ targetCount?: number }>; labels?: Readonly<{ maxWidth?: number }> }>;
-export type ColumnValueAxis = Readonly<{ kind: 'linear'; domain?: readonly [number, number]; nice?: boolean; reversed?: boolean; title?: string; grid?: boolean; ticks?: Readonly<{ targetCount?: number }>; labels?: Readonly<{ maxWidth?: number }> }>;
+export type ColumnCategoryAxis = Readonly<{ type: 'category'; values: readonly ColumnCategory[]; title?: string; grid?: boolean; ticks?: Readonly<{ targetCount?: number }>; labels?: Readonly<{ maxWidth?: number }> }>;
+export type ColumnValueAxis = Readonly<{ type: 'linear'; domain?: readonly [number, number]; nice?: boolean; reversed?: boolean; title?: string; grid?: boolean; ticks?: Readonly<{ targetCount?: number }>; labels?: Readonly<{ maxWidth?: number }> }>;
 export type ColumnReference = Readonly<{ id: string; axis: 'y'; value: number; label?: string; color?: string; dash?: 'solid' | 'dashed' | 'dotted' }>;
 export type ColumnChartSpec<T = unknown> = Readonly<{
   family: 'column'; title: string; description?: string;

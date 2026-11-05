@@ -10,14 +10,14 @@ import type {Plot} from '../internal/layout/frame.js';
 import type {PlanOptions, PlanReference, PlanViewportConfig, PlanViewportState} from '../public/plan-types.js';
 import type {PlanTemporalAxis} from '../public/temporal-plan-types.js';
 
-export type ComparisonValueAxis = Extract<PlanTemporalAxis, {kind: 'linear'}>;
+export type ComparisonValueAxis = Extract<PlanTemporalAxis, {type: 'linear'}>;
 export interface ComparisonCategory {readonly id: string; readonly label: string;}
-export interface ComparisonCategoryAxis {readonly kind: 'category'; readonly values: readonly ComparisonCategory[]; readonly reversed?: boolean;}
+export interface ComparisonCategoryAxis {readonly type: 'category'; readonly values: readonly ComparisonCategory[]; readonly reversed?: boolean;}
 
 export function comparisonAxes(input: unknown): Readonly<{x: ComparisonCategoryAxis; y: ComparisonValueAxis}> {
   const source = record(input, ['x', 'y'], ['x', 'y'], 'spec.axes');
-  const raw = record(source.x, ['kind', 'values', 'reversed'], ['kind', 'values'], 'spec.axes.x');
-  choice(raw.kind, ['category'], 'spec.axes.x.kind');
+  const raw = record(source.x, ['type', 'values', 'reversed'], ['type', 'values'], 'spec.axes.x');
+  choice(raw.type, ['category'], 'spec.axes.x.type');
   const seen = new Set<string>();
   const values = array(raw.values, 64, 'spec.axes.x.values').map((item, index) => {
     const path = `spec.axes.x.values[${index}]`, category = record(item, ['id', 'label'], ['id', 'label'], path);
@@ -28,8 +28,8 @@ export function comparisonAxes(input: unknown): Readonly<{x: ComparisonCategoryA
   });
   const reversed = optionalBoolean(raw.reversed, 'spec.axes.x.reversed');
   const value = parseTemporalAxis(source.y, 'spec.axes.y');
-  if (value.kind !== 'linear') fail('spec.axes.y.kind', 'NUMERIC_VALUE_AXIS_ONLY');
-  return {x: {kind: 'category', values, ...(reversed === undefined ? {} : {reversed})}, y: value};
+  if (value.type !== 'linear') fail('spec.axes.y.type', 'NUMERIC_VALUE_AXIS_ONLY');
+  return {x: {type: 'category', values, ...(reversed === undefined ? {} : {reversed})}, y: value};
 }
 
 export interface ComparisonOptions {

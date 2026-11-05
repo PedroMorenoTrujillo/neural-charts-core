@@ -42,8 +42,8 @@ export interface PlanArcDiagramSpec extends PlanRelationshipSource {
 }
 export type PlanRelationshipSpec=PlanDependencyWheelSpec|PlanChordSpec|PlanArcDiagramSpec;
 export type PlanRelationshipMetadata=(
-  | Readonly<{kind:'node';incoming:number;outgoing:number;incident:number}>
-  | Readonly<{kind:'link';from:string;to:string;fromLabel:string;toLabel:string;directed:boolean}>
+  | Readonly<{type:'node';incoming:number;outgoing:number;incident:number}>
+  | Readonly<{type:'link';from:string;to:string;fromLabel:string;toLabel:string;directed:boolean}>
 ) & Readonly<{geometryOmitted?:true}>;
 export type PlanRelationshipObservation=PlanObservation&Readonly<{relationship:PlanRelationshipMetadata}>;
 export type PlanRelationshipFrame=Omit<PlanFrame,'family'|'observations'>&Readonly<{

@@ -9,31 +9,31 @@ test('internal single toggles, replaces and clears without mutating snapshots', 
   const before = JSON.stringify(prepared.value); expect(toggleSelection(prepared.value, ids[0]!)).toEqual({ status: 'ok', value: [] }); expect(toggleSelection(prepared.value, ids[1]!)).toEqual({ status: 'ok', value: [ids[1]] }); expect(JSON.stringify(prepared.value)).toBe(before);
 });
 test('multiple selection keeps click order and removes only the exact logical observation', () => {
-  const prepared = prepareSelection({ mode: 'internal', kind: 'multiple', initial: ids }, known); if (prepared.status !== 'ok' || !prepared.value) throw Error('Bad fixture'); expect(toggleSelection(prepared.value, ids[1]!)).toEqual({ status: 'ok', value: [ids[0], ids[2]] });
+  const prepared = prepareSelection({ mode: 'internal', type: 'multiple', initial: ids }, known); if (prepared.status !== 'ok' || !prepared.value) throw Error('Bad fixture'); expect(toggleSelection(prepared.value, ids[1]!)).toEqual({ status: 'ok', value: [ids[0], ids[2]] });
 });
 test('controlled proposals do not change applied selection and accept immutable reconstruction', () => {
-  const input = Object.freeze({ mode: 'controlled', kind: 'single', value: Object.freeze([ids[0]]) }), prepared = prepareSelection(input, known); if (prepared.status !== 'ok' || !prepared.value) throw Error('Bad fixture');
+  const input = Object.freeze({ mode: 'controlled', type: 'single', value: Object.freeze([ids[0]]) }), prepared = prepareSelection(input, known); if (prepared.status !== 'ok' || !prepared.value) throw Error('Bad fixture');
   const proposed = toggleSelection(prepared.value, ids[1]!); expect(prepared.value.value).toEqual([ids[0]]); expect(proposed).toEqual({ status: 'ok', value: [ids[1]] });
   const accepted = prepareSelection({ ...input, value: proposed.status === 'ok' ? proposed.value : [] }, selectionIndex(ids.map(id => ({ ...id })))); expect(accepted.status).toBe('ok'); if (accepted.status === 'ok') expect(accepted.value?.value).toEqual([ids[1]]);
 });
 test('data replacement prunes missing internal identities but rejects unknown controlled identities atomically', () => {
-  const previous = prepareSelection({ mode: 'internal', kind: 'multiple', initial: ids }, known); if (previous.status !== 'ok') throw Error('Bad fixture'); const nextKnown = selectionIndex(ids.slice(1));
-  const result = prepareSelection({ mode: 'internal', kind: 'multiple', initial: ids }, nextKnown, previous.value); expect(result.status).toBe('ok'); if (result.status === 'ok') expect(result.value?.value).toEqual(ids.slice(1));
-  expect(prepareSelection({ mode: 'controlled', kind: 'multiple', value: ids }, nextKnown).status).toBe('invalid'); expect(previous.value?.value).toEqual(ids);
+  const previous = prepareSelection({ mode: 'internal', type: 'multiple', initial: ids }, known); if (previous.status !== 'ok') throw Error('Bad fixture'); const nextKnown = selectionIndex(ids.slice(1));
+  const result = prepareSelection({ mode: 'internal', type: 'multiple', initial: ids }, nextKnown, previous.value); expect(result.status).toBe('ok'); if (result.status === 'ok') expect(result.value?.value).toEqual(ids.slice(1));
+  expect(prepareSelection({ mode: 'controlled', type: 'multiple', value: ids }, nextKnown).status).toBe('invalid'); expect(previous.value?.value).toEqual(ids);
 });
 test('single cardinality, duplicates, unknown IDs, malformed bindings and accessors reject', () => {
   let calls = 0; const accessor = Object.defineProperty({}, 'mode', { enumerable: true, get() { calls++; return 'internal'; } });
   for (const value of [{ mode: 'internal', initial: ids }, { mode: 'controlled', value: [ids[0], ids[0]] }, { mode: 'controlled', value: [{ pointId: 'a' }] }, { mode: 'internal', value: [] }, { mode: 'controlled', initial: [], value: [] }, accessor]) expect(prepareSelection(value, known).status).toBe('invalid'); expect(calls).toBe(0);
 });
 test('multiple selection is bounded at 1000 and an over-limit toggle cannot mutate its owner', () => {
-  const values = Array.from({ length: 1001 }, (_, index) => ({ pointId: 'p' + index })), index = selectionIndex(values), prepared = prepareSelection({ mode: 'internal', kind: 'multiple', initial: values.slice(0, 1000) }, index);
+  const values = Array.from({ length: 1001 }, (_, index) => ({ pointId: 'p' + index })), index = selectionIndex(values), prepared = prepareSelection({ mode: 'internal', type: 'multiple', initial: values.slice(0, 1000) }, index);
   if (prepared.status !== 'ok' || !prepared.value) throw Error('Invalid fixture');
   expect(toggleSelection(prepared.value, values[1000]!).status).toBe('invalid'); expect(prepared.value.value.length).toBe(1000);
-  expect(prepareSelection({ mode: 'controlled', kind: 'multiple', value: values }, index).status).toBe('invalid');
+  expect(prepareSelection({ mode: 'controlled', type: 'multiple', value: values }, index).status).toBe('invalid');
   expect(replaceSelection(prepared.value, index, values).status).toBe('invalid');
 });
-test('disabling, internal kind narrowing and ownership changes have one explicit immutable owner', () => {
-  const previous = prepareSelection({ mode: 'internal', kind: 'multiple', initial: ids }, known); if (previous.status !== 'ok') throw Error('Invalid fixture');
+test('disabling, internal type narrowing and ownership changes have one explicit immutable owner', () => {
+  const previous = prepareSelection({ mode: 'internal', type: 'multiple', initial: ids }, known); if (previous.status !== 'ok') throw Error('Invalid fixture');
   const narrowed = prepareSelection({ mode: 'internal' }, known, previous.value); expect(narrowed.status).toBe('ok'); if (narrowed.status !== 'ok') return; expect(narrowed.value?.value).toEqual([ids[0]]);
   expect(selectionChanged(previous.value, narrowed.value)).toBe(true); expect(selectionChanged(narrowed.value, narrowed.value)).toBe(false);
   const controlled = prepareSelection({ mode: 'controlled', value: [ids[1]] }, known, narrowed.value); expect(controlled.status).toBe('ok'); if (controlled.status === 'ok') expect(controlled.value?.value).toEqual([ids[1]]);
@@ -46,7 +46,7 @@ test('selection snapshot owns frozen identity copies and rejected getters/proxie
   expect(prepareSelection(new Proxy({}, { ownKeys() { throw Error('Hostile metadata'); } }), index).status).toBe('invalid');
 });
 test('500 deterministic toggles agree with an independent tuple-key set oracle', () => {
-  const values = [{ pointId: 'a:b' }, { seriesId: 'a', pointId: 'b' }, { seriesId: 'a:b', pointId: 'c' }, { seriesId: 'a', pointId: 'b:c' }], index = selectionIndex(values), prepared = prepareSelection({ mode: 'internal', kind: 'multiple' }, index);
+  const values = [{ pointId: 'a:b' }, { seriesId: 'a', pointId: 'b' }, { seriesId: 'a:b', pointId: 'c' }, { seriesId: 'a', pointId: 'b:c' }], index = selectionIndex(values), prepared = prepareSelection({ mode: 'internal', type: 'multiple' }, index);
   if (prepared.status !== 'ok' || !prepared.value) throw Error('Invalid fixture'); let owner = prepared.value, seed = 276391;
   const oracle = new Map<string, typeof values[number]>();
   for (let step = 0; step < 500; step++) {

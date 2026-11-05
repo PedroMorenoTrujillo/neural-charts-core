@@ -75,8 +75,8 @@ export function selectWordCloud(source: OwnedWordCloud, context: WordCloudContex
   const sizes = new Map(selected.map(item => [item.word.id, item.fontSize]));
   const summaries: PlanWordCloudPreparedSummary[] = source.words.map(word => {
     const size = sizes.get(word.id);
-    const decision: PlanWordCloudPreparedSummary['decision'] = size !== undefined ? {kind: 'measurementPending', fontSize: size}
-      : {kind: 'notDisplayed', reason: context.hidden.has(word.groupId) ? 'hidden' : word.weight === null ? 'unknown' : word.weight === 0 ? 'zero' : 'budget'};
+    const decision: PlanWordCloudPreparedSummary['decision'] = size !== undefined ? {type: 'measurementPending', fontSize: size}
+      : {type: 'notDisplayed', reason: context.hidden.has(word.groupId) ? 'hidden' : word.weight === null ? 'unknown' : word.weight === 0 ? 'zero' : 'budget'};
     return {id: {seriesId: word.groupId, pointId: word.id}, text: word.text, weight: word.weight, decision};
   });
   return {source, context, selected, summaries, requests: selected.map(({word, fontSize}) => ({wordId: word.id, text: word.text, fontSize, fontKey: context.fontKey}))};

@@ -8,14 +8,14 @@ export function relationshipNumber(value: number, format: (value: number) => str
     ? value.toExponential(6).replace(/\.?(0+)(?=e)/, '') : text;
 }
 export function relationshipPrimaryLabel(observation: RelationshipObservationPort, locale: 'en' | 'es'): string | undefined {
-  if (observation.relationship?.kind === 'node') return locale === 'es' ? 'Total incidente conocido' : 'Known incident total';
-  if (observation.relationship?.kind === 'link') return locale === 'es' ? 'Valor de la relación' : 'Relation value';
+  if (observation.relationship?.type === 'node') return locale === 'es' ? 'Total incidente conocido' : 'Known incident total';
+  if (observation.relationship?.type === 'link') return locale === 'es' ? 'Valor de la relación' : 'Relation value';
   return undefined;
 }
 export function relationshipDetails(observation: RelationshipObservationPort, family: PlanRelationshipSpec['family'], locale: 'en' | 'es', format: (value: number) => string): readonly RelationshipDetail[] {
   const metadata = observation.relationship, es = locale === 'es', details: RelationshipDetail[] = [];
   if (!metadata) return details;
-  if (metadata.kind === 'node') {
+  if (metadata.type === 'node') {
     if (family === 'dependencywheel') details.push(
       {label: es ? 'Entrada conocida' : 'Known incoming', value: relationshipNumber(metadata.incoming, format)},
       {label: es ? 'Salida conocida' : 'Known outgoing', value: relationshipNumber(metadata.outgoing, format)},

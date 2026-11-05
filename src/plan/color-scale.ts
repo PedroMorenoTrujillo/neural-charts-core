@@ -3,22 +3,22 @@ import {array,choice,color,fail,number,record,text} from '../internal/data/valid
 
 /** Input has already passed the caller's public JSON ownership boundary. */
 export function validateColorAxis(input:unknown,path='spec.colorAxis'):ValueColorScale {
-  if(input===undefined)return{kind:'continuous',stops:[{at:0,color:'#E8F0FE'},{at:1,color:'#245DC1'}],missingColor:'#CBD5E1'};
-  const source=record(input,['kind','domain','stops','classes','missingColor','unclassifiedColor'],['kind','missingColor'],path);
-  const kind=choice(source.kind,['continuous','classes'],path+'.kind'),missingColor=color(source.missingColor,path+'.missingColor');
-  if(kind==='continuous'){
+  if(input===undefined)return{type:'continuous',stops:[{at:0,color:'#E8F0FE'},{at:1,color:'#245DC1'}],missingColor:'#CBD5E1'};
+  const source=record(input,['type','domain','stops','classes','missingColor','unclassifiedColor'],['type','missingColor'],path);
+  const type=choice(source.type,['continuous','classes'],path+'.type'),missingColor=color(source.missingColor,path+'.missingColor');
+  if(type==='continuous'){
     if(source.classes!==undefined||source.unclassifiedColor!==undefined)fail(path,'INCOMPATIBLE_COLOR_AXIS_OPTION');
     const stops=array(source.stops,8,path+'.stops').map((item,i)=>{const at=path+'.stops['+i+']',row=record(item,['at','color'],['at','color'],at);return{at:number(row.at,at+'.at',0,1),color:color(row.color,at+'.color')};});
     let domain:readonly [number,number]|undefined;
     if(source.domain!==undefined){const d=array(source.domain,2,path+'.domain');if(d.length!==2)fail(path+'.domain');domain=[number(d[0],path+'.domain[0]'),number(d[1],path+'.domain[1]')];}
-    return{kind,stops,missingColor,...(domain===undefined?{}:{domain})};
+    return{type,stops,missingColor,...(domain===undefined?{}:{domain})};
   }
   if(source.domain!==undefined||source.stops!==undefined)fail(path,'INCOMPATIBLE_COLOR_AXIS_OPTION');
   const classes=array(source.classes,16,path+'.classes').map((item,i)=>{
     const at=path+'.classes['+i+']',row=record(item,['id','label','minInclusive','maxExclusive','color'],['id','label','color'],at);
     return{id:text(row.id,at+'.id',128),label:text(row.label,at+'.label',256,true),color:color(row.color,at+'.color'),...(row.minInclusive===undefined?{}:{minInclusive:number(row.minInclusive,at+'.minInclusive')}),...(row.maxExclusive===undefined?{}:{maxExclusive:number(row.maxExclusive,at+'.maxExclusive')})};
   });
-  return{kind,classes,missingColor,unclassifiedColor:color(source.unclassifiedColor,path+'.unclassifiedColor')};
+  return{type,classes,missingColor,unclassifiedColor:color(source.unclassifiedColor,path+'.unclassifiedColor')};
 }
 
 const validColor=(value:string)=>typeof value==='string'&&/^#[a-f\d]{6}$/i.test(value);
@@ -34,7 +34,7 @@ function domainOf(values:readonly (number|null)[]):readonly [number,number]|null
 /** Public entry must own JSON first. Never replace an original numeric value. */
 export function mapValueColors(values:readonly (number|null)[],scale:ValueColorScale):ValueColorMapping {
   if(values.length>4096||values.some(value=>value!==null&&!Number.isFinite(value))||!validColor(scale.missingColor))throw new RangeError('Invalid color source');
-  if(scale.kind==='continuous'){
+  if(scale.type==='continuous'){
     if(scale.stops.length<2||scale.stops.length>8)throw new RangeError('Invalid color stops');
     for(let i=0;i<scale.stops.length;i++){
       const stop=scale.stops[i]!;
@@ -45,7 +45,7 @@ export function mapValueColors(values:readonly (number|null)[],scale:ValueColorS
     if(supplied&&(supplied.length!==2||!supplied.every(Number.isFinite)||supplied[0]>=supplied[1]))throw new RangeError('Invalid color domain');
     const domain=supplied?[supplied[0],supplied[1]] as const:domainOf(values);
     const mapped=values.map((value):ValueColor=>{
-      if(value===null)return Object.freeze({kind:'missing',color:scale.missingColor});
+      if(value===null)return Object.freeze({type:'missing',color:scale.missingColor});
       if(!domain)throw new Error('Known value has no inferred domain');
       const [min,max]=domain;
       // Ordinary spans preserve subnormal values; halves handle finite ±MAX_VALUE.
@@ -55,12 +55,12 @@ export function mapValueColors(values:readonly (number|null)[],scale:ValueColorS
       let index=1;
       while(index<scale.stops.length-1&&scale.stops[index]!.at<ratio)index++;
       const a=scale.stops[index-1]!,b=scale.stops[index]!;
-      return Object.freeze({kind:'continuous',value,ratio,clamped:value<min||value>max,
+      return Object.freeze({type:'continuous',value,ratio,clamped:value<min||value>max,
         color:interpolate(a.color,b.color,(ratio-a.at)/(b.at-a.at))});
     });
     return Object.freeze({values:Object.freeze(mapped),domain:domain?Object.freeze(domain):null,classes:Object.freeze([])});
   }
-  if(scale.kind!=='classes'||!validColor(scale.unclassifiedColor)||scale.classes.length<1||scale.classes.length>16)throw new RangeError('Invalid color classes');
+  if(scale.type!=='classes'||!validColor(scale.unclassifiedColor)||scale.classes.length<1||scale.classes.length>16)throw new RangeError('Invalid color classes');
   const ids=new Set<string>();let previousMax=-Infinity;
   const classes=scale.classes.map((entry,index)=>{
     const min=entry.minInclusive??-Infinity,max=entry.maxExclusive??Infinity;
@@ -75,9 +75,9 @@ export function mapValueColors(values:readonly (number|null)[],scale:ValueColorS
       ...(entry.maxExclusive===undefined?{}:{maxExclusive:entry.maxExclusive})});
   });
   const mapped=values.map((value):ValueColor=>{
-    if(value===null)return Object.freeze({kind:'missing',color:scale.missingColor});
+    if(value===null)return Object.freeze({type:'missing',color:scale.missingColor});
     const found=classes.find(entry=>value>=(entry.minInclusive??-Infinity)&&value<(entry.maxExclusive??Infinity));
-    return found?Object.freeze({kind:'class',value,classId:found.id,color:found.color}):Object.freeze({kind:'unclassified',value,color:scale.unclassifiedColor});
+    return found?Object.freeze({type:'class',value,classId:found.id,color:found.color}):Object.freeze({type:'unclassified',value,color:scale.unclassifiedColor});
   });
   return Object.freeze({values:Object.freeze(mapped),domain:null,classes:Object.freeze(classes)});
 }

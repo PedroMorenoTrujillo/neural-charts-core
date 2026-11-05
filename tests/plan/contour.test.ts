@@ -3,7 +3,7 @@ import {planChart,transformPlanViewport} from '../../src/plan.js';
 import type {PlanContourSpec} from '../../src/public/contour-types.js';
 import {clipContourSegment} from '../../src/plan/contour-clip.js';
 
-function source():PlanContourSpec{return {family:'contour',title:'Measured field',axes:{x:{kind:'linear'},y:{kind:'linear'}},grid:{id:'temperature',x:[0,2],y:[0,5],ids:['top-left','top-right','bottom-left','bottom-right'],values:[0,2,0,2],unit:'°C'},contour:{levels:[{id:'one',value:1}]}};}
+function source():PlanContourSpec{return {family:'contour',title:'Measured field',axes:{x:{type:'linear'},y:{type:'linear'}},grid:{id:'temperature',x:[0,2],y:[0,5],ids:['top-left','top-right','bottom-left','bottom-right'],values:[0,2,0,2],unit:'°C'},contour:{levels:[{id:'one',value:1}]}};}
 function frame(spec=source(),options:Parameters<typeof planChart>[1]={width:390,height:320}){
   const result=planChart(spec,options);if(result.status==='invalid')throw Error(JSON.stringify(result.diagnostic));expect(result.frame.family).toBe('contour');expect(result.frame.contour).toBeDefined();return result.frame;
 }
@@ -11,8 +11,8 @@ function frame(spec=source(),options:Parameters<typeof planChart>[1]={width:390,
 describe('public Contour source/derived contract',()=>{
   test('one numeric field yields one shared frame with explicitly interpolated level observations',()=>{
     const f=frame(),p=f.observations[0]!;
-    expect(f.observations).toHaveLength(1);expect(f.series).toHaveLength(1);expect(f.series[0]?.commands?.map(c=>c.kind)).toEqual(['M','L']);
-    expect(p.id.seriesId).toBe('one');expect(p.value).toBe(1);expect(p.contour?.kind).toBe('isoline');
+    expect(f.observations).toHaveLength(1);expect(f.series).toHaveLength(1);expect(f.series[0]?.commands?.map(c=>c.type)).toEqual(['M','L']);
+    expect(p.id.seriesId).toBe('one');expect(p.value).toBe(1);expect(p.contour?.type).toBe('isoline');
     expect(p.contour?.sourceStart).toEqual({x:1,y:0});expect(p.contour?.sourceEnd).toEqual({x:1,y:5});
     expect(p.contour?.start).toEqual({x:195,y:320});expect(p.contour?.end).toEqual({x:195,y:0});
     expect(p.contour?.sourceIds).toEqual(['top-left','top-right','bottom-right','bottom-left']);
@@ -62,13 +62,13 @@ describe('shared XY viewport and references',()=>{
     const f=frame(source(),{width:390,height:320,viewport:{axes:'xy',value:{x:[.5,1.5],y:[1,4]}}}),p=f.observations[0]!;
     expect(p.contour?.start).toEqual({x:195,y:320});expect(p.contour?.end).toEqual({x:195,y:0});expect(p.contour?.sourceStart.y).toBe(0);expect(p.contour?.sourceEnd.y).toBe(5);
     expect(f.viewport?.displayed).toEqual({x:[.5,1.5],y:[1,4]});expect(f.contour?.samples).toHaveLength(4);
-    const reset=transformPlanViewport(f.viewport!,{kind:'reset'});expect(reset.status).toBe('ok');
+    const reset=transformPlanViewport(f.viewport!,{type:'reset'});expect(reset.status).toBe('ok');
   });
   test('an outside window retains samples and declares the absence of visible isolines',()=>{
     const f=frame(source(),{width:390,height:320,viewport:{axes:'xy',value:{x:[0,.5]}}});expect(f.observations).toHaveLength(0);expect(f.contour?.emptyReason).toBe('outsideViewport');expect(f.contour?.samples).toHaveLength(4);
   });
   test('reversed axes use the same source interpolation and shared scales',()=>{
-    const s=source(),f=frame({...s,axes:{x:{kind:'linear',reversed:true},y:{kind:'linear',reversed:true}},contour:{levels:[{id:'half',value:.5}]}}),p=f.observations[0]!;
+    const s=source(),f=frame({...s,axes:{x:{type:'linear',reversed:true},y:{type:'linear',reversed:true}},contour:{levels:[{id:'half',value:.5}]}}),p=f.observations[0]!;
     expect(p.contour?.sourceStart).toEqual({x:.5,y:0});expect(p.contour?.start).toEqual({x:292.5,y:0});expect(p.contour?.end).toEqual({x:292.5,y:320});
   });
   test('reference values describe X/Y coordinates, not the scalar contour intensity',()=>{
@@ -87,7 +87,7 @@ describe('shared XY viewport and references',()=>{
   });
   test('large finite coordinate domains do not produce nonfinite commands',()=>{
     const s=source(),f=frame({...s,grid:{...s.grid,x:[-1e100,1e100],y:[-1e100,1e100]}});
-    for(const c of f.series.flatMap(s=>s.commands??[]))if(c.kind==='M'||c.kind==='L')expect(Number.isFinite(c.x)&&Number.isFinite(c.y)).toBe(true);
+    for(const c of f.series.flatMap(s=>s.commands??[]))if(c.type==='M'||c.type==='L')expect(Number.isFinite(c.x)&&Number.isFinite(c.y)).toBe(true);
   });
 });
 

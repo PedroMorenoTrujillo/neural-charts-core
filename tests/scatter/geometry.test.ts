@@ -8,7 +8,7 @@ import type { ScatterDataSpec, ScatterSeries } from '../../src/scatter/data.js';
 import { projectScatter, pickScatter, navigateScatter } from '../../src/scatter/geometry.js';
 function value<T>(result: ChartResult<T>): T { if (result.status !== 'ok') throw Error(JSON.stringify(result)); return result.value; }
 const visible = { hiddenSeriesIds: [] }, plot = { x: 12, y: 20, width: 400, height: 200 };
-function fixture(series: readonly ScatterSeries[]): ScatterDataSpec { return { axes: { x: { kind: 'linear', domain: [-10, 10] }, y: { kind: 'linear', domain: [-10, 10] } }, series }; }
+function fixture(series: readonly ScatterSeries[]): ScatterDataSpec { return { axes: { x: { type: 'linear', domain: [-10, 10] }, y: { type: 'linear', domain: [-10, 10] } }, series }; }
 function mapper(bounds: Plot = plot, reverseX = false, reverseY = false) {
   const x = value(createLinearScale([-10, 10], reverseX ? [bounds.x + bounds.width, bounds.x] : [bounds.x, bounds.x + bounds.width], false)), y = value(createLinearScale([-10, 10], reverseY ? [bounds.y, bounds.y + bounds.height] : [bounds.y + bounds.height, bounds.y], false));
   const axis: AxisPlan = { domain: [-10, 10], ticks: [], labels: [], interval: null, target: 4 };

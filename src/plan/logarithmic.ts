@@ -24,7 +24,7 @@ import {freezePlan} from './input.js';
 const must=<T>(result:ChartResult<T>):T=>{if(result.status==='invalid')throw result.diagnostic;return result.value;};
 function fail(reason:string,path:string,message=reason):never{throw {code:'INVALID_CONFIG',reason,path,message};}
 type MutableWindow={-readonly [K in keyof PlanViewportValue]:Exclude<PlanViewportValue[K],undefined>};
-function selectTicks(domain:Domain,axis:AxisInput,nice:boolean){return axis.kind==='time'?must(selectTimeTicks(domain,{nice,targetCount:axis.ticks?.targetCount??5})):{...must(selectNumericTicks(domain,{nice,targetCount:axis.ticks?.targetCount??5})),interval:null};}
+function selectTicks(domain:Domain,axis:AxisInput,nice:boolean){return axis.type==='time'?must(selectTimeTicks(domain,{nice,targetCount:axis.ticks?.targetCount??5})):{...must(selectNumericTicks(domain,{nice,targetCount:axis.ticks?.targetCount??5})),interval:null};}
 const key=(seriesId:string,pointId:string)=>JSON.stringify([seriesId,pointId]);
 /** Log projection is an isolated /plan owner. Validators and source normalization
  * are reused; original observations are never replaced with logged values. */
@@ -38,13 +38,13 @@ export function planLogarithmic(spec:PlanSpec,options:PlanOptions,prepareScatter
   const scales=options.scales;if(!scales||typeof scales!=='object'||Array.isArray(scales)||!Object.keys(scales).length||Object.keys(scales).some(k=>k!=='x'&&k!=='y'))fail('BAD_LOG_SCALES','options.scales');
   const logs={x:scales?.x!==undefined,y:scales?.y!==undefined};
   for(const axis of ['x','y'] as const){const scale=scales?.[axis];if(scale===undefined)continue;
-   if(!scale||typeof scale!=='object'||Array.isArray(scale)||Object.keys(scale).some(k=>!['kind','base'].includes(k))||scale.kind!=='log'||scale.base!==undefined&&scale.base!==10)fail('BAD_LOG_SCALE','options.scales.'+axis);
-   const source=spec.axes?.[axis];if(!source||source.kind!=='linear'||'includeZero' in source&&source.includeZero===true)fail('LOG_REQUIRES_POSITIVE_NUMERIC_AXIS','axes.'+axis);
+   if(!scale||typeof scale!=='object'||Array.isArray(scale)||Object.keys(scale).some(k=>!['type','base'].includes(k))||scale.type!=='log'||scale.base!==undefined&&scale.base!==10)fail('BAD_LOG_SCALE','options.scales.'+axis);
+   const source=spec.axes?.[axis];if(!source||source.type!=='linear'||'includeZero' in source&&source.includeZero===true)fail('LOG_REQUIRES_POSITIVE_NUMERIC_AXIS','axes.'+axis);
    if(source.domain!==undefined)checkedLogDomain(source.domain);
   }
   const hidden=options.hiddenSeriesIds??[],state={hiddenSeriesIds:[...hidden]},width=options.width,height=options.height,palette=defaultPalette('light',false).series;
   if(!Array.isArray(spec.series)||spec.series.length>16||spec.series.reduce((n,s)=>n+(Array.isArray(s?.data)?s.data.length:10001),0)>10000)fail('INPUT_LIMIT','series');
-  if(spec.axes?.x.kind==='category'&&spec.axes.x.values.length>64)fail('LABEL_LIMIT','axes.x.values');
+  if(spec.axes?.x.type==='category'&&spec.axes.x.values.length>64)fail('LABEL_LIMIT','axes.x.values');
   for(const [si,s]of spec.series.entries())for(const [pi,p]of s.data.entries())for(const axis of ['x','y'] as const)if(logs[axis]&&p[axis]!==null&&!(typeof p[axis]==='number'&&p[axis]>0&&Number.isFinite(p[axis])))fail('NONPOSITIVE_LOG_VALUE',`series[${si}].data[${pi}].${axis}`);
   const refs=must(validatePlanReferences(options.references,spec)),bands=must(validatePlanReferenceBands(options.referenceBands,spec));
   for(const [i,r]of (refs??[]).entries())if(logs[r.axis]&&!(typeof r.value==='number'&&r.value>0))fail('NONPOSITIVE_LOG_REFERENCE',`options.references[${i}].value`);
@@ -70,10 +70,10 @@ export function planLogarithmic(spec:PlanSpec,options:PlanOptions,prepareScatter
   const visible=sources.filter(s=>!hidden.includes(s.spec.id)),valid=visible.flatMap(s=>s.valid);
   if(!valid.length)return freezePlan({status:'empty',frame:withPlanReferences({...base,series:[],observations:[],labels:[],grid:[]},refs,undefined,bands)});
   const originalXs=line?line.series.flatMap(s=>s.points.map(p=>p.x as number)):valid.map(p=>p.x as number);
-  const full={x:logs.x?logDomain(originalXs,spec.axes.x.kind==='linear'?spec.axes.x.domain:undefined,spec.axes.x.kind==='linear'&&!!spec.axes.x.nice):domains.x,y:logs.y?logDomain(valid.map(p=>p.y!),spec.axes.y.domain,!!spec.axes.y.nice):domains.y};
-  const fullTicks=(axis:'x'|'y')=>{const d=full[axis],a=sourceAxes[axis];if(!d||logs[axis]||a.kind==='category')return null;return selectTicks(d,a,a.nice??(axis==='y'&&!a.domain));};
+  const full={x:logs.x?logDomain(originalXs,spec.axes.x.type==='linear'?spec.axes.x.domain:undefined,spec.axes.x.type==='linear'&&!!spec.axes.x.nice):domains.x,y:logs.y?logDomain(valid.map(p=>p.y!),spec.axes.y.domain,!!spec.axes.y.nice):domains.y};
+  const fullTicks=(axis:'x'|'y')=>{const d=full[axis],a=sourceAxes[axis];if(!d||logs[axis]||a.type==='category')return null;return selectTicks(d,a,a.nice??(axis==='y'&&!a.domain));};
   const xt=fullTicks('x'),yt=fullTicks('y');if(xt)full.x=xt.domain;if(yt)full.y=yt.domain;
-  if(!full.y||sourceAxes.x.kind!=='category'&&!full.x)fail('BAD_LOG_DOMAIN','axes');
+  if(!full.y||sourceAxes.x.type!=='category'&&!full.x)fail('BAD_LOG_DOMAIN','axes');
   const configured=options.viewport?.value,window:MutableWindow={...configured};
   // A tiny displayed window inside an enormous full domain must retain its
   // own precision. Two full-origin logarithms can round to the same double.
@@ -88,7 +88,7 @@ export function planLogarithmic(spec:PlanSpec,options:PlanOptions,prepareScatter
   const xr:Domain='reversed' in sourceAxes.x&&sourceAxes.x.reversed?[plot.x+plot.width,plot.x]:[plot.x,plot.x+plot.width],yr:Domain=sourceAxes.y.reversed?[plot.y,plot.y+plot.height]:[plot.y+plot.height,plot.y];
   const numericX=displayed.x?must(createLinearScale(displayed.x,xr,false)):null,y=must(createLinearScale(displayed.y!,yr,false));
   let categoryMap:((v:string|number)=>number|null)|undefined;
-  if(line&&sourceAxes.x.kind==='category'){
+  if(line&&sourceAxes.x.type==='category'){
    const prepared=must(planLineViewportScales(line.spec.axes,plot,displayed.x,displayed.y!,viewport));
    const point=createPointScale(must(createCategoryFrame(sourceAxes.x.values.map(v=>v.id),xr,sourceAxes.x.edgeSpacing??.5)));
    categoryMap=prepared?.mapX??(v=>typeof v==='string'?point.center(v):null);
@@ -107,30 +107,30 @@ export function planLogarithmic(spec:PlanSpec,options:PlanOptions,prepareScatter
      for(let j=1;j<path.length;j++){const clipped=clipSourceSegment({start:path[j-1]!,end:path[j]!},cx,cy);if(!clipped)continue;
       const [start,end]=clipped,toX=(v:number)=>categoryMap?v:numericX!.map(v)!;
       const startX=toX(start.x),startY=y.map(start.y)!,previous=commands.at(-1);
-      if(!previous||previous.kind!=='L'||previous.x!==startX||previous.y!==startY)commands.push({kind:'M',x:startX,y:startY});
-      commands.push({kind:'L',x:toX(end.x),y:y.map(end.y)!});
+      if(!previous||previous.type!=='L'||previous.x!==startX||previous.y!==startY)commands.push({type:'M',x:startX,y:startY});
+      commands.push({type:'L',x:toX(end.x),y:y.map(end.y)!});
      }
     }
    }
    for(const p of s.valid){
     if(p.y===null||p.x===null||!inside(encode('y',p.y),displayed.y!)||!categoryMap&&!inside(encode('x',p.x as number),displayed.x!))continue;
     const px=mapX(p.x),py=mapY(p.y);if(px===null||py===null||px<plot.x||px>plot.x+plot.width)continue;
-    if(line){const label=line.labels.get(String(p.x))??formatAxis(p.x,sourceAxes.x.kind,xt&&'interval' in xt?xt.interval:null,line.labels);observations.push({id:{seriesId:s.spec.id,pointId:p.id},label,seriesName:s.spec.name,value:p.y,x:px,y:py,color,group:{key:JSON.stringify([sourceAxes.x.kind,p.x]),label,coordinate:px}});}
+    if(line){const label=line.labels.get(String(p.x))??formatAxis(p.x,sourceAxes.x.type,xt&&'interval' in xt?xt.interval:null,line.labels);observations.push({id:{seriesId:s.spec.id,pointId:p.id},label,seriesName:s.spec.name,value:p.y,x:px,y:py,color,group:{key:JSON.stringify([sourceAxes.x.type,p.x]),label,coordinate:px}});}
     else{const size=sizes.get(key(s.spec.id,p.id))!,radius=spec.family==='scatter'?3:size.z>0?Math.min(44,width/4,height/4)*Math.max(6/44,Math.sqrt(size.z/maximum)):0;
-     circles.push({pointId:p.id,cx:px,cy:py,radius});observations.push({id:{seriesId:s.spec.id,pointId:p.id},label:size.label,seriesName:s.spec.name,value:p.y,x:px,y:py,color,xValue:p.x as number,...(spec.family==='bubble'?{sizeValue:size.z}:{}),hit:{kind:'circle',cx:px,cy:py,radius}});
+     circles.push({pointId:p.id,cx:px,cy:py,radius});observations.push({id:{seriesId:s.spec.id,pointId:p.id},label:size.label,seriesName:s.spec.name,value:p.y,x:px,y:py,color,xValue:p.x as number,...(spec.family==='bubble'?{sizeValue:size.z}:{}),hit:{type:'circle',cx:px,cy:py,radius}});
     }
    }
    series.push({id:s.spec.id,name:s.spec.name,color,...(line?{commands}:{circles})});
   }
-  const ticks=(axis:'x'|'y')=>{const domain=rawDomains[axis],a=sourceAxes[axis];if(!domain||a.kind==='category')return [];return logs[axis]?logTicks(domain,a.ticks?.targetCount??5):selectTicks(domain,a,false).ticks;};
-  const categories=sourceAxes.x.kind==='category'?sourceAxes.x.values:[];
-  const labels=categories.length?categories.flatMap(v=>{const x=mapX(v.id);return x===null||x<plot.x||x>plot.x+plot.width?[]:[{x,label:v.label??v.id}];}):ticks('x').map(v=>({x:mapX(v)!,label:sourceAxes.x.kind==='time'?formatAxis(v,'time',xt&&'interval' in xt?xt.interval:null,new Map()):String(v)}));
+  const ticks=(axis:'x'|'y')=>{const domain=rawDomains[axis],a=sourceAxes[axis];if(!domain||a.type==='category')return [];return logs[axis]?logTicks(domain,a.ticks?.targetCount??5):selectTicks(domain,a,false).ticks;};
+  const categories=sourceAxes.x.type==='category'?sourceAxes.x.values:[];
+  const labels=categories.length?categories.flatMap(v=>{const x=mapX(v.id);return x===null||x<plot.x||x>plot.x+plot.width?[]:[{x,label:v.label??v.id}];}):ticks('x').map(v=>({x:mapX(v)!,label:sourceAxes.x.type==='time'?formatAxis(v,'time',xt&&'interval' in xt?xt.interval:null,new Map()):String(v)}));
   let view:PlanViewportState|undefined;
   if(viewport){const encodedState=planViewportState(viewport,displayed,sourceAxes,plot)!;const bounds={...encodedState.bounds},value:MutableWindow={...encodedState.value};
-   for(const axis of ['x','y'] as const)if(logs[axis]){bounds[axis]={kind:'log',base:10,domain:full[axis]!};const raw=value[axis];if(Array.isArray(raw))value[axis]=rawDomains[axis]!;}
+   for(const axis of ['x','y'] as const)if(logs[axis]){bounds[axis]={type:'log',base:10,domain:full[axis]!};const raw=value[axis];if(Array.isArray(raw))value[axis]=rawDomains[axis]!;}
    view={...encodedState,bounds,value,displayed:rawDomains};
   }
-  const frame:PlanFrame={...base,series,observations,labels,grid:ticks('y').map(v=>({y:mapY(v)!,label:String(v),value:v,kind:'number' as const})),...(view?{viewport:view}:{})};
+  const frame:PlanFrame={...base,series,observations,labels,grid:ticks('y').map(v=>({y:mapY(v)!,label:String(v),value:v,type:'number' as const})),...(view?{viewport:view}:{})};
   return freezePlan({status:observations.length?'ok':'empty',frame:withPlanReferences(frame,refs,{plot,domains:rawDomains,mapX,mapY,bandSourceAxes:sourceAxes,...(categories.length?{categories:referenceCategories(categories,plot,mapX)}:{})},bands)});
  }catch(error){if(error&&typeof error==='object'&&'code' in error&&'reason' in error&&'path' in error&&'message' in error)return {status:'invalid',diagnostic:error as Extract<PlanResult,{status:'invalid'}>['diagnostic']};return {status:'invalid',diagnostic:{code:'INVALID_CONFIG',reason:'BAD_LOG_SCALE',path:'options.scales',message:error instanceof Error?error.message:'Invalid log projection.'}};}
 }

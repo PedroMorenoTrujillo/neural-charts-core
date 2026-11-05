@@ -28,7 +28,7 @@ export interface PlanTimelineSpec {
 }
 
 export interface PlanTimelineEvent {
-  readonly kind: 'linear' | 'time';
+  readonly type: 'linear' | 'time';
   readonly coordinate: number;
   readonly title: string;
   readonly description?: string;

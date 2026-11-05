@@ -23,7 +23,7 @@ check('source order, original values and visible percentages drive proportional 
 });
 check('a neck-crossing section has six exact drawing/hit vertices and no rectangular corner target',()=>{
   const f=frame(),o=f.observations[1],vertices=o.hit.vertices;
-  assert.equal(o.hit.kind,'polygon');assert.equal(vertices.length,6);assert.equal(f.series[1].commands.at(-1).kind,'Z');
+  assert.equal(o.hit.type,'polygon');assert.equal(vertices.length,6);assert.equal(f.series[1].commands.at(-1).type,'Z');
   assert.deepEqual(f.series[1].commands.slice(0,-1).map(({x,y})=>({x,y})),vertices);
   const neckY=14+(options.height-28)*.75;assert.equal(vertices.filter(v=>v.y===neckY).length,2);
   const neckLeft=160-(options.width-32)*.3/2;close(vertices.find(v=>v.y===neckY).x,neckLeft);

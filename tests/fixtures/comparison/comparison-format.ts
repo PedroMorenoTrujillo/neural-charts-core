@@ -1,4 +1,4 @@
-interface BulletPort {readonly kind: 'measure' | 'target'; readonly measure: number | null; readonly target?: number | null;}
+interface BulletPort {readonly type: 'measure' | 'target'; readonly measure: number | null; readonly target?: number | null;}
 interface VariwidePort {readonly z: number; readonly share: number; readonly zeroWidth: boolean; readonly geometryOmitted: boolean;}
 export interface ComparisonObservationPort {readonly bullet?: BulletPort; readonly variwide?: VariwidePort;}
 export interface ComparisonDetail {readonly label: string; readonly value: string;}
@@ -11,15 +11,15 @@ export function comparisonNumber(value: number, format: (value: number) => strin
 }
 
 export function comparisonPrimaryLabel(observation: ComparisonObservationPort, locale: 'en' | 'es'): string | undefined {
-  return observation.bullet?.kind === 'target' ? locale === 'es' ? 'Objetivo' : 'Target' : undefined;
+  return observation.bullet?.type === 'target' ? locale === 'es' ? 'Objetivo' : 'Target' : undefined;
 }
 
 export function comparisonDetails(observation: ComparisonObservationPort, locale: 'en' | 'es', format: (value: number) => string): readonly ComparisonDetail[] {
   const es = locale === 'es', unknown = es ? 'Desconocido' : 'Unknown', details: ComparisonDetail[] = [];
   if (observation.bullet) {
     const bullet = observation.bullet;
-    if (bullet.kind === 'target') details.push({label: es ? 'Medida' : 'Measure', value: bullet.measure === null ? unknown : comparisonNumber(bullet.measure, format)});
-    if (bullet.kind !== 'target' && bullet.target !== undefined) details.push({label: es ? 'Objetivo' : 'Target', value: bullet.target === null ? unknown : comparisonNumber(bullet.target, format)});
+    if (bullet.type === 'target') details.push({label: es ? 'Medida' : 'Measure', value: bullet.measure === null ? unknown : comparisonNumber(bullet.measure, format)});
+    if (bullet.type !== 'target' && bullet.target !== undefined) details.push({label: es ? 'Objetivo' : 'Target', value: bullet.target === null ? unknown : comparisonNumber(bullet.target, format)});
   }
   if (observation.variwide) {
     const width = observation.variwide;

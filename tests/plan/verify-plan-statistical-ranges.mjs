@@ -4,7 +4,7 @@ import {planChart} from '../../dist/plan.js';
 
 const options={width:320,height:300};
 const categories=['a','b','c'].map(id=>({id,label:id.toUpperCase()}));
-const source={family:'boxplot',title:'Observed distribution',axes:{x:{kind:'category',values:categories},y:{kind:'linear',domain:[0,20],nice:false}},series:[{id:'sample',name:'Sample',data:[{id:'first',x:'a',minimum:1,q1:4,median:7,q3:10,maximum:14},{id:'second',x:'b',minimum:2,q1:5,median:6,q3:12,maximum:18},{id:'gap',x:'c',minimum:null,q1:null,median:null,q3:null,maximum:null}]}]};
+const source={family:'boxplot',title:'Observed distribution',axes:{x:{type:'category',values:categories},y:{type:'linear',domain:[0,20],nice:false}},series:[{id:'sample',name:'Sample',data:[{id:'first',x:'a',minimum:1,q1:4,median:7,q3:10,maximum:14},{id:'second',x:'b',minimum:2,q1:5,median:6,q3:12,maximum:18},{id:'gap',x:'c',minimum:null,q1:null,median:null,q3:null,maximum:null}]}]};
 const error={family:'errorbar',title:'Observed uncertainty',axes:source.axes,series:[{id:'measurement',name:'Measurement',data:[{id:'first',x:'a',low:2,high:8},{id:'second',x:'b',low:5,high:13},{id:'gap',x:'c',low:null,high:null}]}]};
 const checks=[];
 function check(name,run){run();checks.push(name);}
@@ -12,7 +12,7 @@ function frame(spec=source,opts=options){const result=planChart(spec,opts);asser
 function close(actual,expected){assert.ok(Math.abs(actual-expected)<1e-8,`${actual} != ${expected}`);}
 function near(actual,expected){return Math.abs(actual-expected)<1e-8;}
 function y(value){return 286-value*13.6;}
-function segments(commands){const lines=[];for(let i=0;i<commands.length;i+=2){assert.equal(commands[i].kind,'M');assert.equal(commands[i+1].kind,'L');lines.push([commands[i],commands[i+1]]);}return lines;}
+function segments(commands){const lines=[];for(let i=0;i<commands.length;i+=2){assert.equal(commands[i].type,'M');assert.equal(commands[i+1].type,'L');lines.push([commands[i],commands[i+1]]);}return lines;}
 function horizontalAt(commands,ordinate){return segments(commands).filter(([a,b])=>Math.abs(a.y-ordinate)<1e-8&&Math.abs(b.y-ordinate)<1e-8);}
 function deepFrozen(value){if(value&&typeof value==='object'){assert.ok(Object.isFrozen(value));for(const child of Object.values(value))deepFrozen(child);}}
 
@@ -31,17 +31,17 @@ check('box outline, median, whiskers and half-width default caps are real indepe
 check('errorbar draws stems and endpoint caps without pretending to be a filled column',()=>{
   const f=frame(error),s=f.series[0],o=f.observations[0];assert.equal(f.family,'errorbar');assert.equal(s.bars,undefined);assert.equal(s.areaCommands,undefined);assert.equal(o.lowValue,2);assert.equal(o.highValue,8);assert.equal(o.value,5);
   const lines=segments(s.commands);assert.equal(lines.length,6);assert.ok(lines.some(([a,b])=>a.x===o.x&&b.x===o.x&&near(a.y,y(2))&&near(b.y,y(8))));
-  assert.equal(horizontalAt(s.commands,y(2)).length,1);assert.equal(horizontalAt(s.commands,y(8)).length,1);assert.equal(o.hit.kind,'polygon');assert.equal(o.hit.vertices.length,4);
+  assert.equal(horizontalAt(s.commands,y(2)).length,1);assert.equal(horizontalAt(s.commands,y(8)).length,1);assert.equal(o.hit.type,'polygon');assert.equal(o.hit.vertices.length,4);
   close(o.hit.vertices[0].y,y(8));close(o.hit.vertices[2].y,y(2));
 });
 check('cap fractions are bounded geometry settings and zero removes caps without dropping semantic records',()=>{
   const noBoxCaps=frame({...source,whiskerWidth:0});assert.equal(horizontalAt(noBoxCaps.series[0].commands,y(1)).length,0);assert.equal(horizontalAt(noBoxCaps.series[0].commands,y(7)).length,1);
-  const noErrorCaps=frame({...error,capWidth:0});assert.equal(noErrorCaps.observations.length,2);assert.equal(noErrorCaps.series[0].commands.length,4);for(const o of noErrorCaps.observations){assert.equal(o.hit.kind,'polygon');close(o.hit.vertices[1].x-o.hit.vertices[0].x,2);assert.ok(o.x>=o.hit.vertices[0].x&&o.x<=o.hit.vertices[1].x);}
+  const noErrorCaps=frame({...error,capWidth:0});assert.equal(noErrorCaps.observations.length,2);assert.equal(noErrorCaps.series[0].commands.length,4);for(const o of noErrorCaps.observations){assert.equal(o.hit.type,'polygon');close(o.hit.vertices[1].x-o.hit.vertices[0].x,2);assert.ok(o.x>=o.hit.vertices[0].x&&o.x<=o.hit.vertices[1].x);}
   const half=frame({...error,capWidth:.5}),full=frame(error);const halfCap=horizontalAt(half.series[0].commands,y(2))[0],fullCap=horizontalAt(full.series[0].commands,y(2))[0];close(halfCap[1].x-halfCap[0].x,(fullCap[1].x-fullCap[0].x)/2);
 });
 check('zero IQR and equal endpoints retain visible strokes with finite bounded targets only when painted',()=>{
-  const box=frame({...source,series:[{...source.series[0],data:[{id:'equal',x:'a',minimum:5,q1:5,median:5,q3:5,maximum:5}]}]});assert.equal(box.series[0].bars.length,0);assert.ok(horizontalAt(box.series[0].commands,y(5)).length>=1);assert.equal(box.observations[0].hit.kind,'polygon');assert.equal(box.observations[0].medianValue,5);
-  const zero={...error,series:[{...error.series[0],data:[{id:'equal',x:'a',low:5,high:5}]}]},interval=frame(zero),o=interval.observations[0];assert.equal(interval.series[0].commands.length,2);assert.equal(o.hit.kind,'polygon');close(o.hit.vertices[2].y-o.hit.vertices[0].y,2);assert.ok(o.y>=o.hit.vertices[0].y&&o.y<=o.hit.vertices[2].y);assert.equal(o.value,5);
+  const box=frame({...source,series:[{...source.series[0],data:[{id:'equal',x:'a',minimum:5,q1:5,median:5,q3:5,maximum:5}]}]});assert.equal(box.series[0].bars.length,0);assert.ok(horizontalAt(box.series[0].commands,y(5)).length>=1);assert.equal(box.observations[0].hit.type,'polygon');assert.equal(box.observations[0].medianValue,5);
+  const zero={...error,series:[{...error.series[0],data:[{id:'equal',x:'a',low:5,high:5}]}]},interval=frame(zero),o=interval.observations[0];assert.equal(interval.series[0].commands.length,2);assert.equal(o.hit.type,'polygon');close(o.hit.vertices[2].y-o.hit.vertices[0].y,2);assert.ok(o.y>=o.hit.vertices[0].y&&o.y<=o.hit.vertices[2].y);assert.equal(o.value,5);
   const invisible=frame({...zero,capWidth:0});assert.equal(invisible.series[0].commands.length,0);assert.equal(invisible.observations[0].hit,undefined);
 });
 check('viewport clips glyphs but never invents endpoint caps at viewport edges',()=>{
@@ -51,21 +51,21 @@ check('viewport clips glyphs but never invents endpoint caps at viewport edges',
   const medianOutside=frame({...source,series:[{...source.series[0],data:[{id:'outside',x:'a',minimum:0,q1:3,median:15,q3:18,maximum:20}]}]},opts);assert.equal(medianOutside.observations[0].medianValue,15);assert.equal(medianOutside.observations[0].value,15);assert.equal(medianOutside.observations[0].y,14);
 });
 check('linear and time edge glyphs keep stems aligned to source X after slot clipping',()=>{
-  for(const kind of ['linear','time']){
-    const origin=kind==='time'?Date.UTC(2026,0,1):0,unit=kind==='time'?86400000:1,spec={...error,axes:{...error.axes,x:{kind,domain:[origin,origin+4*unit]}},series:[{...error.series[0],data:[{id:'start',x:origin,low:2,high:8},{id:'end',x:origin+4*unit,low:5,high:13}]}]},f=frame(spec);
+  for(const type of ['linear','time']){
+    const origin=type==='time'?Date.UTC(2026,0,1):0,unit=type==='time'?86400000:1,spec={...error,axes:{...error.axes,x:{type,domain:[origin,origin+4*unit]}},series:[{...error.series[0],data:[{id:'start',x:origin,low:2,high:8},{id:'end',x:origin+4*unit,low:5,high:13}]}]},f=frame(spec);
     close(f.observations[0].x,16);close(f.observations[1].x,304);assert.deepEqual(f.observations.map(o=>o.xValue),[origin,origin+4*unit]);
     const lines=segments(f.series[0].commands);assert.ok(lines.some(([a,b])=>a.x===16&&b.x===16&&a.y!==b.y));assert.ok(lines.some(([a,b])=>a.x===304&&b.x===304&&a.y!==b.y));
   }
 });
 check('automatic numeric/time grouping keeps all four originals across ranges, boxes and errors',()=>{
-  for(const kind of ['linear','time'])for(const family of ['columnrange','boxplot','errorbar']){
-    const start=kind==='time'?Date.UTC(2026,0,1):0,step=kind==='time'?86400000:1;
+  for(const type of ['linear','time'])for(const family of ['columnrange','boxplot','errorbar']){
+    const start=type==='time'?Date.UTC(2026,0,1):0,step=type==='time'?86400000:1;
     const series=['one','two'].map(id=>({id,name:id,data:[0,1].map(i=>({id:'p'+i,x:start+i*step,...(family==='boxplot'?{minimum:1,q1:3,median:5,q3:7,maximum:9}:{low:2,high:8})}))}));
-    const f=frame({family,title:'Grouped intervals',axes:{x:{kind},y:source.axes.y},series});
+    const f=frame({family,title:'Grouped intervals',axes:{x:{type},y:source.axes.y},series});
     assert.deepEqual(f.observations.map(o=>[o.id.seriesId,o.id.pointId]),[['one','p0'],['one','p1'],['two','p0'],['two','p1']]);
     assert.ok(f.observations.every(o=>o.x>=16&&o.x<=304));assert.ok(f.series.every(s=>(s.commands??[]).every(c=>c.x>=16&&c.x<=304)));
-    for(const viewport of [{axes:'x'},{axes:'y',value:{y:[1,9]}}])assert.equal(frame({family,title:'Grouped intervals',axes:{x:{kind},y:source.axes.y},series},{...options,viewport}).observations.length,4);
-    const window=[start-step/4,start+step*1.25],zoom=frame({family,title:'Grouped intervals',axes:{x:{kind},y:source.axes.y},series},{...options,viewport:{axes:'x',value:{x:window}}});assert.deepEqual(zoom.viewport.bounds.x.domain,[start-step/2,start+step*1.5]);assert.deepEqual(zoom.viewport.displayed.x,window);assert.equal(zoom.observations.length,4);
+    for(const viewport of [{axes:'x'},{axes:'y',value:{y:[1,9]}}])assert.equal(frame({family,title:'Grouped intervals',axes:{x:{type},y:source.axes.y},series},{...options,viewport}).observations.length,4);
+    const window=[start-step/4,start+step*1.25],zoom=frame({family,title:'Grouped intervals',axes:{x:{type},y:source.axes.y},series},{...options,viewport:{axes:'x',value:{x:window}}});assert.deepEqual(zoom.viewport.bounds.x.domain,[start-step/2,start+step*1.5]);assert.deepEqual(zoom.viewport.displayed.x,window);assert.equal(zoom.observations.length,4);
   }
 });
 check('hidden groups reflow shared slots while retaining source identity, color and restore behavior',()=>{
@@ -85,8 +85,8 @@ check('references and reversed Y share the actual statistical frame',()=>{
   const reversed=frame({...source,axes:{...source.axes,y:{...source.axes.y,reversed:true}}});close(reversed.observations[0].y,300-frame().observations[0].y);assert.equal(reversed.observations[0].medianValue,7);
 });
 check('negative and large finite summaries retain exact endpoints and safe compatible scalar values',()=>{
-  const negative=frame({...source,axes:{...source.axes,y:{kind:'linear',domain:[-12,8],nice:false}},series:[{...source.series[0],data:[{id:'signed',x:'a',minimum:-10,q1:-6,median:-2,q3:2,maximum:5}]}]});assert.equal(negative.observations[0].minimumValue,-10);assert.equal(negative.observations[0].medianValue,-2);
-  const axes={...source.axes,y:{kind:'linear',domain:[8e307,1.7e308],nice:false}},box=frame({...source,axes,series:[{...source.series[0],data:[{id:'huge',x:'a',minimum:9e307,q1:1e308,median:1.2e308,q3:1.4e308,maximum:1.6e308}]}]});assert.equal(box.observations[0].value,1.2e308);assert.equal(box.observations[0].minimumValue,9e307);assert.equal(box.observations[0].maximumValue,1.6e308);assert.ok(!JSON.stringify(box).includes('null'));
+  const negative=frame({...source,axes:{...source.axes,y:{type:'linear',domain:[-12,8],nice:false}},series:[{...source.series[0],data:[{id:'signed',x:'a',minimum:-10,q1:-6,median:-2,q3:2,maximum:5}]}]});assert.equal(negative.observations[0].minimumValue,-10);assert.equal(negative.observations[0].medianValue,-2);
+  const axes={...source.axes,y:{type:'linear',domain:[8e307,1.7e308],nice:false}},box=frame({...source,axes,series:[{...source.series[0],data:[{id:'huge',x:'a',minimum:9e307,q1:1e308,median:1.2e308,q3:1.4e308,maximum:1.6e308}]}]});assert.equal(box.observations[0].value,1.2e308);assert.equal(box.observations[0].minimumValue,9e307);assert.equal(box.observations[0].maximumValue,1.6e308);assert.ok(!JSON.stringify(box).includes('null'));
   const interval=frame({...error,axes,series:[{...error.series[0],data:[{id:'huge',x:'a',low:1e308,high:1.6e308}]}]});assert.equal(interval.observations[0].value,1.3e308);assert.ok(Number.isFinite(interval.observations[0].y));
 });
 check('strict order, complete tuples, finite values, dense budgets and family options are validated',()=>{
@@ -96,7 +96,7 @@ check('strict order, complete tuples, finite values, dense budgets and family op
   for(const whiskerWidth of [-1,1.1,Infinity,null,'50%'])assert.equal(planChart({...source,whiskerWidth},options).status,'invalid');
   for(const capWidth of [-1,1.1,Infinity,null,'50%'])assert.equal(planChart({...error,capWidth},options).status,'invalid');
   for(const patch of [{stacking:'sum'},{hiddenSeriesIds:['missing']}])assert.equal(planChart(source,{...options,...patch}).status,'invalid');
-  const dense={...error,axes:{...error.axes,x:{kind:'linear'}},series:[{...error.series[0],data:Array.from({length:10001},(_,i)=>({id:'p'+i,x:i,low:1,high:2}))}]};assert.equal(planChart(dense,options).status,'invalid');
+  const dense={...error,axes:{...error.axes,x:{type:'linear'}},series:[{...error.series[0],data:Array.from({length:10001},(_,i)=>({id:'p'+i,x:i,low:1,high:2}))}]};assert.equal(planChart(dense,options).status,'invalid');
 });
 check('owned frozen output cannot be changed by mutating the original summary',()=>{
   const spec=structuredClone(source),snapshot=structuredClone(spec),result=planChart(spec,options);assert.equal(result.status,'ok');deepFrozen(result);assert.deepEqual(spec,snapshot);assert.ok(!Object.isFrozen(spec));spec.series[0].data[0].median=999;assert.equal(result.frame.observations[0].medianValue,7);

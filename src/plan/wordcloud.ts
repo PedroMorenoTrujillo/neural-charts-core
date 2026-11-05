@@ -40,19 +40,19 @@ export function planWordCloud(spec: PlanWordCloudSpec, inputOptions: PlanWordClo
       for (const {word, fontSize} of selection.selected) {
         if (word.groupId !== group.id) continue;
         const measurement = measured.get(word.id)!, pose = packing.placements.get(word.id);
-        if (!pose) {decisions.set(word.id, {kind: 'notDisplayed', reason: measurement.width === 0 || measurement.height === 0 ? 'noInk' : 'noSpace'}); continue;}
+        if (!pose) {decisions.set(word.id, {type: 'notDisplayed', reason: measurement.width === 0 || measurement.height === 0 ? 'noInk' : 'noSpace'}); continue;}
         const id = {seriesId: group.id, pointId: word.id}, b = pose.bounds;
         textGlyphs.push({pointId: word.id, text: word.text, fontSize, fontKey: context.fontKey, measured: {width: measurement.width, height: measurement.height}, ...pose, color: group.color});
         observations.push({id, label: word.text, seriesName: group.label, value: word.weight!, x: pose.center.x, y: pose.center.y, color: group.color,
-          hit: {kind: 'polygon', vertices: [{x: b.x, y: b.y}, {x: b.x + b.width, y: b.y}, {x: b.x + b.width, y: b.y + b.height}, {x: b.x, y: b.y + b.height}]}});
-        decisions.set(word.id, {kind: 'displayed', fontSize, rotation: pose.rotation});
+          hit: {type: 'polygon', vertices: [{x: b.x, y: b.y}, {x: b.x + b.width, y: b.y}, {x: b.x + b.width, y: b.y + b.height}, {x: b.x, y: b.y + b.height}]}});
+        decisions.set(word.id, {type: 'displayed', fontSize, rotation: pose.rotation});
       }
       if (textGlyphs.length) series.push({id: group.id, name: group.label, color: group.color, textGlyphs});
     }
     const summaries: PlanWordCloudSummary[] = selection.summaries.map(summary => ({id: summary.id, text: summary.text, weight: summary.weight,
-      decision: summary.decision.kind === 'measurementPending' ? decisions.get(summary.id.pointId)! : summary.decision}));
+      decision: summary.decision.type === 'measurementPending' ? decisions.get(summary.id.pointId)! : summary.decision}));
     const notDisplayed: Record<PlanWordCloudNotDisplayedReason, number> = {hidden: 0, unknown: 0, zero: 0, budget: 0, noInk: 0, noSpace: 0};
-    for (const summary of summaries) if (summary.decision.kind === 'notDisplayed') notDisplayed[summary.decision.reason]++;
+    for (const summary of summaries) if (summary.decision.type === 'notDisplayed') notDisplayed[summary.decision.reason]++;
     const emptyReason: PlanWordCloudLayout['emptyReason'] = observations.length ? undefined : source.words.length === 0 ? 'noSource'
       : selection.requests.length === 0 ? 'noEligibleWords' : notDisplayed.noSpace ? 'noSpace' : 'noInk';
     return freezePlan({status: observations.length ? 'ok' : 'empty', frame: {schema: 'nc-plan/1', family: 'wordcloud', width: context.width, height: context.height,

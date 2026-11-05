@@ -10,7 +10,7 @@ export function smoothStackBands(fills:ReadonlyMap<string,readonly PathCommand[]
   const bands:Band[]=[],steps=new Map<string,number>();
   for(const [id,commands]of fills) for(let i=0;i<commands.length;i+=5) {
     const a=commands[i],b=commands[i+1],c=commands[i+2],d=commands[i+3],z=commands[i+4];
-    if(a?.kind!=='M'||b?.kind!=='L'||c?.kind!=='L'||d?.kind!=='L'||z?.kind!=='Z')throw Error('INVALID_STACK_BAND');
+    if(a?.type!=='M'||b?.type!=='L'||c?.type!=='L'||d?.type!=='L'||z?.type!=='Z')throw Error('INVALID_STACK_BAND');
     const key=JSON.stringify([a.x,b.x]),delta=Math.max(Math.abs(b.y-a.y),Math.abs(c.y-d.y));
     // |y''| <= 6*delta; linear interpolation error <= 6*delta/(8*n*n).
     const n=a.x===b.x?1:Math.max(2,Math.ceil(Math.sqrt(3*delta)));
@@ -22,11 +22,11 @@ export function smoothStackBands(fills:ReadonlyMap<string,readonly PathCommand[]
     const n=steps.get(band.key)!,value=result.get(band.id)??{commands:[],areaCommands:[]};
     if((count+=3*n+4)>MAX_PATH_COMMANDS)throw Error('RESOURCE_LIMIT');
     for(let j=0;j<=n;j++) {
-      const t=j/n,e=t*t*(3-2*t),point={kind:j===0?'M' as const:'L' as const,x:mix(band.a.x,band.b.x,t),y:mix(band.a.y,band.b.y,e)};
+      const t=j/n,e=t*t*(3-2*t),point={type:j===0?'M' as const:'L' as const,x:mix(band.a.x,band.b.x,t),y:mix(band.a.y,band.b.y,e)};
       value.commands.push(point);value.areaCommands.push(point);
     }
-    for(let j=n;j>=0;j--) {const t=j/n,e=t*t*(3-2*t);value.areaCommands.push({kind:'L',x:mix(band.d.x,band.c.x,t),y:mix(band.d.y,band.c.y,e)});}
-    value.areaCommands.push({kind:'Z'});result.set(band.id,value);
+    for(let j=n;j>=0;j--) {const t=j/n,e=t*t*(3-2*t);value.areaCommands.push({type:'L',x:mix(band.d.x,band.c.x,t),y:mix(band.d.y,band.c.y,e)});}
+    value.areaCommands.push({type:'Z'});result.set(band.id,value);
   }
   return result;
 }

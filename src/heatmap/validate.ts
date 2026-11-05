@@ -13,7 +13,7 @@ import { parseHeatmapReferences } from './references.js';
 import { normalizeHeatmap, coordinateKey, type HeatmapData } from './data.js';
 export const HEATMAP_AXIS_LIMIT = 10000, HEATMAP_CELL_LIMIT = 10000;
 function categoryAxis(input: unknown, path: string): HeatmapAxis {
-  const axis = record(input, ['kind', 'values', 'title', 'grid', 'reversed', 'ticks', 'labels'], ['kind', 'values'], path); choice(axis.kind, ['category'], path + '.kind');
+  const axis = record(input, ['type', 'values', 'title', 'grid', 'reversed', 'ticks', 'labels'], ['type', 'values'], path); choice(axis.type, ['category'], path + '.type');
   const ids = new Set<string>(); axis.values = Object.freeze(array(axis.values, HEATMAP_AXIS_LIMIT, path + '.values').map((raw, i) => { const at = path + '.values[' + i + ']', value = record(raw, ['id', 'label'], ['id'], at), id = text(value.id, at + '.id', 128); if (ids.has(id)) fail(at, 'DUPLICATE_CATEGORY_ID'); ids.add(id); return Object.freeze({ id, ...(Object.hasOwn(value, 'label') ? { label: text(value.label, at + '.label', 1024) } : {}) }); }));
   optional(axis, 'title', (value, path) => text(value, path), path);
   for (const key of ['grid', 'reversed']) optional(axis, key, (value, path) => { if (typeof value !== 'boolean') fail(path); return value; }, path);
@@ -41,7 +41,7 @@ export function validateHeatmap<T>(input: unknown): ChartResult<HeatmapData<T>> 
     // normalized RGB/OKLab metadata remains private in HeatmapData.
     if (parsedColor) {
       const colors = Object.freeze(parsedColor.colors.map(color => color.hex));
-      value.colorScale = Object.freeze(parsedColor.kind === 'threshold' ? { kind: 'threshold', boundaries: parsedColor.boundaries, colors } : parsedColor.kind === 'diverging' ? { kind: 'diverging', domain: parsedColor.domain, colors } : { kind: 'sequential', ...(parsedColor.domain ? { domain: parsedColor.domain } : {}), colors, positions: parsedColor.positions });
+      value.colorScale = Object.freeze(parsedColor.type === 'threshold' ? { type: 'threshold', boundaries: parsedColor.boundaries, colors } : parsedColor.type === 'diverging' ? { type: 'diverging', domain: parsedColor.domain, colors } : { type: 'sequential', ...(parsedColor.domain ? { domain: parsedColor.domain } : {}), colors, positions: parsedColor.positions });
     }
     if (Object.hasOwn(value, 'selection')) {
       const selected = selectionBinding(value.selection), initial = !selected ? [] : selected.mode === 'controlled' ? selected.value : selected.initial ?? [];

@@ -3,13 +3,13 @@ import type { ChartResult } from '../../src/public/chart-types.js';
 import { numericViewportAxis, prepareViewport, type Viewport } from '../../src/internal/interaction/viewport.js';
 import { zoomDisplayedViewport, panDisplayedViewport } from '../../src/internal/interaction/viewport-display.js';
 function value<T>(result: ChartResult<T>): T { if (result.status !== 'ok') throw Error(JSON.stringify(result)); return result.value; }
-function owner(x: readonly [number, number], y: readonly [number, number], initial: unknown = {}, kind: 'linear' | 'time' = 'linear'): Viewport {
-  const model = value(prepareViewport({ mode: 'internal', axes: 'xy', initial }, { x: value(numericViewportAxis(kind, x)), y: value(numericViewportAxis('linear', y)) })); if (!model) throw Error('Disabled owner'); return model;
+function owner(x: readonly [number, number], y: readonly [number, number], initial: unknown = {}, type: 'linear' | 'time' = 'linear'): Viewport {
+  const model = value(prepareViewport({ mode: 'internal', axes: 'xy', initial }, { x: value(numericViewportAxis(type, x)), y: value(numericViewportAxis('linear', y)) })); if (!model) throw Error('Disabled owner'); return model;
 }
 test('zoom follows displayed nice-axis extents and then intersects the original permitted bounds', () => {
   const model = owner([-2, 3], [-4, 5]);
   expect(value(zoomDisplayedViewport(model, { x: [-5, 5], y: [-5, 5] }, 2)).value).toEqual({ x: [-2, 2.5], y: [-2.5, 2.5] });
-  expect(model.value).toEqual({}); expect(model.context.y).toEqual({ kind: 'linear', domain: [-4, 5], automatic: [-4, 5] });
+  expect(model.value).toEqual({}); expect(model.context.y).toEqual({ type: 'linear', domain: [-4, 5], automatic: [-4, 5] });
 });
 test('an off-center wheel anchor stays at its actual displayed value', () => {
   const model = owner([-10, 10], [-4, 5]);

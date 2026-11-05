@@ -41,7 +41,7 @@ export function planAdditional(spec:PlanPieSpec|PlanDonutSpec|PlanGaugeSpec|Plan
     for(const slice of p.data.eligible){
       const point=slice.point,color=legend.find(item=>item.id===point.id)!.color,mark=p.markById.get(point.id);
       series.push({id:point.id,name:point.label,color,commands:mark?.commands??[],fill:true});
-      observations.push({id:{seriesId:point.id,pointId:point.id},label:point.label,seriesName:input.title,value:point.value!,x:mark?.anchor.x??p.frame.cx,y:mark?.anchor.y??p.frame.cy,color,percentage:slice.fraction*100,...(mark?{hit:{kind:'sector' as const,...p.frame,start:slice.start,end:slice.end}}:{})});
+      observations.push({id:{seriesId:point.id,pointId:point.id},label:point.label,seriesName:input.title,value:point.value!,x:mark?.anchor.x??p.frame.cx,y:mark?.anchor.y??p.frame.cy,color,percentage:slice.fraction*100,...(mark?{hit:{type:'sector' as const,...p.frame,start:slice.start,end:slice.end}}:{})});
     }
     return finish({schema:'nc-plan/1',family:spec.family,width:side,height:side,title:input.title,description:input.description??'',unit:'',legend,series,observations,grid:[],labels:[],...(spec.family==='donut'?{annotations:[{x:p.frame.cx,y:p.frame.cy,text:p.data.total===null?'—':String(p.data.total),role:'value' as const}]}:{})});
   }
@@ -58,7 +58,7 @@ export function planAdditional(spec:PlanPieSpec|PlanDonutSpec|PlanGaugeSpec|Plan
       ...p.bands.map(b=>({id:'band:'+b.id,name:input.title,color:b.color,commands:b.commands,fill:true})),
       {id:'target',name:input.title,color:'#718299',commands:p.target,fill:true},
     ];
-    return finish({...base,series,observations:[{id:{seriesId:'reading',pointId:'value'},label:input.title,seriesName:input.unit??'',value:input.value,x:p.anchor.x,y:p.anchor.y,color,hit:{kind:'sector',...p.frame,innerRadius:0,start:p.start,end:p.start+p.span}}],annotations:[{x:p.frame.cx,y:p.readingBaseline,text:String(input.value)+(input.unit??''),role:'value'},...(input.target?[{x:p.frame.cx,y:Math.min(side-12,p.readingBaseline+50),text:(input.target.label??'Target')+' '+input.target.value+(input.unit??''),role:'label' as const}]:[])]});
+    return finish({...base,series,observations:[{id:{seriesId:'reading',pointId:'value'},label:input.title,seriesName:input.unit??'',value:input.value,x:p.anchor.x,y:p.anchor.y,color,hit:{type:'sector',...p.frame,innerRadius:0,start:p.start,end:p.start+p.span}}],annotations:[{x:p.frame.cx,y:p.readingBaseline,text:String(input.value)+(input.unit??''),role:'value'},...(input.target?[{x:p.frame.cx,y:Math.min(side-12,p.readingBaseline+50),text:(input.target.label??'Target')+' '+input.target.value+(input.unit??''),role:'label' as const}]:[])]});
   }
   const scatter=spec.family==='scatter',source=spec.series;
   if(!Array.isArray(source)||source.length>16||source.reduce((n,s)=>n+(Array.isArray(s?.data)?s.data.length:10001),0)>10000)return bad('INPUT_LIMIT','series');
@@ -93,10 +93,10 @@ export function planAdditional(spec:PlanPieSpec|PlanDonutSpec|PlanGaugeSpec|Plan
   for(const s of projected.value.series){
     const color=legend.find(item=>item.id===s.series.spec.id)!.color,circles:PlanCircle[]=[];
     for(const p of s.targets){const size=sizes.get(JSON.stringify([s.series.spec.id,p.point.id]))!,radius=scatter?p.radius:size.z>0?Math.min(44,width/4,height/4)*Math.max(6/44,Math.sqrt(size.z/maximum)):0;
-      circles.push({pointId:p.point.id,cx:p.x,cy:p.y,radius});observations.push({id:{seriesId:s.series.spec.id,pointId:p.point.id},label:size.label,seriesName:s.series.spec.name,value:p.point.y,x:p.x,y:p.y,color,xValue:p.point.x,...(scatter?{}:{sizeValue:size.z}),hit:{kind:'circle',cx:p.x,cy:p.y,radius}});
+      circles.push({pointId:p.point.id,cx:p.x,cy:p.y,radius});observations.push({id:{seriesId:s.series.spec.id,pointId:p.point.id},label:size.label,seriesName:s.series.spec.name,value:p.point.y,x:p.x,y:p.y,color,xValue:p.point.x,...(scatter?{}:{sizeValue:size.z}),hit:{type:'circle',cx:p.x,cy:p.y,radius}});
     }
     series.push({id:s.series.spec.id,name:s.series.spec.name,color,circles});
   }
-  const plot={x:px,y:py,width:width-2*px,height:height-2*py},frame:PlanFrame={...base,series,observations,labels:xt.value.ticks.map(v=>({x:x.value.map(v)!,label:String(v),value:v,kind:'number' as const})),grid:yt.value.ticks.map(v=>({y:y.value.map(v)!,label:String(v),value:v,kind:'number' as const})),...(view?{viewport:planViewportState(view,{x:xt.value.domain,y:yt.value.domain},input.axes,plot)!}:{})};
+  const plot={x:px,y:py,width:width-2*px,height:height-2*py},frame:PlanFrame={...base,series,observations,labels:xt.value.ticks.map(v=>({x:x.value.map(v)!,label:String(v),value:v,type:'number' as const})),grid:yt.value.ticks.map(v=>({y:y.value.map(v)!,label:String(v),value:v,type:'number' as const})),...(view?{viewport:planViewportState(view,{x:xt.value.domain,y:yt.value.domain},input.axes,plot)!}:{})};
   return finish(transform?transform(frame,{plot,xDomain:xt.value.domain,yDomain:yt.value.domain,mapX:x.value.map,mapY:y.value.map}):frame,references,!data.value.series.some(series=>!hidden.includes(series.spec.id)&&series.paired.length>0)?undefined:{plot,domains:{x:xt.value.domain,y:yt.value.domain},mapX:value=>typeof value==='number'?x.value.map(value):null,mapY:y.value.map,bandSourceAxes:input.axes},bands);
 }

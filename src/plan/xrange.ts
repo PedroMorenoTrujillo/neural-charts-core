@@ -19,8 +19,8 @@ function validateXRange(input: PlanXRangeSpec): OwnedXRange {
   choice(source.family, ['xrange'], 'spec.family');
   const axes = record(source.axes, ['x', 'y'], ['x', 'y'], 'spec.axes');
   const x = parseTemporalAxis(axes.x, 'spec.axes.x');
-  const rawY = record(axes.y, ['kind', 'values', 'reversed'], ['kind', 'values'], 'spec.axes.y');
-  choice(rawY.kind, ['category'], 'spec.axes.y.kind');
+  const rawY = record(axes.y, ['type', 'values', 'reversed'], ['type', 'values'], 'spec.axes.y');
+  choice(rawY.type, ['category'], 'spec.axes.y.type');
   const rowIds = new Set<string>();
   const values = array(rawY.values, MAX_XRANGE_ROWS, 'spec.axes.y.values').map((item, index) => {
     const path = `spec.axes.y.values[${index}]`, row = record(item, ['id', 'label'], ['id', 'label'], path);
@@ -63,19 +63,19 @@ function validateXRange(input: PlanXRangeSpec): OwnedXRange {
   });
   return {family: 'xrange', title: text(source.title, 'spec.title', 512, true),
     ...(source.description === undefined ? {} : {description: text(source.description, 'spec.description', 2048, true)}),
-    axes: {x, y: {kind: 'category', values, ...(reversed === undefined ? {} : {reversed})}}, series,
+    axes: {x, y: {type: 'category', values, ...(reversed === undefined ? {} : {reversed})}}, series,
     ...(source.grouping === undefined ? {} : {grouping: choice(source.grouping, ['grouped', 'overlap'], 'spec.grouping')}),
     ...(source.rowPadding === undefined ? {} : {rowPadding: number(source.rowPadding, 'spec.rowPadding', 0, .9)})};
 }
 
 function rectangleCommands(left: number, top: number, right: number, bottom: number): readonly PlanCommand[] {
-  return [{kind: 'M', x: left, y: top}, {kind: 'L', x: right, y: top}, {kind: 'L', x: right, y: bottom}, {kind: 'L', x: left, y: bottom}, {kind: 'Z'}];
+  return [{type: 'M', x: left, y: top}, {type: 'L', x: right, y: top}, {type: 'L', x: right, y: bottom}, {type: 'L', x: left, y: bottom}, {type: 'Z'}];
 }
 
 function hitRectangle(left: number, top: number, right: number, bottom: number, plot: Plot): PlanHitRegion {
   const cx = left / 2 + right / 2, cy = top / 2 + bottom / 2;
   const halfWidth = Math.max(12, (right - left) / 2), halfHeight = Math.max(12, (bottom - top) / 2);
-  return {kind: 'polygon', vertices: [
+  return {type: 'polygon', vertices: [
     {x: Math.max(plot.x, cx - halfWidth), y: Math.max(plot.y, cy - halfHeight)},
     {x: Math.min(plot.x + plot.width, cx + halfWidth), y: Math.max(plot.y, cy - halfHeight)},
     {x: Math.min(plot.x + plot.width, cx + halfWidth), y: Math.min(plot.y + plot.height, cy + halfHeight)},
@@ -140,7 +140,7 @@ export function planXRange(input: PlanXRangeSpec, inputOptions: PlanOptions): Pl
         observations.push({id: {seriesId: source.id, pointId: point.id}, label: point.label ?? rowLabel,
           seriesName: source.name, value: originalEnd - originalStart, x, y, color: source.color, xValue: originalStart,
           group: {key: JSON.stringify(['interval', point.rowId, originalStart]), label: rowLabel, coordinate: projection.map(originalStart)!},
-          interval: {kind: spec.axes.x.kind, rowId: point.rowId, rowLabel, start: originalStart, end: originalEnd, duration: originalEnd - originalStart,
+          interval: {type: spec.axes.x.type, rowId: point.rowId, rowLabel, start: originalStart, end: originalEnd, duration: originalEnd - originalStart,
             ...(point.completed === undefined ? {} : {completed: point.completed})},
           hit: hitRectangle(left, top, right, bottom, plot)});
       }
@@ -148,7 +148,7 @@ export function planXRange(input: PlanXRangeSpec, inputOptions: PlanOptions): Pl
     }
     const yLabels = rows.flatMap(row => {const y = bands.value.center(row.id); return y === null ? [] : [{id: row.id, y, label: row.label}];});
     const result: PlanXRangeFrame = {schema: 'nc-plan/1', family: 'xrange', title: spec.title, description: spec.description ?? '',
-      unit: spec.axes.x.kind === 'time' ? 'ms' : spec.axes.x.unit ?? '', width: options.width, height: options.height,
+      unit: spec.axes.x.type === 'time' ? 'ms' : spec.axes.x.unit ?? '', width: options.width, height: options.height,
       legend: spec.series.map(source => ({id: source.id, name: source.name, color: source.color, visible: !options.hidden.has(source.id)})),
       series, observations, intervals, labels: projection.labels, grid: yLabels.map(row => ({y: row.y, label: ''})), yLabels,
       references: projection.references, ...(projection.viewport === undefined ? {} : {viewport: projection.viewport})};

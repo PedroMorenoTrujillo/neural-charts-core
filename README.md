@@ -2,17 +2,23 @@
 
 Renderer-independent chart planning and geometry in strict TypeScript. The Core converts source data and a viewport size into a read-only frame that a renderer can paint.
 
-**Version 0.0.24 is experimental.** Public contracts can change before 1.0. Pin the version while integrating a renderer.
+**Version 0.1.0 is experimental.** Public contracts can change before 1.0. Pin the version while integrating a renderer.
 
-Version 0.0.5 reduces repeated work in defensive input copying while preserving validation, ownership and chart geometry. Public data and planning contracts are unchanged.
+Version 0.1.0 replaces the public `kind` discriminator with `type`. This is a breaking contract change from 0.0.24; chart geometry, calculations, source identities and values are unchanged.
 
 ## Install
 
 ```sh
-npm install @neural-charts/core@0.0.24
+npm install @neural-charts/core@0.1.0
 ```
 
 The package ships ESM JavaScript and TypeScript declarations. It has no runtime dependencies, framework peer dependencies, browser globals, native bridges or module initialization side effects. Its declarations compile with `lib: ["ES2022"]`, without DOM types. Development and package verification use Node.js 22 or newer.
+
+## Migrating from 0.0.24
+
+Replace `kind` with `type` in axes, mixed series, waterfall points, colour scales, log scales and public geometry/result discriminators. For example, `axes.x: {kind: 'category', values: [...]}` becomes `axes.x: {type: 'category', values: [...]}`; a mixed series uses `type: 'column'`. Renderers must read `command.type`, `hit.type` and the equivalent returned metadata fields. Legacy-only and dual `kind`/`type` chart configuration is rejected rather than silently translated. Core's top-level chart `family` remains unchanged.
+
+See [the complete discriminator migration](https://github.com/PedroMorenoTrujillo/neural-charts-core/blob/main/docs/type-discriminator-migration.md) for affected result fields and the unchanged mathematical behavior. Update the renderer and its documentation together before installing this version.
 
 ## Plan a chart
 
@@ -24,14 +30,14 @@ const data = {
   title: 'Weekly activity',
   axes: {
     x: {
-      kind: 'category',
+      type: 'category',
       values: [
         {id: 'mon', label: 'Monday'},
         {id: 'tue', label: 'Tuesday'},
         {id: 'wed', label: 'Wednesday'},
       ],
     },
-    y: {kind: 'linear'},
+    y: {type: 'linear'},
   },
   series: [{
     id: 'visits',
@@ -137,7 +143,7 @@ export function zoomIn(spec: PlanSpec) {
   if (result.status === 'invalid' || !result.frame.viewport) return result;
 
   const next = transformPlanViewport(result.frame.viewport, {
-    kind: 'zoom',
+    type: 'zoom',
     factor: 2,
   });
   if (next.status === 'invalid') return next;
@@ -206,18 +212,18 @@ import {planChart, type PlanLineSpec, type PlanScales} from '@neural-charts/core
 
 const source = {
   family: 'line', title: 'Orders',
-  axes: {x: {kind: 'linear'}, y: {kind: 'linear'}},
+  axes: {x: {type: 'linear'}, y: {type: 'linear'}},
   series: [{id: 'orders', name: 'Orders', data: [
     {id: 'a', x: 1, y: 1}, {id: 'b', x: 2, y: 10}, {id: 'c', x: 3, y: 100},
   ]}],
 } as const satisfies PlanLineSpec;
-const scales = {y: {kind: 'log', base: 10}} as const satisfies PlanScales;
+const scales = {y: {type: 'log', base: 10}} as const satisfies PlanScales;
 const result = planChart(source, {width: 390, height: 300, scales, viewport: {axes: 'y'}});
 ```
 
 The numeric input axes still describe original source coordinates. `scales`
 changes projection; it never replaces observations with logarithms. Logarithmic
-viewport bounds add `kind: 'log'` to `PlanViewportAxis`; use
+viewport bounds add `type: 'log'` to `PlanViewportAxis`; use
 `transformPlanViewport` for multiplicative zoom and pan. Stacking, zero/negative
 known log coordinates and unsupported chart families are explicit errors. See
 the [logarithmic contract](https://github.com/PedroMorenoTrujillo/neural-charts-core/blob/main/docs/logarithmic-contract.md)
@@ -301,11 +307,11 @@ const workItems = {
   family: 'pictorial',
   title: 'Work items',
   axes: {
-    x: {kind: 'category', values: [
+    x: {type: 'category', values: [
       {id: 'design', label: 'Design'},
       {id: 'development', label: 'Development'},
     ]},
-    y: {kind: 'linear', unit: 'items'},
+    y: {type: 'linear', unit: 'items'},
   },
   series: [
     {id: 'done', name: 'Done', data: [
@@ -317,7 +323,7 @@ const workItems = {
       {id: 'development-remaining', x: 'development', y: 7},
     ]},
   ],
-  pictorial: {shape: {kind: 'preset', name: 'person'}, gap: 8, background: true},
+  pictorial: {shape: {type: 'preset', name: 'person'}, gap: 8, background: true},
 } satisfies PlanPictorialSpec;
 
 const grouped = planChart(workItems, {width: 320, height: 320});
@@ -353,7 +359,7 @@ const latency = {
     {id: 'c', x: 2, y: 0, name: 'Service C', value: null},
   ]}],
   colorAxis: {
-    kind: 'continuous',
+    type: 'continuous',
     stops: [{at: 0, color: '#DCE8FA'}, {at: 1, color: '#2F6FD4'}],
     missingColor: '#E5E7EB',
   },
@@ -465,7 +471,7 @@ const data = {
 const result = planChart(data, {width: 390, height: 320});
 if (result.status !== 'invalid') {
   // Use incident totals; these links do not imply incoming/outgoing direction.
-  const nodes = result.frame.observations.filter(point => point.relationship?.kind === 'node');
+  const nodes = result.frame.observations.filter(point => point.relationship?.type === 'node');
   void nodes;
 }
 ```
@@ -507,8 +513,8 @@ import {planChart, type PlanBulletSpec} from '@neural-charts/core';
 const data = {
   family: 'bullet', title: 'Service coverage', orientation: 'horizontal',
   axes: {
-    x: {kind: 'category', values: [{id: 'support', label: 'Support'}]},
-    y: {kind: 'linear', domain: [0, 100], unit: '%'},
+    x: {type: 'category', values: [{id: 'support', label: 'Support'}]},
+    y: {type: 'linear', domain: [0, 100], unit: '%'},
   },
   series: [{id: 'coverage', name: 'Coverage', data: [
     {id: 'support-coverage', x: 'support', y: 72, target: 80},
@@ -538,8 +544,8 @@ import {planChart, type PlanVariwideSpec} from '@neural-charts/core';
 const data = {
   family: 'variwide', title: 'Output and share',
   axes: {
-    x: {kind: 'category', values: [{id: 'a', label: 'A'}, {id: 'b', label: 'B'}]},
-    y: {kind: 'linear', domain: [-10, 10]},
+    x: {type: 'category', values: [{id: 'a', label: 'A'}, {id: 'b', label: 'B'}]},
+    y: {type: 'linear', domain: [-10, 10]},
   },
   series: [{id: 'output', name: 'Output', data: [
     {id: 'output-a', x: 'a', y: 3, z: 2},
@@ -598,8 +604,8 @@ const data = {
   family: 'xrange',
   title: 'Service windows',
   axes: {
-    x: {kind: 'time'},
-    y: {kind: 'category', values: [{id: 'north', label: 'North'}]},
+    x: {type: 'time'},
+    y: {type: 'category', values: [{id: 'north', label: 'North'}]},
   },
   series: [{id: 'service', name: 'Service', data: [
     {id: 'inspection', rowId: 'north', start: Date.UTC(2026, 0, 5), end: Date.UTC(2026, 0, 7), completed: 0.5},
@@ -625,7 +631,7 @@ import {planChart, type PlanTimelineSpec} from '@neural-charts/core';
 const data = {
   family: 'timeline',
   title: 'Milestones',
-  axes: {x: {kind: 'time'}},
+  axes: {x: {type: 'time'}},
   series: [{id: 'events', name: 'Events', data: [
     {id: 'opened', x: Date.UTC(2026, 0, 5), title: 'Opened', description: 'Original event description'},
     {id: 'pending', x: null, title: 'Date not yet known'},
@@ -695,7 +701,7 @@ import {planChart, type PlanContourSpec} from '@neural-charts/core';
 
 const field = {
   family: 'contour', title: 'Measured temperature',
-  axes: {x: {kind: 'linear'}, y: {kind: 'linear'}},
+  axes: {x: {type: 'linear'}, y: {type: 'linear'}},
   grid: {
     id: 'temperature', x: [0, 2], y: [0, 3],
     ids: ['northwest', 'northeast', 'southwest', 'southeast'],
@@ -755,8 +761,8 @@ const matrix = {
   family: 'heatmap',
   title: 'Measurements',
   axes: {
-    x: {kind: 'category', values: [{id: 'mon', label: 'Monday'}, {id: 'tue', label: 'Tuesday'}]},
-    y: {kind: 'category', values: [{id: 'morning', label: 'Morning'}, {id: 'evening', label: 'Evening'}]},
+    x: {type: 'category', values: [{id: 'mon', label: 'Monday'}, {id: 'tue', label: 'Tuesday'}]},
+    y: {type: 'category', values: [{id: 'morning', label: 'Morning'}, {id: 'evening', label: 'Evening'}]},
   },
   data: [
     {id: 'first', rowId: 'morning', columnId: 'mon', value: 0},
@@ -765,7 +771,7 @@ const matrix = {
   ],
   gapRatio: 0.04,
   colorAxis: {
-    kind: 'continuous',
+    type: 'continuous',
     stops: [{at: 0, color: '#E8F0FE'}, {at: 1, color: '#245DC1'}],
     missingColor: '#CBD5E1',
   },
@@ -797,8 +803,8 @@ const wind = {
   family: 'windrose',
   title: 'Wind frequency',
   axes: {
-    x: {kind: 'category', values: [{id: 'n', label: 'North'}, {id: 's', label: 'South'}]},
-    y: {kind: 'linear', title: 'hours'},
+    x: {type: 'category', values: [{id: 'n', label: 'North'}, {id: 's', label: 'South'}]},
+    y: {type: 'linear', title: 'hours'},
   },
   series: [
     {id: 'low', name: 'Low speed', data: [{id: 'low-n', x: 'n', y: 2}, {id: 'low-s', x: 's', y: 4}]},
@@ -848,9 +854,9 @@ const vehicles = {
   title: 'Vehicle measurements',
   coordinates: 'cartesian',
   axes: [
-    {id: 'mass', label: 'Mass', kind: 'linear', unit: 'kg', domain: [1000, 2000]},
-    {id: 'time', label: 'Acceleration', kind: 'linear', unit: 's', domain: [5, 15], reversed: true},
-    {id: 'range', label: 'Range', kind: 'linear', unit: 'km', domain: [200, 600]},
+    {id: 'mass', label: 'Mass', type: 'linear', unit: 'kg', domain: [1000, 2000]},
+    {id: 'time', label: 'Acceleration', type: 'linear', unit: 's', domain: [5, 15], reversed: true},
+    {id: 'range', label: 'Range', type: 'linear', unit: 'km', domain: [200, 600]},
   ],
   series: [
     {id: 'a', name: 'Vehicle A', data: [
@@ -894,7 +900,7 @@ If all internal heights are omitted, the planner derives topology levels from th
 
 `orientation` is horizontal by default or vertical. Leaves align at height zero even when their depths differ. Orthogonal branches join at the supplied merge height, not equally spaced depths. The bounded input supports 128 nodes, 64 leaves and depth16; IDs are globally unique and child order is preserved. All original nodes remain observations. Leaf labels may be reduced at small sizes without removing their identities or values.
 
-`frame.dendrogram` records orientation, height mode, maximum height, node/leaf counts and unit. Each observation's `dendrogram` role records leaf/cluster kind, height mode, source/topology/leaf-zero provenance, leaf count and depth. A zero-height tree has no invented positive numeric axis. There are no visibility-series legends, stacking, reference lines or viewport controls on this owner.
+`frame.dendrogram` records orientation, height mode, maximum height, node/leaf counts and unit. Each observation's `dendrogram` role records leaf/cluster type, height mode, source/topology/leaf-zero provenance, leaf count and depth. A zero-height tree has no invented positive numeric axis. There are no visibility-series legends, stacking, reference lines or viewport controls on this owner.
 
 ```ts
 import {planChart} from '@neural-charts/core/plan';
@@ -921,7 +927,7 @@ Source endpoints and inclusive durations remain unchanged. Depth and exclusive d
 ```ts
 import {planChart} from '@neural-charts/core/plan';
 import type {PlanFlameSpec} from '@neural-charts/core/plan';
-const trace = {family:'flame',title:'Call trace',axes:{x:{kind:'linear',unit:'ms'}},data:[
+const trace = {family:'flame',title:'Call trace',axes:{x:{type:'linear',unit:'ms'}},data:[
   {id:'main',label:'Main',start:0,end:100},
   {id:'load',label:'Load',parentId:'main',start:10,end:50},
   {id:'parse',label:'Parse',parentId:'load',start:20,end:40}
@@ -942,7 +948,7 @@ The compact Epanechnikov kernel has support one bandwidth either side of a sampl
 ```ts
 import {planChart} from '@neural-charts/core/plan';
 import type {PlanViolinSpec} from '@neural-charts/core/plan';
-const distributions = {family:'violin',title:'Response time',axes:{y:{kind:'linear',unit:'ms'}},groups:[
+const distributions = {family:'violin',title:'Response time',axes:{y:{type:'linear',unit:'ms'}},groups:[
   {id:'first',label:'First group',samples:[{id:'a',value:10},{id:'b',value:12},{id:'c',value:18}]},
   {id:'second',label:'Second group',samples:[{id:'d',value:8},{id:'e',value:14},{id:'f',value:null}]}
 ]} as const satisfies PlanViolinSpec;
@@ -963,7 +969,7 @@ import {planChart} from '@neural-charts/core/plan';
 import type {PlanFanSpec} from '@neural-charts/core/plan';
 const uncertainty = {
   family:'fan',title:'Supplied uncertainty',
-  axes:{x:{kind:'linear'},y:{kind:'linear'}},
+  axes:{x:{type:'linear'},y:{type:'linear'}},
   bands:[{id:'central-50',label:'50%',coverage:0.5},{id:'central-95',label:'95%',coverage:0.95}],
   data:[
     {id:'past',x:0,value:10,intervals:[]},
@@ -980,14 +986,14 @@ const uncertaintyResult = planChart(uncertainty,{width:390,height:300});
 
 Ordinary least squares uses only known XY pairs. Its shifted, scaled and compensated covariance avoids raw-square overflow and loss of small differences at large timestamp offsets. The model reports known/missing pair counts, slope, intercept and R². Constant response produces a genuine zero slope and null R² because total response variance is zero. Fewer than two known pairs or constant X preserve the original points and report an unavailable fit. Nonrepresentable coefficients are diagnosed rather than silently becoming zero or infinity.
 
-Source points and the derived straight line share one scatter frame, numeric axes and domains. Fits use only the measured X extent; there is no extrapolation. Cropping clips the line in original coordinates before pixel mapping, including windows containing no original endpoint. Derived endpoint observations are explicitly identified as `regression.kind:'fit'`, with their actual estimated X/Y values and a bounded line hit strip. Original samples use `kind:'sample'`. Model statistics are stored once in `frame.regression.models`, linked by `modelId`, rather than repeated in every observation. Original and fit visibility are independent; visibility does not change the model's training samples. Stacking is unsupported.
+Source points and the derived straight line share one scatter frame, numeric axes and domains. Fits use only the measured X extent; there is no extrapolation. Cropping clips the line in original coordinates before pixel mapping, including windows containing no original endpoint. Derived endpoint observations are explicitly identified as `regression.type:'fit'`, with their actual estimated X/Y values and a bounded line hit strip. Original samples use `type:'sample'`. Model statistics are stored once in `frame.regression.models`, linked by `modelId`, rather than repeated in every observation. Original and fit visibility are independent; visibility does not change the model's training samples. Stacking is unsupported.
 
 ```ts
 import {planChart} from '@neural-charts/core/plan';
 import type {PlanRegressionSpec} from '@neural-charts/core/plan';
 const measured = {
   family:'regression',title:'Measurements and linear fit',
-  axes:{x:{kind:'linear'},y:{kind:'linear'}},
+  axes:{x:{type:'linear'},y:{type:'linear'}},
   series:[{id:'measurements',name:'Original measurements',data:[
     {id:'a',x:1,y:3},{id:'b',x:2,y:5},{id:'c',x:3,y:7},{id:'unknown',x:4,y:null},
   ]}],

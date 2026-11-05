@@ -34,7 +34,7 @@ export function projectPlanLine<T>(data: NormalizedLine<T>, state: ChartState, p
         if (x >= plot.x && x <= plot.x + plot.width && y >= plot.y && y <= plot.y + plot.height)
           eligible.push({point, x, y, index: source.byId.get(point.id)!});
         if (run.length > 1) {
-          if (j === 0) commands.push(Object.freeze({kind: 'M', x, y}));
+          if (j === 0) commands.push(Object.freeze({type: 'M', x, y}));
           else appendLineSegment(commands, previousX, previousY, x, y, curve);
         }
         previousX = x; previousY = y;

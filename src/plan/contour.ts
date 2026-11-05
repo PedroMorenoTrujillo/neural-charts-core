@@ -15,7 +15,7 @@ import type {PlanOptions,PlanSeries,PlanCommand,PlanAnnotation} from '../public/
 import type {PlanContourSpec,PlanContourAxis,PlanContourGrid,PlanContourLevel,PlanContourObservation,PlanContourFrame,PlanContourResult} from '../public/contour-types.js';
 
 function axis(value:unknown,path:string):PlanContourAxis{
-  const parsed=parseTemporalAxis(value,path);if(parsed.kind!=='linear')fail(path+'.kind','CONTOUR_LINEAR_AXIS_ONLY');return parsed;
+  const parsed=parseTemporalAxis(value,path);if(parsed.type!=='linear')fail(path+'.type','CONTOUR_LINEAR_AXIS_ONLY');return parsed;
 }
 function countMissingContourCells(grid:PlanContourGrid):number{
   let missing=0;const columns=grid.x.length;
@@ -85,10 +85,10 @@ export function planContour(spec:PlanContourSpec,options:PlanOptions):PlanContou
       if(sx===null||sy===null||ex===null||ey===null)fail('options.viewport','UNREPRESENTABLE_CONTOUR_VIEWPORT');
       const start={x:Math.max(0,Math.min(width,sx)),y:Math.max(0,Math.min(height,sy))},end={x:Math.max(0,Math.min(width,ex)),y:Math.max(0,Math.min(height,ey))};
       if(start.x===end.x&&start.y===end.y)continue;
-      const path=commands.get(level.id)??[];path.push({kind:'M',...start},{kind:'L',...end});commands.set(level.id,path);
+      const path=commands.get(level.id)??[];path.push({type:'M',...start},{type:'L',...end});commands.set(level.id,path);
       const row=Math.floor(segment.cell/grid.x.length),column=segment.cell%grid.x.length,indices=[segment.cell,segment.cell+1,segment.cell+1+grid.x.length,segment.cell+grid.x.length] as const;
       const x=start.x/2+end.x/2,y=start.y/2+end.y/2,length=Math.hypot(end.x-start.x,end.y-start.y);
-      observations.push({id:{seriesId:level.id,pointId:JSON.stringify([grid.id,row,column,ordinal])},label:String(level.value),seriesName:level.name,value:level.value,x,y,color:level.color,contour:{kind:'isoline',levelId:level.id,level:level.value,gridId:grid.id,row,column,sourceIds:[grid.ids[indices[0]]!,grid.ids[indices[1]]!,grid.ids[indices[2]]!,grid.ids[indices[3]]!],sourceValues:[grid.values[indices[0]]!,grid.values[indices[1]]!,grid.values[indices[2]]!,grid.values[indices[3]]!],sourceStart:segment.start,sourceEnd:segment.end,start,end}});
+      observations.push({id:{seriesId:level.id,pointId:JSON.stringify([grid.id,row,column,ordinal])},label:String(level.value),seriesName:level.name,value:level.value,x,y,color:level.color,contour:{type:'isoline',levelId:level.id,level:level.value,gridId:grid.id,row,column,sourceIds:[grid.ids[indices[0]]!,grid.ids[indices[1]]!,grid.ids[indices[2]]!,grid.ids[indices[3]]!],sourceValues:[grid.values[indices[0]]!,grid.values[indices[1]]!,grid.values[indices[2]]!,grid.values[indices[3]]!],sourceStart:segment.start,sourceEnd:segment.end,start,end}});
       if(length>(labelCandidates.get(level.id)?.length??0))labelCandidates.set(level.id,{x,y,length,text:String(level.value)});
     }
     const series:PlanSeries[]=visible.map(level=>{const path=commands.get(level.id);return {id:level.id,name:level.name,color:level.color,...(path?.length?{commands:path}:{})};});
@@ -100,7 +100,7 @@ export function planContour(spec:PlanContourSpec,options:PlanOptions):PlanContou
     const contour={method:'marching-squares-bilinear' as const,gridId:grid.id,columns:grid.x.length,rows:grid.y.length,missingCells,knownSamples:grid.values.filter(value=>value!==null).length,segmentCount:visible.length&&geometry.status==='ready'?geometry.segments.length:0,visibleSegments:observations.length,segmentBudget,samples,levels:levels.map(level=>({id:level.id,value:level.value})),...(!observations.length?{emptyReason:!visible.length?'hidden' as const:missingCells===(grid.x.length-1)*(grid.y.length-1)?'missing' as const:geometry.status==='ready'&&geometry.segments.length?'outsideViewport' as const:'noCrossings' as const}:{})};
     const plot={x:0,y:0,width,height},viewport=planViewportState(view.value,{x:xDomain,y:yDomain},axes,plot),references=validatePlanReferences(options.references,spec);
     if(references.status==='invalid')return references;
-    const frame:PlanContourFrame={schema:'nc-plan/1',family:'contour',title,description,unit:grid.unit??'',width,height,legend:levels.map(level=>({id:level.id,name:level.name,color:level.color,visible:!hidden.has(level.id)})),series,observations,contour,annotations,grid:yTicks.value.ticks.map(value=>({y:yScale.value.map(value)!,label:formatAxis(value,'linear',null,new Map()),value,kind:'number' as const})),labels:xTicks.value.ticks.map(value=>({x:xScale.value.map(value)!,label:formatAxis(value,'linear',null,new Map()),value,kind:'number' as const})),...(viewport?{viewport}:{})};
+    const frame:PlanContourFrame={schema:'nc-plan/1',family:'contour',title,description,unit:grid.unit??'',width,height,legend:levels.map(level=>({id:level.id,name:level.name,color:level.color,visible:!hidden.has(level.id)})),series,observations,contour,annotations,grid:yTicks.value.ticks.map(value=>({y:yScale.value.map(value)!,label:formatAxis(value,'linear',null,new Map()),value,type:'number' as const})),labels:xTicks.value.ticks.map(value=>({x:xScale.value.map(value)!,label:formatAxis(value,'linear',null,new Map()),value,type:'number' as const})),...(viewport?{viewport}:{})};
     const withReferences=withPlanReferences(frame,references.value,{plot,domains:{x:xDomain,y:yDomain},mapX:value=>typeof value==='number'?xScale.value.map(value):null,mapY:yScale.value.map});
     return freezePlan({status:observations.length?'ok' as const:'empty' as const,frame:{...withReferences,family:'contour' as const,observations,contour}});
   }catch(error){return error instanceof ValidationFailure?{status:'invalid',diagnostic:error.diagnostic}:{status:'invalid',diagnostic:{code:'INVALID_CONFIG',reason:error instanceof Error?error.message:'BAD_CONTOUR',path:'spec',message:error instanceof Error?error.message:'BAD_CONTOUR'}};}

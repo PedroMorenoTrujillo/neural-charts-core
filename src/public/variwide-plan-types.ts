@@ -21,8 +21,8 @@ export interface PlanVariwideSpec {
   readonly title: string;
   readonly description?: string;
   readonly axes: Readonly<{
-    x: Readonly<{kind: 'category'; values: readonly Readonly<{id: string; label: string}>[]; reversed?: boolean}>;
-    y: Extract<PlanTemporalAxis, {kind: 'linear'}>;
+    x: Readonly<{type: 'category'; values: readonly Readonly<{id: string; label: string}>[]; reversed?: boolean}>;
+    y: Extract<PlanTemporalAxis, {type: 'linear'}>;
   }>;
   /** One measured width per category; multiseries layout is deliberately not implied. */
   readonly series: readonly [] | readonly [PlanVariwideSeries];

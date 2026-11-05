@@ -36,7 +36,7 @@ export function planTilemap(input:PlanTilemapSpec,inputOptions:PlanTilemapOption
   try{
     const spec=validate(ownPlanInput(input) as PlanTilemapSpec),source=spec.series[0],opts=options(ownPlanInput(inputOptions) as PlanTilemapOptions,source.id);
     const mapping=mapValueColors(source.data.map(p=>p.value),spec.colorAxis!),layout=layoutTiles(source.data,{width:opts.width,height:opts.height,shape:spec.tileShape!,padding:spec.pointPadding!});
-    const colorAxis:PlanColorAxisFrame=spec.colorAxis!.kind==='continuous'?{kind:'continuous',domain:mapping.domain,domainSource:spec.colorAxis!.domain!==undefined?'explicit':mapping.domain===null?'none':'source',stops:spec.colorAxis!.stops,missingColor:spec.colorAxis!.missingColor}:{kind:'classes',classes:mapping.classes,missingColor:spec.colorAxis!.missingColor,unclassifiedColor:spec.colorAxis!.unclassifiedColor};
+    const colorAxis:PlanColorAxisFrame=spec.colorAxis!.type==='continuous'?{type:'continuous',domain:mapping.domain,domainSource:spec.colorAxis!.domain!==undefined?'explicit':mapping.domain===null?'none':'source',stops:spec.colorAxis!.stops,missingColor:spec.colorAxis!.missingColor}:{type:'classes',classes:mapping.classes,missingColor:spec.colorAxis!.missingColor,unclassifiedColor:spec.colorAxis!.unclassifiedColor};
     const cells:PlanCellPaint[]=[],observations:PlanTilemapObservation[]=[],summary:PlanTilemapSummary[]=[];
     let knownCount=0,omittedCount=0;
     for(let i=0;i<source.data.length;i++){
@@ -45,9 +45,9 @@ export function planTilemap(input:PlanTilemapSpec,inputOptions:PlanTilemapOption
       if(geometryDecision==='noInk')omittedCount++;
       let observed=false;
       if(geometryDecision==='painted'){
-        const geometry:PlanCellGeometry=spec.tileShape==='circle'?{kind:'circle',cx:tile.center.x,cy:tile.center.y,radius:tile.radius!}:{kind:'polygon',vertices:tile.points};
+        const geometry:PlanCellGeometry=spec.tileShape==='circle'?{type:'circle',cx:tile.center.x,cy:tile.center.y,radius:tile.radius!}:{type:'polygon',vertices:tile.points};
         cells.push({pointId:point.id,color:paint.color,opacity:spec.opacity!,geometry});
-        if(point.value!==null&&paint.kind!=='missing'){
+        if(point.value!==null&&paint.type!=='missing'){
           observed=true;
           observations.push({id:{seriesId:source.id,pointId:point.id},label:point.name??point.x+', '+point.y,seriesName:source.name,value:point.value,x:tile.center.x,y:tile.center.y,color:paint.color,hit:geometry,tilemap:{sourceX:point.x,sourceY:point.y,...(point.name===undefined?{}:{name:point.name}),color:paint}});
         }

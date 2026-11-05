@@ -23,7 +23,7 @@ export function validateTreemap<T>(input: unknown): ChartResult<TreemapData<T>> 
       if (by === 'group' && Object.hasOwn(color, 'scale')) fail('color.scale', 'GROUP_COLOR_HAS_NO_SCALE');
       if (Object.hasOwn(color, 'scale')) {
         colorScale = parseColorScale(color.scale, 'color.scale'); const parsed = colorScale, colors = Object.freeze(parsed.colors.map(color => color.hex));
-        color.scale = Object.freeze(parsed.kind === 'threshold' ? { kind: 'threshold', boundaries: parsed.boundaries, colors } : parsed.kind === 'diverging' ? { kind: 'diverging', domain: parsed.domain, colors } : { kind: 'sequential', ...(parsed.domain ? { domain: parsed.domain } : {}), colors, positions: parsed.positions });
+        color.scale = Object.freeze(parsed.type === 'threshold' ? { type: 'threshold', boundaries: parsed.boundaries, colors } : parsed.type === 'diverging' ? { type: 'diverging', domain: parsed.domain, colors } : { type: 'sequential', ...(parsed.domain ? { domain: parsed.domain } : {}), colors, positions: parsed.positions });
       }
       value.color = Object.freeze(color);
     }

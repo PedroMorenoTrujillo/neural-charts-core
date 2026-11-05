@@ -4,7 +4,7 @@ import type {PlanOptions} from '../../src/public/plan-types.js';
 import type {PlanTimelineResult, PlanTimelineSpec} from '../../src/public/timeline-plan-types.js';
 
 const options = {width: 390, height: 300} satisfies PlanOptions;
-const spec = (): PlanTimelineSpec => ({family: 'timeline', title: 'Measured events', axes: {x: {kind: 'time', domain: [0, 1000]}},
+const spec = (): PlanTimelineSpec => ({family: 'timeline', title: 'Measured events', axes: {x: {type: 'time', domain: [0, 1000]}},
   series: [{id: 's', name: 'Releases', data: [{id: 'late', x: 1000, title: 'Later'}, {id: 'epoch', x: 0, title: 'Epoch'}, {id: 'unknown', x: null, title: 'Unscheduled'}]}]});
 const frame = (result: PlanTimelineResult) => {
   if (result.status === 'invalid') throw new Error(JSON.stringify(result.diagnostic));
@@ -18,7 +18,7 @@ describe('Timeline event semantics and real geometry', () => {
     expect(result.observations.map(point => point.id.pointId)).toEqual(['late', 'epoch']);
     expect(result.observations.map(point => point.value)).toEqual([1000, 0]);
     expect(result.observations[0]!.x).toBeGreaterThan(result.observations[1]!.x);
-    expect(result.observations[1]!.event).toEqual({kind: 'time', coordinate: 0, title: 'Epoch'});
+    expect(result.observations[1]!.event).toEqual({type: 'time', coordinate: 0, title: 'Epoch'});
     expect(result.series[0]!.circles?.map(point => point.pointId)).toEqual(['late', 'epoch']);
   });
   it('retains missing-coordinate events without fabricating a dated observation', () => {
@@ -66,7 +66,7 @@ describe('Timeline event semantics and real geometry', () => {
   });
   it('caps rendered labels while retaining dense source events and markers', () => {
     const data = spec();
-    const result = frame(planTimeline({...data, axes: {x: {kind: 'linear', domain: [0, MAX_TIMELINE_POINTS]}}, series: [{id: 's', name: 's', data: Array.from({length: MAX_TIMELINE_POINTS}, (_, x) => ({id: 'e' + x, x, title: 'Event ' + x}))}]}, {width: 10000, height: 1000}));
+    const result = frame(planTimeline({...data, axes: {x: {type: 'linear', domain: [0, MAX_TIMELINE_POINTS]}}, series: [{id: 's', name: 's', data: Array.from({length: MAX_TIMELINE_POINTS}, (_, x) => ({id: 'e' + x, x, title: 'Event ' + x}))}]}, {width: 10000, height: 1000}));
     expect(result.observations).toHaveLength(MAX_TIMELINE_POINTS);
     expect(result.series[0]!.circles).toHaveLength(MAX_TIMELINE_POINTS);
     expect(result.annotations!.length).toBeLessThanOrEqual(MAX_TIMELINE_LABELS);
@@ -87,11 +87,11 @@ describe('Timeline event semantics and real geometry', () => {
     expect(result.observations.map(point => point.id.pointId)).toEqual(['inside']);
     expect(result.observations[0]!.xValue).toBe(500);
     expect(result.viewport!.displayed.x).toEqual([400, 600]);
-    expect(result.viewport!.bounds.y.kind).toBe('category');
+    expect(result.viewport!.bounds.y.type).toBe('category');
   });
   it('supports reversed numeric axes without reversing original observations', () => {
     const data = spec();
-    const result = frame(planTimeline({...data, axes: {x: {kind: 'linear', domain: [0, 1000], reversed: true, unit: 'm'}}}, options));
+    const result = frame(planTimeline({...data, axes: {x: {type: 'linear', domain: [0, 1000], reversed: true, unit: 'm'}}}, options));
     expect(result.observations.map(point => point.id.pointId)).toEqual(['late', 'epoch']);
     expect(result.observations[0]!.x).toBeLessThan(result.observations[1]!.x);
     expect(result.unit).toBe('m');

@@ -16,7 +16,7 @@ export function planPareto(spec:PlanParetoSpec,options:PlanOptions):PlanResult{
   if(options.hiddenSeriesIds?.some(id=>id!=='values'&&id!=='cumulative'))return bad('UNKNOWN_SERIES','options.hiddenSeriesIds');
   if(options.viewport&&(options.viewport.axes!=='x'||options.viewport.value?.y!==undefined))return bad('PARETO_X_VIEWPORT_ONLY','options.viewport');
   const sorted=spec.data.map((p,index)=>({...p,index})).sort((a,b)=>b.value-a.value||a.index-b.index);
-  const column=planChart({family:'column',title:spec.title,...(spec.description?{description:spec.description}:{}),axes:{x:{kind:'category',values:sorted.map(p=>({id:p.id,label:p.label}))},y:{kind:'linear'}},series:[{id:'values',name:'Values',color:'#2C6DCD',data:sorted.map(p=>({id:p.id,x:p.id,y:p.value}))}]},{width:options.width,height:options.height,...(options.viewport?{viewport:options.viewport}:{})});
+  const column=planChart({family:'column',title:spec.title,...(spec.description?{description:spec.description}:{}),axes:{x:{type:'category',values:sorted.map(p=>({id:p.id,label:p.label}))},y:{type:'linear'}},series:[{id:'values',name:'Values',color:'#2C6DCD',data:sorted.map(p=>({id:p.id,x:p.id,y:p.value}))}]},{width:options.width,height:options.height,...(options.viewport?{viewport:options.viewport}:{})});
   if(column.status==='invalid')return column;
   // Scaling before summation bounds each addend by 1, avoiding overflow while
   // preserving ratios for finite source values. Ties retain source order.
@@ -31,7 +31,7 @@ export function planPareto(spec:PlanParetoSpec,options:PlanOptions):PlanResult{
   const hidden=options.hiddenSeriesIds??[],commands:PlanCommand[]=[],observations:PlanObservation[]=[],series:PlanSeries[]=[];
   if(!hidden.includes('values')){series.push(...f.series);observations.push(...f.observations);}
   if(!hidden.includes('cumulative')&&denominator>0){
-    for(const p of f.observations){const value=percentages.get(p.id.pointId)!,y=percent.value.map(value)!;commands.push({kind:commands.length?'L':'M',x:p.x,y});observations.push({...p,id:{seriesId:'cumulative',pointId:p.id.pointId},seriesName:'Cumulative',color:'#638A35',value,valueUnit:'%',y});}
+    for(const p of f.observations){const value=percentages.get(p.id.pointId)!,y=percent.value.map(value)!;commands.push({type:commands.length?'L':'M',x:p.x,y});observations.push({...p,id:{seriesId:'cumulative',pointId:p.id.pointId},seriesName:'Cumulative',color:'#638A35',value,valueUnit:'%',y});}
     series.push({id:'cumulative',name:'Cumulative',color:'#638A35',commands});
   }
   const legend=[{id:'values',name:'Values',color:'#2C6DCD',visible:!hidden.includes('values')},{id:'cumulative',name:'Cumulative',color:'#638A35',visible:!hidden.includes('cumulative')}];

@@ -3,7 +3,7 @@ export interface PlanViolinGroup {readonly id:string;readonly label:string;reado
 export interface PlanViolinSpec {
   readonly family:'violin';readonly title:string;readonly description?:string;
   readonly groups:readonly PlanViolinGroup[];
-  readonly axes?:Readonly<{y:Readonly<{kind:'linear';domain?:readonly[number,number];reversed?:boolean;nice?:boolean;unit?:string}>}>;
+  readonly axes?:Readonly<{y:Readonly<{type:'linear';domain?:readonly[number,number];reversed?:boolean;nice?:boolean;unit?:string}>}>;
   /** Compact Epanechnikov kernel width in original measurement units. */
   readonly bandwidth?:number;readonly resolution?:number;
   readonly normalization?:'width'|'area'|'count';readonly gapRatio?:number;

@@ -1,7 +1,7 @@
 import type {PlanFrame,PlanObservation,PlanResult} from './plan-types.js';
 import type {PlanTemporalAxis} from './temporal-plan-types.js';
 
-export type PlanContourAxis=Extract<PlanTemporalAxis,{kind:'linear'}>;
+export type PlanContourAxis=Extract<PlanTemporalAxis,{type:'linear'}>;
 export interface PlanContourGrid {
   readonly id:string;
   readonly x:readonly number[];
@@ -35,7 +35,7 @@ export interface PlanContourSample extends PlanContourPoint {
   readonly value:number|null;
 }
 export interface PlanContourValue {
-  readonly kind:'isoline';
+  readonly type:'isoline';
   readonly levelId:string;
   readonly level:number;
   readonly gridId:string;

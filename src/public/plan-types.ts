@@ -94,7 +94,7 @@ export type PlanTreemapNode=Readonly<{id:string;label?:string}>&(Readonly<{value
 export interface PlanTreemapSpec {readonly family:'treemap';readonly title:string;readonly description?:string;readonly root:PlanTreemapNode;}
 export type PlanScatterSpec=Pick<ScatterChartSpec,'family'|'title'|'description'|'axes'>&{readonly series:readonly Pick<ScatterChartSpec['series'][number],'id'|'name'|'color'|'data'>[]};
 export type PlanColumnSpec = Pick<ColumnChartSpec, 'family' | 'title' | 'description' | 'axes' | 'series' | 'orientation' | 'groupGap' | 'barGap' | 'maxBarWidth'>;
-export type PlanWaterfallPoint=Readonly<{id:string;x:string}>&(Readonly<{kind:'delta';value:number}>|Readonly<{kind:'subtotal'|'total';value?:never}>);
+export type PlanWaterfallPoint=Readonly<{id:string;x:string}>&(Readonly<{type:'delta';value:number}>|Readonly<{type:'subtotal'|'total';value?:never}>);
 export interface PlanWaterfallSeries {readonly id:string;readonly name:string;readonly color?:string;readonly data:readonly PlanWaterfallPoint[];}
 export type PlanWaterfallSpec=Omit<PlanColumnSpec,'family'|'series'|'orientation'|'barGap'>&Readonly<{family:'waterfall';series:readonly [PlanWaterfallSeries];startValue?:number}>;
 export interface PlanFunnelPoint {readonly id:string;readonly label:string;readonly value:number;readonly color?:string;}
@@ -102,7 +102,7 @@ export interface PlanFunnelSpec {readonly family:'funnel';readonly title:string;
 export interface PlanPyramidSpec {readonly family:'pyramid';readonly title:string;readonly description?:string;readonly data:readonly PlanFunnelPoint[];readonly reversed?:boolean;}
 export interface PlanParetoSpec {readonly family:'pareto';readonly title:string;readonly description?:string;readonly data:readonly Readonly<{id:string;label:string;value:number}>[];}
 export interface PlanRadarSeries {readonly id:string;readonly name:string;readonly color?:string;readonly data:readonly Readonly<{id:string;x:string;y:number|null}>[];}
-export interface PlanRadarSpec {readonly family:'radar';readonly title:string;readonly description?:string;readonly axes:Readonly<{x:Readonly<{kind:'category';values:readonly Readonly<{id:string;label?:string}>[];title?:string}>;y:Readonly<{kind:'linear';domain?:readonly[number,number];title?:string;nice?:boolean;ticks?:Readonly<{targetCount?:number}>}>}>;readonly series:readonly PlanRadarSeries[];}
+export interface PlanRadarSpec {readonly family:'radar';readonly title:string;readonly description?:string;readonly axes:Readonly<{x:Readonly<{type:'category';values:readonly Readonly<{id:string;label?:string}>[];title?:string}>;y:Readonly<{type:'linear';domain?:readonly[number,number];title?:string;nice?:boolean;ticks?:Readonly<{targetCount?:number}>}>}>;readonly series:readonly PlanRadarSeries[];}
 export interface PlanPolarSpec {readonly family:'polar';readonly title:string;readonly description?:string;readonly data:PlanPieSpec['data'];readonly domain?:readonly[number,number];readonly radiusScale?:'linear'|'area';}
 export interface PlanPolarGrid {readonly cx:number;readonly cy:number;readonly radius:number;readonly rings:readonly Readonly<{radius:number;label:string;commands?:readonly PlanCommand[]}>[];readonly spokes:readonly Readonly<{id:string;x:number;y:number;label:string}>[];}
 export type PlanPieSpec = Pick<PieChartSpec,'family'|'title'|'description'|'data'>;
@@ -161,7 +161,7 @@ export type PlanProjectedReference=Readonly<{id:string;axis:'x'|'y';valueAxis?:'
 );
 export type PlanViewportValue=ChartViewportValue;
 export interface PlanViewportConfig {readonly axes:'x'|'y'|'xy';readonly value?:PlanViewportValue;}
-export type PlanViewportAxis=Readonly<{kind:'category';ids:readonly string[];edgeSpacing:number}>|Readonly<{kind:'linear'|'time';domain:ChartNumericWindow|null;limits?:Readonly<{minSpan:number}>}>|Readonly<{kind:'log';base:10;domain:ChartNumericWindow}>;
+export type PlanViewportAxis=Readonly<{type:'category';ids:readonly string[];edgeSpacing:number}>|Readonly<{type:'linear'|'time';domain:ChartNumericWindow|null;limits?:Readonly<{minSpan:number}>}>|Readonly<{type:'log';base:10;domain:ChartNumericWindow}>;
 /** Closed, host-neutral state. No internal scale, callback or DOM reference escapes. */
 export interface PlanViewportState {
   readonly axes:'x'|'y'|'xy';readonly value:PlanViewportValue;
@@ -171,22 +171,22 @@ export interface PlanViewportState {
   /** Projected data rectangle, for host gesture coordinates; not a value scale. */
   readonly plot?:Readonly<{x:number;y:number;width:number;height:number}>;
 }
-export type PlanViewportIntent=Readonly<{kind:'zoom';factor:number;anchor?:Readonly<{x?:number;y?:number}>}>
-  |Readonly<{kind:'pan';delta:Readonly<{x?:number;y?:number}>}>
-  |Readonly<{kind:'transform';factor:number;anchor?:Readonly<{x?:number;y?:number}>;delta?:Readonly<{x?:number;y?:number}>}>
-  |Readonly<{kind:'reset'}>;
+export type PlanViewportIntent=Readonly<{type:'zoom';factor:number;anchor?:Readonly<{x?:number;y?:number}>}>
+  |Readonly<{type:'pan';delta:Readonly<{x?:number;y?:number}>}>
+  |Readonly<{type:'transform';factor:number;anchor?:Readonly<{x?:number;y?:number}>;delta?:Readonly<{x?:number;y?:number}>}>
+  |Readonly<{type:'reset'}>;
 export type PlanViewportResult=Readonly<{status:'ok';value:PlanViewportValue}>|Readonly<{status:'invalid';diagnostic:ChartDiagnostic}>;
 export type PlanCommand =
-  | Readonly<{kind:'M'|'L';x:number;y:number}>
+  | Readonly<{type:'M'|'L';x:number;y:number}>
   /** Axis-aligned ellipse; omission of radiusY preserves the circular radius. */
-  | Readonly<{kind:'A';radius:number;radiusY?:number;largeArc:0|1;sweep:0|1;x:number;y:number}>
+  | Readonly<{type:'A';radius:number;radiusY?:number;largeArc:0|1;sweep:0|1;x:number;y:number}>
   /** Quadratic Bézier in plot-local logical coordinates. */
-  | Readonly<{kind:'Q';cx:number;cy:number;x:number;y:number}>
-  | Readonly<{kind:'Z'}>;
+  | Readonly<{type:'Q';cx:number;cy:number;x:number;y:number}>
+  | Readonly<{type:'Z'}>;
 export interface PlanBar {readonly pointId?:string;readonly x:number;readonly y:number;readonly width:number;readonly height:number;readonly direction?:'rising'|'falling';readonly hollow?:boolean;}
 export interface PlanCircle {readonly pointId?:string;readonly cx:number;readonly cy:number;readonly radius:number;}
-export type PlanHitRegion = Readonly<{kind:'polygon';vertices:readonly Readonly<{x:number;y:number}>[]}> | Readonly<{kind:'circle';cx:number;cy:number;radius:number}>
-  | Readonly<{kind:'sector';cx:number;cy:number;radius:number;innerRadius:number;start:number;end:number}>
+export type PlanHitRegion = Readonly<{type:'polygon';vertices:readonly Readonly<{x:number;y:number}>[]}> | Readonly<{type:'circle';cx:number;cy:number;radius:number}>
+  | Readonly<{type:'sector';cx:number;cy:number;radius:number;innerRadius:number;start:number;end:number}>
   | PlanCompoundPolygonHit;
 export interface PlanAnnotation {readonly x:number;readonly y:number;readonly text:string;readonly role:'value'|'label';readonly box?:Readonly<{width:number;height:number;seriesId:string}>;readonly stackTotal?:Readonly<{value:number;sign:'positive'|'negative';percentage?:true}>;}
 export interface PlanSeries {
@@ -223,7 +223,7 @@ export interface PlanObservation {
   readonly relationship?:PlanRelationshipMetadata;
   readonly bullet?:PlanBulletValue;
   readonly variwide?:PlanVariwideValue;
-  readonly sankey?:(Readonly<{kind:'node';incoming:number;outgoing:number}>|Readonly<{kind:'link';from:string;to:string;fromLabel:string;toLabel:string}>)&Readonly<{geometryOmitted?:true}>;
+  readonly sankey?:(Readonly<{type:'node';incoming:number;outgoing:number}>|Readonly<{type:'link';from:string;to:string;fromLabel:string;toLabel:string}>)&Readonly<{geometryOmitted?:true}>;
   readonly vector?:Readonly<{dx:number;dy:number}>;
   readonly wind?:Readonly<{direction:number|null}>;
   readonly yValue?:number;
@@ -272,7 +272,7 @@ export interface PlanFrame {
   readonly intervals?:readonly PlanIntervalSummary[];
   readonly events?:readonly PlanTimelineSummary[];
   readonly distribution?:PlanDistributionSummary;
-  readonly secondaryGrid?:readonly Readonly<{y:number;label:string;value?:number;kind?:'number'|'time'}>[];
+  readonly secondaryGrid?:readonly Readonly<{y:number;label:string;value?:number;type?:'number'|'time'}>[];
   readonly schema:'nc-plan/1';
   readonly family:PlanSpec['family']|'bar';
   readonly title:string;readonly description:string;readonly unit:string;
@@ -280,8 +280,8 @@ export interface PlanFrame {
   readonly legend:readonly PlanLegendItem[];
   readonly series:readonly PlanSeries[];
   readonly observations:readonly PlanObservation[];
-  readonly grid:readonly Readonly<{y:number;label:string;value?:number;kind?:'number'|'time'}>[];
-  readonly labels:readonly Readonly<{x:number;label:string;value?:number;kind?:'number'|'time'}>[];
+  readonly grid:readonly Readonly<{y:number;label:string;value?:number;type?:'number'|'time'}>[];
+  readonly labels:readonly Readonly<{x:number;label:string;value?:number;type?:'number'|'time'}>[];
   readonly yLabels?:readonly Readonly<{id:string;y:number;label:string}>[];
   readonly annotations?:readonly PlanAnnotation[];
   readonly viewport?:PlanViewportState;

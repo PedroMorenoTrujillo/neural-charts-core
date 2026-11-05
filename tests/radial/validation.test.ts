@@ -17,8 +17,8 @@ test('required fields, plain arrays and color types are strict while explicit de
   const { title, ...missingTitle } = fixture(); void title;
   const exotic = [...fixture().data]; Object.setPrototypeOf(exotic, null);
   for (const input of [missingTitle, { ...fixture(), data: {} }, { ...fixture(), data: exotic }, { ...fixture(), data: [{ id: 'a', label: 'A', value: 1, color: 123 }] }]) expect(validateRadial(input, 'pie').status).toBe('invalid');
-  const defaults = value(validateRadial({ ...fixture(), state: { mode: 'internal' }, status: { kind: 'ready' } }, 'pie'));
-  expect(defaults.state).toEqual({ mode: 'internal' }); expect(defaults.status).toEqual({ kind: 'ready' });
+  const defaults = value(validateRadial({ ...fixture(), state: { mode: 'internal' }, status: { type: 'ready' } }, 'pie'));
+  expect(defaults.state).toEqual({ mode: 'internal' }); expect(defaults.status).toEqual({ type: 'ready' });
   expect(Object.isFrozen(defaults.state)).toBe(true); expect(Object.isFrozen(defaults.status)).toBe(true);
 });
 test('negative/nonfinite/undefined values fail explicitly including hidden slices', () => {
@@ -49,9 +49,9 @@ test('sparse and accessor arrays or duplicate/unknown state identities are rejec
   expect(validateRadial({ ...fixture(), state: { mode: 'internal', value: { hiddenSliceIds: [] } } }, 'pie').status).toBe('invalid');
 });
 test('font/theme/tooltip/status contracts remain bounded and explicit', () => {
-  const valid = { ...fixture(), font: { family: 'monospace', size: 14, weight: 500 }, theme: 'auto', direction: 'rtl', labels: 'inside', legend: { position: 'end' }, tooltip: { mode: 'point', placement: 'start' }, status: { kind: 'error', message: 'Unavailable' } };
+  const valid = { ...fixture(), font: { family: 'monospace', size: 14, weight: 500 }, theme: 'auto', direction: 'rtl', labels: 'inside', legend: { position: 'end' }, tooltip: { mode: 'point', placement: 'start' }, status: { type: 'error', message: 'Unavailable' } };
   expect(validateRadial(valid, 'pie').status).toBe('ok');
-  for (const patch of [{ status: { kind: 'error' } }, { status: { kind: 'ready', message: 'No' } }, { font: { size: 1000 } }, { tooltip: { mode: 'shared' } }, { theme: 'unknown' }, { labels: 'all' }]) expect(validateRadial({ ...fixture(), ...patch }, 'pie').status).toBe('invalid');
+  for (const patch of [{ status: { type: 'error' } }, { status: { type: 'ready', message: 'No' } }, { font: { size: 1000 } }, { tooltip: { mode: 'shared' } }, { theme: 'unknown' }, { labels: 'all' }]) expect(validateRadial({ ...fixture(), ...patch }, 'pie').status).toBe('invalid');
 });
 test('options keep actual callbacks and validate slice state plus CSS-safe instance IDs', () => {
   const handler = () => undefined, ids = new Set(['a', 'b']);

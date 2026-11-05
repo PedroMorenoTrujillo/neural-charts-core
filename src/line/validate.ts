@@ -57,9 +57,9 @@ function color(value: unknown, path: string): string {
   return value.toLowerCase();
 }
 function axis(value: unknown, isX: boolean, path: string): RecordValue {
-  const a = object(value, isX ? ['kind', 'values', 'domain', 'nice', 'title', 'grid', 'edgeSpacing', 'ticks', 'labels'] : ['kind', 'domain', 'nice', 'includeZero', 'reversed', 'title', 'grid', 'ticks', 'labels'], ['kind'], path);
-  choice(a.kind, isX ? ['category', 'linear', 'time'] : ['linear'], `${path}.kind`);
-  const categorical = a.kind === 'category';
+  const a = object(value, isX ? ['type', 'values', 'domain', 'nice', 'title', 'grid', 'edgeSpacing', 'ticks', 'labels'] : ['type', 'domain', 'nice', 'includeZero', 'reversed', 'title', 'grid', 'ticks', 'labels'], ['type'], path);
+  choice(a.type, isX ? ['category', 'linear', 'time'] : ['linear'], `${path}.type`);
+  const categorical = a.type === 'category';
   if (categorical) {
     if (!Object.hasOwn(a, 'values')) fail('BAD_LINE_SPEC', `${path}.values`);
     if (Object.hasOwn(a, 'domain') || Object.hasOwn(a, 'nice')) fail('BAD_LINE_SPEC', path);
@@ -70,7 +70,7 @@ function axis(value: unknown, isX: boolean, path: string): RecordValue {
     if (Object.hasOwn(a, 'domain')) {
       const d = array(a.domain, 2, `${path}.domain`);
       if (d.length !== 2 || typeof d[0] !== 'number' || typeof d[1] !== 'number' || !Number.isFinite(d[0]) || !Number.isFinite(d[1]) || d[0] >= d[1]) fail('BAD_DOMAIN', `${path}.domain`, 'INVALID_DOMAIN');
-      if (a.kind === 'time' && d.some(n => !Number.isInteger(n) || Math.abs(n as number) > 8.64e15)) fail('BAD_DOMAIN', `${path}.domain`, 'INVALID_DOMAIN');
+      if (a.type === 'time' && d.some(n => !Number.isInteger(n) || Math.abs(n as number) > 8.64e15)) fail('BAD_DOMAIN', `${path}.domain`, 'INVALID_DOMAIN');
       a.domain = Object.freeze([d[0] === 0 ? 0 : d[0], d[1] === 0 ? 0 : d[1]]);
       if (a.nice === true) fail('BAD_DOMAIN_OPTIONS', `${path}.nice`);
       if (a.includeZero === true) fail('BAD_DOMAIN_OPTIONS', `${path}.includeZero`);
@@ -108,7 +108,7 @@ export function validateLine<T>(value: unknown): ChartResult<LineChartSpec<T>> {
     choice(s.family, ['line'], 'family'); text(s.title, 'title');
     const axes = object(s.axes, ['x', 'y'], ['x', 'y'], 'axes'), x = axis(axes.x, true, 'axes.x'), y = axis(axes.y, false, 'axes.y');
     const ranks = new Map<string, number>();
-    if (x.kind === 'category') {
+    if (x.type === 'category') {
       x.values = Object.freeze((x.values as readonly unknown[]).map((v, i) => {
         const path = `axes.x.values[${i}]`, c = object(v, ['id', 'label'], ['id'], path), id = text(c.id, `${path}.id`, 64);
         if (ranks.has(id)) fail('DUPLICATE_ID', `${path}.id`);
@@ -135,12 +135,12 @@ export function validateLine<T>(value: unknown): ChartResult<LineChartSpec<T>> {
         const pp = `${path}.data[${j}]`, point = object(v, ['id', 'x', 'y', 'datum'], ['id', 'x', 'y'], pp), pid = text(point.id, `${pp}.id`, 64);
         if (pointIds.has(pid)) fail('DUPLICATE_POINT_ID', `${pp}.id`); pointIds.add(pid);
         let rank: number;
-        if (x.kind === 'category') {
+        if (x.type === 'category') {
           if (typeof point.x !== 'string') fail('MIXED_AXIS_TYPE', `${pp}.x`);
           const r = ranks.get(point.x); if (r === undefined) fail('UNKNOWN_CATEGORY', `${pp}.x`, 'UNKNOWN_CATEGORY'); rank = r;
         } else {
           if (typeof point.x !== 'number') fail('MIXED_AXIS_TYPE', `${pp}.x`);
-          point.x = x.kind === 'time' ? epoch(point.x, `${pp}.x`) : number(point.x, `${pp}.x`); rank = point.x as number;
+          point.x = x.type === 'time' ? epoch(point.x, `${pp}.x`) : number(point.x, `${pp}.x`); rank = point.x as number;
         }
         if (xs.has(point.x as string | number)) fail('DUPLICATE_X', `${pp}.x`); xs.add(point.x as string | number);
         if (rank < previous) fail('UNSORTED_X', `${pp}.x`); previous = rank;
@@ -160,10 +160,10 @@ export function validateLine<T>(value: unknown): ChartResult<LineChartSpec<T>> {
       s.references = Object.freeze(array(s.references, 16, 'references').map((v, i) => {
         const path = `references[${i}]`, r = object(v, ['id', 'axis', 'value', 'label', 'color', 'dash'], ['id', 'axis', 'value'], path), id = text(r.id, `${path}.id`, 64, 'BAD_REFERENCE');
         if (seen.has(id)) fail('BAD_REFERENCE', `${path}.id`); seen.add(id); choice(r.axis, ['x', 'y'], `${path}.axis`, 'BAD_REFERENCE');
-        if (r.axis === 'x' && x.kind === 'category') {
+        if (r.axis === 'x' && x.type === 'category') {
           if (typeof r.value !== 'string') fail('BAD_REFERENCE', `${path}.value`);
           if (!ranks.has(r.value)) fail('BAD_REFERENCE', `${path}.value`, 'UNKNOWN_CATEGORY');
-        } else r.value = r.axis === 'x' && x.kind === 'time' ? epoch(r.value, `${path}.value`) : number(r.value, `${path}.value`);
+        } else r.value = r.axis === 'x' && x.type === 'time' ? epoch(r.value, `${path}.value`) : number(r.value, `${path}.value`);
         if (Object.hasOwn(r, 'label')) text(r.label, `${path}.label`);
         if (Object.hasOwn(r, 'color')) r.color = color(r.color, `${path}.color`);
         if (Object.hasOwn(r, 'dash')) choice(r.dash, ['solid', 'dashed', 'dotted'], `${path}.dash`, 'BAD_REFERENCE');
@@ -178,9 +178,9 @@ export function validateLine<T>(value: unknown): ChartResult<LineChartSpec<T>> {
       s.state = Object.freeze(st);
     }
     if (Object.hasOwn(s, 'status')) {
-      const st = object(s.status, ['kind', 'message'], ['kind'], 'status'); choice(st.kind, ['ready', 'loading', 'empty', 'error'], 'status.kind', 'BAD_STATUS');
-      if (st.kind === 'error' || Object.hasOwn(st, 'message')) text(st.message, 'status.message', 2048, 'BAD_STATUS');
-      if (st.kind === 'ready' && Object.hasOwn(st, 'message')) fail('BAD_STATUS', 'status.message'); s.status = Object.freeze(st);
+      const st = object(s.status, ['type', 'message'], ['type'], 'status'); choice(st.type, ['ready', 'loading', 'empty', 'error'], 'status.type', 'BAD_STATUS');
+      if (st.type === 'error' || Object.hasOwn(st, 'message')) text(st.message, 'status.message', 2048, 'BAD_STATUS');
+      if (st.type === 'ready' && Object.hasOwn(st, 'message')) fail('BAD_STATUS', 'status.message'); s.status = Object.freeze(st);
     }
     if (Object.hasOwn(s, 'description')) text(s.description, 'description', 2048);
     if (Object.hasOwn(s, 'theme')) choice(s.theme, ['light', 'dark', 'auto'], 'theme');

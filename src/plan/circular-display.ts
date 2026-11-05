@@ -41,7 +41,7 @@ export function planCircularDisplay(spec:PlanPieSpec|PlanDonutSpec|PlanGaugeSpec
    const path=b>a&&!p.tooSmall?circularPath(p.frame,a,b):undefined;if(path?.status==='invalid')return path;
    const commands=path?.value??[],anchor=commands.length?polar(p.frame,(p.frame.radius+p.frame.innerRadius)/2,(a+b)/2):{x:p.frame.cx,y:p.frame.cy};
    series.push({id:slice.point.id,name:slice.point.label,color,commands,fill:true});
-   observations.push({id:{seriesId:slice.point.id,pointId:slice.point.id},label:slice.point.label,seriesName:input.title,value:slice.point.value!,x:anchor.x,y:anchor.y,color,percentage:slice.fraction*100,...(commands.length?{hit:{kind:'sector' as const,...p.frame,start:a,end:b}}:{})});
+   observations.push({id:{seriesId:slice.point.id,pointId:slice.point.id},label:slice.point.label,seriesName:input.title,value:slice.point.value!,x:anchor.x,y:anchor.y,color,percentage:slice.fraction*100,...(commands.length?{hit:{type:'sector' as const,...p.frame,start:a,end:b}}:{})});
   }
   const bounds=circularBounds(p.frame,from,to,Math.max(2,side*.02),side,spec.family==='donut'?[{x:p.frame.cx-p.frame.radius*.3,y:p.frame.cy-side*.04},{x:p.frame.cx+p.frame.radius*.3,y:p.frame.cy+side*.04}]:[]),circular:PlanCircularFrame={style:'sectors',startAngle:start,endAngle:end,...p.frame,bounds};
   const knownCount=p.data.eligible.length,knownTotal=knownCount?p.data.total:null;
@@ -63,22 +63,22 @@ export function planCircularDisplay(spec:PlanPieSpec|PlanDonutSpec|PlanGaugeSpec
  }
  const angle=visualT===null?null:from+span*visualT;
  if(angle!==null){
-  if(needle){const tip=polar(frame,radius*.92,angle),left=polar(frame,radius*.035,angle-Math.PI/2),right=polar(frame,radius*.035,angle+Math.PI/2);series.push({id:'reading',name:input.title,color,commands:[{kind:'M',...left},{kind:'L',...tip},{kind:'L',...right},{kind:'Z'}],fill:true,circles:[{pointId:'value',cx:frame.cx,cy:frame.cy,radius:radius*.06}]});}
+  if(needle){const tip=polar(frame,radius*.92,angle),left=polar(frame,radius*.035,angle-Math.PI/2),right=polar(frame,radius*.035,angle+Math.PI/2);series.push({id:'reading',name:input.title,color,commands:[{type:'M',...left},{type:'L',...tip},{type:'L',...right},{type:'Z'}],fill:true,circles:[{pointId:'value',cx:frame.cx,cy:frame.cy,radius:radius*.06}]});}
   else{const fill=circularPath(frame,from,angle);if(fill.status==='invalid')return fill;series.push({id:'reading',name:input.title,color,commands:fill.value,fill:true});}
  }
  if(needle){
   const tickPlan=selectNumericTicks(input.domain,{nice:false,targetCount:config.tickCount??7});if(tickPlan.status==='invalid')return bad('UNREPRESENTABLE_GAUGE_TICKS','domain');
   const commands:NonNullable<PlanSeries['commands']>[number][]=[];
-  for(const value of tickPlan.value.ticks){if(span===2*Math.PI&&value===input.domain[1])continue;const a=angular.value.map(value);if(a===null)return bad('UNREPRESENTABLE_GAUGE_TICK','domain');const first=polar(frame,radius*.96,a),last=polar(frame,radius*1.03,a),label=polar(frame,radius*.66,a);commands.push({kind:'M',...first},{kind:'L',...last});tickPoints.push({value,...label});extras.push(last);}
+  for(const value of tickPlan.value.ticks){if(span===2*Math.PI&&value===input.domain[1])continue;const a=angular.value.map(value);if(a===null)return bad('UNREPRESENTABLE_GAUGE_TICK','domain');const first=polar(frame,radius*.96,a),last=polar(frame,radius*1.03,a),label=polar(frame,radius*.66,a);commands.push({type:'M',...first},{type:'L',...last});tickPoints.push({value,...label});extras.push(last);}
   if(tickPoints.length>16)return bad('GAUGE_TICK_LIMIT','options.circular.tickCount');
   series.push({id:'scale',name:input.title,color:'#718299',commands,fill:false});
  }
- if(input.target&&!targetOutside){const a=angular.value.map(input.target.value);if(a===null)return bad('UNREPRESENTABLE_GAUGE_TARGET','target');const first=polar(frame,radius*.72,a),last=polar(frame,radius*1.13,a);series.push({id:'target',name:input.target.label??'Target',color:'#718299',commands:[{kind:'M',...first},{kind:'L',...last}],fill:false});extras.push(first,last);}
+ if(input.target&&!targetOutside){const a=angular.value.map(input.target.value);if(a===null)return bad('UNREPRESENTABLE_GAUGE_TARGET','target');const first=polar(frame,radius*.72,a),last=polar(frame,radius*1.13,a);series.push({id:'target',name:input.target.label??'Target',color:'#718299',commands:[{type:'M',...first},{type:'L',...last}],fill:false});extras.push(first,last);}
  const readingBaseline=frame.cy+radius*(span<=Math.PI?.3:.2),readingWidth=radius*.65;
  extras.push({x:frame.cx-readingWidth,y:readingBaseline-side*.05},{x:frame.cx+readingWidth,y:readingBaseline+side*.02});
  const targetY=Math.min(side-side*.04,readingBaseline+side*.1);if(input.target)extras.push({x:frame.cx-readingWidth,y:targetY},{x:frame.cx+readingWidth,y:targetY});
  const bounds=circularBounds({...frame,radius:radius*1.13,innerRadius:0},from,to,Math.max(2,side*.02),side,extras),base:PlanGaugeCircularBase={startAngle:start,endAngle:end,...frame,bounds,domain:input.domain,valueState};
  const circular:PlanCircularFrame=needle?{...base,style:'needle-gauge',needle:{from,to:angle},ticks:tickPoints}:{...base,style:'solid-gauge'};
  const anchor=angle!==null&&needle?polar(frame,radius*.78,angle):{x:frame.cx,y:readingBaseline-side*.02};
- return finish({schema:'nc-plan/1',family:'gauge',width:side,height:side,title:input.title,description:input.description??'',unit:input.unit??'',legend:[],grid:[],labels:[],series,circular,observations:input.value===null?[]:[{id:{seriesId:'reading',pointId:'value'},label:input.title,seriesName:input.unit??'',value:input.value,...anchor,color,hit:{kind:'sector',...frame,innerRadius:0,start:from,end:to}}],annotations:[{x:frame.cx,y:readingBaseline,text:input.value===null?'—':String(input.value)+(input.unit??''),role:'value'},...tickPoints.map(t=>({x:t.x,y:t.y,text:String(t.value),role:'label' as const})),...(input.target?[{x:frame.cx,y:targetY,text:(input.target.label??'Target')+' '+input.target.value+(input.unit??''),role:'label' as const}]:[])]});
+ return finish({schema:'nc-plan/1',family:'gauge',width:side,height:side,title:input.title,description:input.description??'',unit:input.unit??'',legend:[],grid:[],labels:[],series,circular,observations:input.value===null?[]:[{id:{seriesId:'reading',pointId:'value'},label:input.title,seriesName:input.unit??'',value:input.value,...anchor,color,hit:{type:'sector',...frame,innerRadius:0,start:from,end:to}}],annotations:[{x:frame.cx,y:readingBaseline,text:input.value===null?'—':String(input.value)+(input.unit??''),role:'value'},...tickPoints.map(t=>({x:t.x,y:t.y,text:String(t.value),role:'label' as const})),...(input.target?[{x:frame.cx,y:targetY,text:(input.target.label??'Target')+' '+input.target.value+(input.unit??''),role:'label' as const}]:[])]});
 }

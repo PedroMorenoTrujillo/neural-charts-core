@@ -32,11 +32,11 @@ describe('comparison showcase preparation', () => {
 
   it('distinguishes zero, null and absent targets in tooltip details', () => {
     const format = (n: number) => String(n);
-    expect(comparisonDetails({bullet: {kind: 'measure', measure: 0, target: 0}}, 'es', format)).toEqual([{label: 'Objetivo', value: '0'}]);
-    expect(comparisonDetails({bullet: {kind: 'measure', measure: 4, target: null}}, 'en', format)).toEqual([{label: 'Target', value: 'Unknown'}]);
-    expect(comparisonDetails({bullet: {kind: 'measure', measure: 4}}, 'en', format)).toEqual([]);
-    expect(comparisonPrimaryLabel({bullet: {kind: 'target', measure: null, target: 0}}, 'es')).toBe('Objetivo');
-    expect(comparisonDetails({bullet: {kind: 'target', measure: null, target: 0}}, 'en', format)).toEqual([{label: 'Measure', value: 'Unknown'}]);
+    expect(comparisonDetails({bullet: {type: 'measure', measure: 0, target: 0}}, 'es', format)).toEqual([{label: 'Objetivo', value: '0'}]);
+    expect(comparisonDetails({bullet: {type: 'measure', measure: 4, target: null}}, 'en', format)).toEqual([{label: 'Target', value: 'Unknown'}]);
+    expect(comparisonDetails({bullet: {type: 'measure', measure: 4}}, 'en', format)).toEqual([]);
+    expect(comparisonPrimaryLabel({bullet: {type: 'target', measure: null, target: 0}}, 'es')).toBe('Objetivo');
+    expect(comparisonDetails({bullet: {type: 'target', measure: null, target: 0}}, 'en', format)).toEqual([{label: 'Measure', value: 'Unknown'}]);
   });
 
   it('does not announce a tiny positive source width as zero', () => {

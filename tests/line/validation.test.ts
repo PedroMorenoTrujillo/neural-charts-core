@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { validateLine, validateOptions, validateState } from '../../src/line/validate.js';
 import { normalizeLine, lineDomains } from '../../src/line/normalize.js';
 
-export const numeric = () => ({ family: 'line', title: 'T', axes: { x: { kind: 'linear' }, y: { kind: 'linear' } }, series: [{ id: 's', name: 'S', data: [{ id: 'p', x: 0, y: 1 }, { id: 'q', x: 1, y: 2 }] }] });
+export const numeric = () => ({ family: 'line', title: 'T', axes: { x: { type: 'linear' }, y: { type: 'linear' } }, series: [{ id: 's', name: 'S', data: [{ id: 'p', x: 0, y: 1 }, { id: 'q', x: 1, y: 2 }] }] });
 function rejected(input: unknown, reason: string, path?: string): void {
   const r = validateLine(input); expect(r.status).toBe('invalid');
   if (r.status === 'invalid') { expect(r.diagnostic.reason).toBe(reason); if (path !== undefined) expect(r.diagnostic.path).toBe(path); }
@@ -34,10 +34,10 @@ describe('closed input validation and atomic canonical copy', () => {
     const a = numeric(); rejected({ ...a, series: [{ ...a.series[0], data: [{ id: 'p', x, y: 1 }] }] }, 'NONFINITE');
   });
   it.each([.5, 8.64e15 + 1, -8.64e15 - 1])('rejects malformed epoch %s', x => {
-    const a = numeric(); rejected({ ...a, axes: { ...a.axes, x: { kind: 'time' } }, series: [{ ...a.series[0], data: [{ id: 'p', x, y: 1 }] }] }, 'OUTSIDE_DATE_RANGE');
+    const a = numeric(); rejected({ ...a, axes: { ...a.axes, x: { type: 'time' } }, series: [{ ...a.series[0], data: [{ id: 'p', x, y: 1 }] }] }, 'OUTSIDE_DATE_RANGE');
   });
   it('rejects unknown categories, mixed X and invalid rank order', () => {
-    const a = numeric(), axes = { x: { kind: 'category', values: [{ id: 'a' }, { id: 'b' }] }, y: a.axes.y };
+    const a = numeric(), axes = { x: { type: 'category', values: [{ id: 'a' }, { id: 'b' }] }, y: a.axes.y };
     const make = (xs: unknown[]) => ({ ...a, axes, series: [{ id: 's', name: 'S', data: xs.map((x, i) => ({ id: String(i), x, y: null })) }] });
     rejected(make(['z']), 'UNKNOWN_CATEGORY'); rejected(make([1]), 'MIXED_AXIS_TYPE'); rejected(make(['b', 'a']), 'UNSORTED_X');
     rejected({ ...make([]), axes: { ...axes, x: { ...axes.x, values: [{ id: 'a' }, { id: 'a' }] } } }, 'DUPLICATE_ID');
@@ -46,21 +46,21 @@ describe('closed input validation and atomic canonical copy', () => {
     const a = numeric(); rejected({ ...a, series: [{ ...a.series[0], [key as string]: value }] }, reason as string);
   });
   it.each([[1, 1], [2, 1], [0, Infinity], ['0', 1]])('rejects explicit domain %s', (...domain) => {
-    const a = numeric(); rejected({ ...a, axes: { ...a.axes, x: { kind: 'linear', domain } } }, 'BAD_DOMAIN');
+    const a = numeric(); rejected({ ...a, axes: { ...a.axes, x: { type: 'linear', domain } } }, 'BAD_DOMAIN');
   });
   it('rejects incompatible explicit domain options', () => {
-    const a = numeric(); for (const key of ['nice', 'includeZero']) rejected({ ...a, axes: { ...a.axes, y: { kind: 'linear', domain: [0, 1], [key]: true } } }, 'BAD_DOMAIN_OPTIONS');
+    const a = numeric(); for (const key of ['nice', 'includeZero']) rejected({ ...a, axes: { ...a.axes, y: { type: 'linear', domain: [0, 1], [key]: true } } }, 'BAD_DOMAIN_OPTIONS');
   });
   it('rejects malformed targets, labels, font and booleans', () => {
-    const a = numeric(); for (const targetCount of [1, 13, 2.5, '2']) rejected({ ...a, axes: { ...a.axes, x: { kind: 'linear', ticks: { targetCount } } } }, 'BAD_TICK_TARGET');
-    rejected({ ...a, font: { family: 'Arial' } }, 'BAD_LINE_SPEC'); rejected({ ...a, axes: { ...a.axes, y: { kind: 'linear', grid: 1 } } }, 'BAD_LINE_SPEC');
-    rejected({ ...a, axes: { ...a.axes, x: { kind: 'linear', labels: { maxWidth: 7 } } } }, 'BAD_LINE_SPEC');
+    const a = numeric(); for (const targetCount of [1, 13, 2.5, '2']) rejected({ ...a, axes: { ...a.axes, x: { type: 'linear', ticks: { targetCount } } } }, 'BAD_TICK_TARGET');
+    rejected({ ...a, font: { family: 'Arial' } }, 'BAD_LINE_SPEC'); rejected({ ...a, axes: { ...a.axes, y: { type: 'linear', grid: 1 } } }, 'BAD_LINE_SPEC');
+    rejected({ ...a, axes: { ...a.axes, x: { type: 'linear', labels: { maxWidth: 7 } } } }, 'BAD_LINE_SPEC');
   });
   it('rejects status, state and reference defects even for suppressed views', () => {
-    const a = numeric(); rejected({ ...a, status: { kind: 'error' } }, 'BAD_STATUS'); rejected({ ...a, status: { kind: 'empty', message: '' } }, 'BAD_STATUS');
+    const a = numeric(); rejected({ ...a, status: { type: 'error' } }, 'BAD_STATUS'); rejected({ ...a, status: { type: 'empty', message: '' } }, 'BAD_STATUS');
     for (const hiddenSeriesIds of [['s', 's'], ['unknown']]) rejected({ ...a, state: { mode: 'controlled', value: { hiddenSeriesIds } } }, 'BAD_STATE');
     rejected({ ...a, references: [{ id: 'r', axis: 'y', value: 1 }, { id: 'r', axis: 'x', value: 1 }] }, 'BAD_REFERENCE');
-    rejected({ ...a, status: { kind: 'loading' }, references: [{ id: 'r', axis: 'x', value: '1' }] }, 'WRONG_TYPE');
+    rejected({ ...a, status: { type: 'loading' }, references: [{ id: 'r', axis: 'x', value: '1' }] }, 'WRONG_TYPE');
   });
   it('rejects coercion, inherited discriminants, own accessors and unknown fields', () => {
     const a = numeric(); rejected({ ...a, family: ['line'] }, 'BAD_LINE_SPEC'); rejected({ ...a, description: undefined }, 'BAD_LINE_SPEC');
@@ -79,7 +79,7 @@ describe('closed input validation and atomic canonical copy', () => {
     rejected({ ...a, references: new Array(17).fill({ id: 'r', axis: 'y', value: 1 }) }, 'RESOURCE_LIMIT');
     rejected({ ...a, series: [{ id: 's', name: 'S', markers: 'on', data: Array.from({ length: 5001 }, (_, x) => ({ id: String(x), x, y: 1 })) }] }, 'RESOURCE_LIMIT', 'series[0].markers');
     rejected({ ...a, series: [{ ...a.series[0], data: new Array(100001).fill(a.series[0]!.data[0]) }] }, 'RESOURCE_LIMIT');
-    rejected({ ...a, axes: { ...a.axes, x: { kind: 'category', values: new Array(100001).fill({ id: 'a' }) } } }, 'RESOURCE_LIMIT');
+    rejected({ ...a, axes: { ...a.axes, x: { type: 'category', values: new Array(100001).fill({ id: 'a' }) } } }, 'RESOURCE_LIMIT');
   });
   it('validates mount options and external state without coercion', () => {
     expect(validateOptions({ instanceId: 'good_1', onPointActivate() {} }).status).toBe('ok');

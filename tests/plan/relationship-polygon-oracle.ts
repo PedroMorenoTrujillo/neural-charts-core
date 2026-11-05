@@ -1,6 +1,6 @@
 // Copied from current Neural Native polygon ownership for an isolated contract probe.
 // Only family allowlist and34-vertex budget are changed. Not an installed Native acceptance.
-type Polygon={kind:'polygon';vertices:readonly {x:number;y:number}[]};
+type Polygon={type:'polygon';vertices:readonly {x:number;y:number}[]};
 type NativeScene={family:string;width:number;height:number};
 type Vertex=Polygon['vertices'][number];
 const cross=(a:Vertex,b:Vertex,c:Vertex)=>(b.x-a.x)*(c.y-a.y)-(b.y-a.y)*(c.x-a.x);
@@ -20,5 +20,5 @@ export function ownPolygon(hit:Polygon,scene:Pick<NativeScene,'family'|'width'|'
   const origin=vertices[0]!;let area=0;for(let i=0;i<vertices.length;i++){const a=vertices[i]!,b=vertices[(i+1)%vertices.length]!;if(a.x===b.x&&a.y===b.y)throw Error('Collapsed polygon edge');area+=cross(origin,a,b);}
   if(!Number.isFinite(area)||area===0)throw Error('Degenerate polygon hit region');
   for(let i=0;i<vertices.length;i++)for(let j=i+1;j<vertices.length;j++){if(j===i+1||i===0&&j===vertices.length-1)continue;if(intersects(vertices[i]!,vertices[(i+1)%vertices.length]!,vertices[j]!,vertices[(j+1)%vertices.length]!))throw Error('Self-intersecting polygon hit region');}
-  return {kind:'polygon',vertices};
+  return {type:'polygon',vertices};
 }

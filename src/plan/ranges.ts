@@ -105,7 +105,7 @@ export function planRanges(spec:PlanRangeSpec,options:PlanOptions,references?:re
     };
     const checked=validateLine(surrogate);if(checked.status==='invalid')return checked;
     const validated=checked.value,xa=validated.axes.x;
-    if(xa.kind==='category'&&xa.values.length>64)fail('axes.x.values','LABEL_LIMIT');
+    if(xa.type==='category'&&xa.values.length>64)fail('axes.x.values','LABEL_LIMIT');
     const hiddenSeriesIds=source.filter(s=>hidden.includes(s.id)).flatMap(s=>[s.index+'low',s.index+'high']),state={hiddenSeriesIds};
     const normalized=normalizeLine(validated),domains=lineDomains(normalized,state);if(domains.status==='invalid')return domains;
     let initialX=domains.value.x;
@@ -113,7 +113,7 @@ export function planRanges(spec:PlanRangeSpec,options:PlanOptions,references?:re
     // edge, otherwise grouped outer glyphs fall outside the frame entirely.
     // Only explicit axis domains suppress this GLOBAL padding. Requested X
     // windows are applied afterwards, without changing their crop boundaries.
-    if(columns&&xa.kind!=='category'&&!xa.domain&&initialX){
+    if(columns&&xa.type!=='category'&&!xa.domain&&initialX){
       const xs=[...new Set(source.flatMap(s=>s.data.map(p=>p.x as number)))].sort((a,b)=>a-b);
       if(xs.length>1){
         let halfStep=Infinity;
@@ -128,16 +128,16 @@ export function planRanges(spec:PlanRangeSpec,options:PlanOptions,references?:re
     const finish=(frame:PlanFrame,context?:Parameters<typeof withPlanReferences>[2]):PlanResult=>freezePlan({status:frame.observations.length?'ok':'empty',frame:withPlanReferences(frame,references,context,options.referenceBands)});
     if(!domains.value.y)return finish({...base,series:[],observations:[],grid:[],labels:[]});
     let yt=selectNumericTicks(domains.value.y,{nice:validated.axes.y.nice??!validated.axes.y.domain,targetCount:validated.axes.y.ticks?.targetCount??5});if(yt.status==='invalid')return yt;
-    let xt=xa.kind==='category'||!initialX?null:(xa.kind==='time'?selectTimeTicks:selectNumericTicks)(initialX,{nice:xa.nice??false,targetCount:xa.ticks?.targetCount??6});if(xt?.status==='invalid')return xt;
+    let xt=xa.type==='category'||!initialX?null:(xa.type==='time'?selectTimeTicks:selectNumericTicks)(initialX,{nice:xa.nice??false,targetCount:xa.ticks?.targetCount??6});if(xt?.status==='invalid')return xt;
     const prepared=preparePlanViewport(validated.axes,{x:xt?.value.domain??initialX,y:yt.value.domain},options.viewport);if(prepared.status==='invalid')return prepared;
     const view=prepared.value,scoped=withViewportDomains({x:xt?.value.domain??initialX,y:yt.value.domain},view);
     if(view?.value.y){yt=selectNumericTicks(scoped.y!,{nice:false,targetCount:validated.axes.y.ticks?.targetCount??5});if(yt.status==='invalid')return yt;}
-    if(view?.value.x&&xa.kind!=='category'&&scoped.x){xt=(xa.kind==='time'?selectTimeTicks:selectNumericTicks)(scoped.x,{nice:false,targetCount:xa.ticks?.targetCount??6});if(xt.status==='invalid')return xt;}
+    if(view?.value.x&&xa.type!=='category'&&scoped.x){xt=(xa.type==='time'?selectTimeTicks:selectNumericTicks)(scoped.x,{nice:false,targetCount:xa.ticks?.targetCount??6});if(xt.status==='invalid')return xt;}
     const scales=planLineViewportScales(validated.axes,plot,xt?.value.domain??initialX,yt.value.domain,view);if(scales.status==='invalid')return scales;
     const projected=projectLine(normalized,state,plot,xt?.value.domain??initialX,yt.value.domain,scales.value);if(projected.status==='invalid')return projected;
     const p=projected.value,interval=xt&&'interval' in xt.value?xt.value.interval:null,series:PlanSeries[]=[],observations:PlanObservation[]=[];
     const visible=source.filter(s=>!hidden.includes(s.id));
-    const positions=[...new Set((xa.kind==='category'?xa.values.map(v=>v.id):source.flatMap(s=>s.data.map(v=>v.x))).map(x=>p.mapX(x)).filter((x):x is number=>x!==null))].sort((a,b)=>a-b);
+    const positions=[...new Set((xa.type==='category'?xa.values.map(v=>v.id):source.flatMap(s=>s.data.map(v=>v.x))).map(x=>p.mapX(x)).filter((x):x is number=>x!==null))].sort((a,b)=>a-b);
     let step=plot.width;for(let i=1;i<positions.length;i++){const delta=positions[i]!-positions[i-1]!;if(delta>0)step=Math.min(step,delta);}
     const m=visible.length,slot=m?Math.min(step*(1-groupGap)/(m+(m-1)*barGap),maxBarWidth):0,slotGap=slot*barGap,groupWidth=m*slot+(m-1)*slotGap;
     let budget=MAX_PATH_COMMANDS;const slots:{seriesId:string;pointId:string;left:number;right:number;center:number;width:number}[]=[];
@@ -148,12 +148,12 @@ export function planRanges(spec:PlanRangeSpec,options:PlanOptions,references?:re
       const flush=()=>{
         if(!run.length)return;
         let pairs:readonly Pair[]=run.map(v=>v.pair);
-        if(family==='areasplinerange'&&run.length>1)pairs=smoothPairs(pairs,xa.kind==='category'?undefined:run.map(v=>v.point.x as number),Math.floor(budget/4));
+        if(family==='areasplinerange'&&run.length>1)pairs=smoothPairs(pairs,xa.type==='category'?undefined:run.map(v=>v.point.x as number),Math.floor(budget/4));
         const top=pairs.map(v=>v.top),bottom=pairs.map(v=>v.bottom);
-        if(run.length===1)commands.push({kind:'M',...top[0]!},{kind:'L',...bottom[0]!});
+        if(run.length===1)commands.push({type:'M',...top[0]!},{type:'L',...bottom[0]!});
         else{
-          commands.push(...top.map((v,i):PlanCommand=>({kind:i?'L':'M',...v})),...bottom.map((v,i):PlanCommand=>({kind:i?'L':'M',...v})));
-          areaCommands.push(...top.map((v,i):PlanCommand=>({kind:i?'L':'M',...v})),...[...bottom].reverse().map((v):PlanCommand=>({kind:'L',...v})),{kind:'Z'});
+          commands.push(...top.map((v,i):PlanCommand=>({type:i?'L':'M',...v})),...bottom.map((v,i):PlanCommand=>({type:i?'L':'M',...v})));
+          areaCommands.push(...top.map((v,i):PlanCommand=>({type:i?'L':'M',...v})),...[...bottom].reverse().map((v):PlanCommand=>({type:'L',...v})),{type:'Z'});
         }
         budget-=pairs.length*(run.length>1?4:2)+1;if(budget<0)fail('series.data','RESOURCE_LIMIT');run=[];
       };
@@ -169,16 +169,16 @@ export function planRanges(spec:PlanRangeSpec,options:PlanOptions,references?:re
           if(right<=left)continue;
           anchorX=left/2+right/2;
           slots.push({seriesId:s.id,pointId:point.id,left,right,center:x-groupWidth/2+si*(slot+slotGap)+slot/2,width:slot});
-          if(high>low){bars.push({pointId:point.id,x:left,y:low,width:right-left,height:high-low});hit={kind:'polygon',vertices:[{x:left,y:low},{x:right,y:low},{x:right,y:high},{x:left,y:high}]};}
-          else commands.push({kind:'M',x:left,y:low},{kind:'L',x:right,y:low});
+          if(high>low){bars.push({pointId:point.id,x:left,y:low,width:right-left,height:high-low});hit={type:'polygon',vertices:[{x:left,y:low},{x:right,y:low},{x:right,y:high},{x:left,y:high}]};}
+          else commands.push({type:'M',x:left,y:low},{type:'L',x:right,y:low});
         }
-        const label=normalized.labels.get(String(point.x))??formatAxis(point.x,xa.kind,interval,normalized.labels);
-        observations.push({id:{seriesId:s.id,pointId:point.id},label,seriesName:s.name,value:point.low/2+point.high/2,lowValue:point.low,highValue:point.high,x:anchorX,y:anchorY,color:s.color,...(typeof point.x==='number'?{xValue:point.x}:{}),group:{key:JSON.stringify([xa.kind,point.x]),label,coordinate:x},...(hit?{hit}:{})});
+        const label=normalized.labels.get(String(point.x))??formatAxis(point.x,xa.type,interval,normalized.labels);
+        observations.push({id:{seriesId:s.id,pointId:point.id},label,seriesName:s.name,value:point.low/2+point.high/2,lowValue:point.low,highValue:point.high,x:anchorX,y:anchorY,color:s.color,...(typeof point.x==='number'?{xValue:point.x}:{}),group:{key:JSON.stringify([xa.type,point.x]),label,coordinate:x},...(hit?{hit}:{})});
       }
       flush();series.push({id:s.id,name:s.name,color:s.color,...(columns?{bars,...(commands.length?{commands}:{})}:{commands,areaCommands})});
     }
-    const values=xa.kind==='category'?xa.values.map(c=>c.id):xt?.value.ticks??[],labels=values.flatMap(v=>{const x=p.mapX(v);return x===null||x<plot.x||x>plot.x+plot.width?[]:[{x,label:formatAxis(v,xa.kind,interval,normalized.labels),...(typeof v==='number'?{value:v,kind:xa.kind==='time'?'time' as const:'number' as const}:{})}];});
-    const frame:PlanFrame={...base,series,observations,labels,grid:yt.value.ticks.map(v=>({y:p.mapY(v)!,label:String(v),value:v,kind:'number' as const})),...(view?{viewport:planViewportState(view,{x:xt?.value.domain??initialX,y:yt.value.domain},validated.axes,plot)!}:{})};
-    return finish(transform?transform(frame,{plot,yDomain:yt.value.domain,mapX:p.mapX,mapY:p.mapY,slots}):frame,{plot,domains:{x:xt?.value.domain??initialX,y:yt.value.domain},mapX:p.mapX,mapY:p.mapY,bandSourceAxes:validated.axes,...(xa.kind==='category'?{categories:referenceCategories(xa.values,plot,p.mapX)}:{})});
+    const values=xa.type==='category'?xa.values.map(c=>c.id):xt?.value.ticks??[],labels=values.flatMap(v=>{const x=p.mapX(v);return x===null||x<plot.x||x>plot.x+plot.width?[]:[{x,label:formatAxis(v,xa.type,interval,normalized.labels),...(typeof v==='number'?{value:v,type:xa.type==='time'?'time' as const:'number' as const}:{})}];});
+    const frame:PlanFrame={...base,series,observations,labels,grid:yt.value.ticks.map(v=>({y:p.mapY(v)!,label:String(v),value:v,type:'number' as const})),...(view?{viewport:planViewportState(view,{x:xt?.value.domain??initialX,y:yt.value.domain},validated.axes,plot)!}:{})};
+    return finish(transform?transform(frame,{plot,yDomain:yt.value.domain,mapX:p.mapX,mapY:p.mapY,slots}):frame,{plot,domains:{x:xt?.value.domain??initialX,y:yt.value.domain},mapX:p.mapX,mapY:p.mapY,bandSourceAxes:validated.axes,...(xa.type==='category'?{categories:referenceCategories(xa.values,plot,p.mapX)}:{})});
   }catch(error){return error instanceof ValidationFailure?{status:'invalid',diagnostic:error.diagnostic}:{status:'invalid',diagnostic:{code:'INVALID_CONFIG',reason:'BAD_SPEC',path:'spec',message:'BAD_SPEC'}};}
 }

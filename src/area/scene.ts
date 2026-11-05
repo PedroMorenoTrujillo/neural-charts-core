@@ -23,9 +23,9 @@ export function areaScene<T>(projection: LineProjection<T>, palette: Palette, la
       const top = runCommands([points], item.series.spec.curve ?? 'straight');
       if (top.length + 3 > budget) return invalid('INVALID_CONFIG', 'RESOURCE_LIMIT', 'area.commands');
       for (const command of top) commands.push(command);
-      commands.push({ kind: 'L', x: points[points.length - 1]!.x, y: baseline }, { kind: 'L', x: points[0]!.x, y: baseline }, { kind: 'Z' });
+      commands.push({ type: 'L', x: points[points.length - 1]!.x, y: baseline }, { type: 'L', x: points[0]!.x, y: baseline }, { type: 'Z' });
       budget -= commands.length;
-      layers.marks.push({ kind: 'path', key: seriesKey(item.series.spec.id) + '|area:' + i, commands: Object.freeze(commands.map(command => Object.freeze(command))), clipKey: 'plot', presentation: { fill: { kind: 'solid', value: item.series.spec.color ?? palette.series[item.series.colorIndex]! }, fillOpacity: .18, stroke: { kind: 'none' } } });
+      layers.marks.push({ type: 'path', key: seriesKey(item.series.spec.id) + '|area:' + i, commands: Object.freeze(commands.map(command => Object.freeze(command))), clipKey: 'plot', presentation: { fill: { type: 'solid', value: item.series.spec.color ?? palette.series[item.series.colorIndex]! }, fillOpacity: .18, stroke: { type: 'none' } } });
     }
   }
   lineScene(projection, palette, layers, dashes);

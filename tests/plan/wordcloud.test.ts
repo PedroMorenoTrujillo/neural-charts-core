@@ -24,7 +24,7 @@ describe('real-measurement WordCloud port', () => {
     const spec = source(MAX_WORDCLOUD_SOURCE), result = prepare(spec);
     expect(result.requests).toHaveLength(64); expect(result.source).toHaveLength(2048);
     expect(result.source.map(row => row.id.pointId)).toEqual(spec.words.map(word => word.id));
-    expect(result.source.filter(row => row.decision.kind === 'notDisplayed' && row.decision.reason === 'budget')).toHaveLength(1984);
+    expect(result.source.filter(row => row.decision.type === 'notDisplayed' && row.decision.reason === 'budget')).toHaveLength(1984);
     expect(prepare({...spec, maxWords: 128}).requests).toHaveLength(MAX_WORDCLOUD_GLYPHS);
   });
   it('does not infer dimensions from text length or manufacture a fallback when metrics are absent', () => {
@@ -53,13 +53,13 @@ describe('real-measurement WordCloud port', () => {
     expect(glyph.measured).toEqual({width: 100, height: 25});
     expect(glyph.bounds).toMatchObject({width: 25, height: 100});
     expect(glyph.center).toEqual({x: glyph.bounds.x + 12.5, y: glyph.bounds.y + 50});
-    expect(f.observations[0]?.hit?.kind).toBe('polygon');
+    expect(f.observations[0]?.hit?.type).toBe('polygon');
   });
   it('distinguishes unknown, known zero, no ink, no space and an empty source', () => {
     const spec: PlanWordCloudSpec = {...source(), words: [{id: 'null', text: 'Unknown', weight: null}, {id: 'zero', text: 'Zero', weight: 0}, {id: 'inkless', text: '\u200d', weight: 1}, {id: 'oversized', text: 'Wide', weight: 2}]};
     const f = frame(planned(spec, measurements(spec, id => id === 'inkless' ? {width: 0, height: 10} : {width: 1000, height: 20})));
     expect(f.wordcloudData.map(row => row.weight)).toEqual([null, 0, 1, 2]);
-    expect(f.wordcloudData.map(row => row.decision)).toEqual([{kind: 'notDisplayed', reason: 'unknown'}, {kind: 'notDisplayed', reason: 'zero'}, {kind: 'notDisplayed', reason: 'noInk'}, {kind: 'notDisplayed', reason: 'noSpace'}]);
+    expect(f.wordcloudData.map(row => row.decision)).toEqual([{type: 'notDisplayed', reason: 'unknown'}, {type: 'notDisplayed', reason: 'zero'}, {type: 'notDisplayed', reason: 'noInk'}, {type: 'notDisplayed', reason: 'noSpace'}]);
     expect(f.observations).toHaveLength(0); expect(f.wordcloudLayout.emptyReason).toBe('noSpace');
     expect(f.wordcloudLayout.notDisplayed).toEqual({unknown: 1, zero: 1, noInk: 1, noSpace: 1, hidden: 0, budget: 0});
     expect(f.wordcloudLayout.attempts).toBe(0);
@@ -87,7 +87,7 @@ describe('real-measurement WordCloud port', () => {
     expect(p.requests.map(request => request.wordId)).toEqual(['b2', 'b1']);
     const result = frame(planned(spec, measurements(spec, undefined, hidden), hidden));
     expect(result.legend).toMatchObject([{id: 'a', visible: false}, {id: 'b', visible: true}]);
-    expect(result.wordcloudData[0]?.decision).toEqual({kind: 'notDisplayed', reason: 'hidden'});
+    expect(result.wordcloudData[0]?.decision).toEqual({type: 'notDisplayed', reason: 'hidden'});
     expect(planned(spec)).toEqual(planned(spec, measurements(spec), {hiddenSeriesIds: []}));
     expect(prepareWordCloudMeasurements({...spec, words: [{id: 'bad', text: 'Bad', weight: -1, groupId: 'a'}]}, {...size, fontKey, hiddenSeriesIds: ['a']}).status).toBe('invalid');
     expect(prepareWordCloudMeasurements(spec, {...size, fontKey, hiddenSeriesIds: ['missing']})).toMatchObject({status: 'invalid'});
@@ -100,7 +100,7 @@ describe('real-measurement WordCloud port', () => {
     expect(f.wordcloudLayout.budgetExhausted).toBe(true);
     expect(f.wordcloudLayout.notDisplayed.noSpace).toBeGreaterThan(0);
     expect(f.wordcloudData).toHaveLength(128); expect(f.wordcloudLayout.displayedWords).toBe(1);
-    expect(f.wordcloudData.filter(row => row.decision.kind === 'displayed').map(row => row.id)).toEqual(f.observations.map(row => row.id));
+    expect(f.wordcloudData.filter(row => row.decision.type === 'displayed').map(row => row.id)).toEqual(f.observations.map(row => row.id));
   });
   it('rejects unknown style fields, IDs, invalid budgets and unsupported capabilities', () => {
     for (const patch of [{maxWords: 129}, {maxWords: 1.5}, {seed: -1}, {seed: .5}, {rotations: []}, {rotations: [45]}, {rotations: [0, 0]}, {minFontSize: 49, maxFontSize: 48}]) expect(prepareWordCloudMeasurements({...source(), ...patch} as PlanWordCloudSpec, {...size, fontKey}).status).toBe('invalid');

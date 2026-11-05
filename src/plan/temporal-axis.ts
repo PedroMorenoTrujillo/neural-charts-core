@@ -20,29 +20,29 @@ export function optionalBoolean(value: unknown, path: string): boolean | undefin
 }
 
 export function parseTemporalAxis(input: unknown, path: string): PlanTemporalAxis {
-  const source = record(input, ['kind', 'domain', 'reversed', 'nice', 'includeZero', 'unit'], ['kind'], path);
-  const kind = choice(source.kind, ['linear', 'time'], path + '.kind');
+  const source = record(input, ['type', 'domain', 'reversed', 'nice', 'includeZero', 'unit'], ['type'], path);
+  const type = choice(source.type, ['linear', 'time'], path + '.type');
   let domain: Domain | undefined;
   if (source.domain !== undefined) {
     if (!validDomain(source.domain)) fail(path + '.domain', 'BAD_DOMAIN');
     domain = [source.domain[0], source.domain[1]];
-    if (kind === 'time' && (!isTimestamp(domain[0]) || !isTimestamp(domain[1]))) fail(path + '.domain', 'BAD_TIMESTAMP');
+    if (type === 'time' && (!isTimestamp(domain[0]) || !isTimestamp(domain[1]))) fail(path + '.domain', 'BAD_TIMESTAMP');
   }
   const reversed = optionalBoolean(source.reversed, path + '.reversed');
   const nice = optionalBoolean(source.nice, path + '.nice');
   const shared = {...(domain ? {domain} : {}), ...(reversed === undefined ? {} : {reversed}), ...(nice === undefined ? {} : {nice})};
-  if (kind === 'time') {
+  if (type === 'time') {
     if (source.includeZero !== undefined || source.unit !== undefined) fail(path, 'INCOMPATIBLE_TIME_AXIS');
-    return {kind, ...shared};
+    return {type, ...shared};
   }
   const includeZero = optionalBoolean(source.includeZero, path + '.includeZero');
-  return {kind, ...shared, ...(includeZero === undefined ? {} : {includeZero}), ...(source.unit === undefined ? {} : {unit: text(source.unit, path + '.unit', 64, true)})};
+  return {type, ...shared, ...(includeZero === undefined ? {} : {includeZero}), ...(source.unit === undefined ? {} : {unit: text(source.unit, path + '.unit', 64, true)})};
 }
 
 export function temporalValue(value: unknown, axis: PlanTemporalAxis, path: string): number | null {
   if (value === null) return null;
   const result = number(value, path);
-  if (axis.kind === 'time' && !isTimestamp(result)) fail(path, 'BAD_TIMESTAMP');
+  if (axis.type === 'time' && !isTimestamp(result)) fail(path, 'BAD_TIMESTAMP');
   return result;
 }
 
@@ -75,7 +75,7 @@ export function temporalOptions(input: PlanOptions, axis: PlanTemporalAxis, seri
       const window = record(raw.value, ['x'], [], 'options.viewport.value');
       if (window.x !== undefined) {
         if (!validDomain(window.x)) fail('options.viewport.value.x', 'BAD_VIEWPORT');
-        if (axis.kind === 'time' && (!isTimestamp(window.x[0]) || !isTimestamp(window.x[1]))) fail('options.viewport.value.x', 'BAD_TIMESTAMP');
+        if (axis.type === 'time' && (!isTimestamp(window.x[0]) || !isTimestamp(window.x[1]))) fail('options.viewport.value.x', 'BAD_TIMESTAMP');
         value = {x: [window.x[0], window.x[1]]};
       } else value = {};
     }
@@ -105,24 +105,24 @@ export interface TemporalProjection {
 
 export function temporalProjection(axis: PlanTemporalAxis, values: readonly number[], rows: readonly Readonly<{id: string; label: string}>[], rowReversed: boolean, plot: Plot, options: TemporalOptions): TemporalProjection {
   const extent = finiteExtent(values);
-  const normalized = axis.kind === 'time'
+  const normalized = axis.type === 'time'
     ? normalizeTimeDomain(extent, {...(axis.domain ? {explicit: axis.domain} : {})})
     : normalizeNumericDomain(extent, {includeZero: axis.includeZero ?? false, ...(axis.domain ? {explicit: axis.domain} : {})});
   if (normalized.status === 'invalid') fail(normalized.diagnostic.path, normalized.diagnostic.reason, normalized.diagnostic.code);
   const initial: Domain = normalized.status === 'empty' ? [0, 1] : normalized.domain;
-  const axes = {x: axis, y: {kind: 'category' as const, values: rows, reversed: rowReversed}};
+  const axes = {x: axis, y: {type: 'category' as const, values: rows, reversed: rowReversed}};
   const view = preparePlanViewport(axes, {x: initial, y: null}, options.viewport);
   if (view.status === 'invalid') fail(view.diagnostic.path, view.diagnostic.reason, view.diagnostic.code);
   const scoped = withViewportDomains({x: initial, y: null}, view.value);
   const window = scoped.x ?? initial;
   const tickOptions = {targetCount: Math.max(2, Math.min(8, Math.floor(plot.width / 72))), nice: options.viewport || axis.domain ? false : axis.nice ?? false};
-  const ticks = axis.kind === 'time' ? selectTimeTicks(window, tickOptions) : selectNumericTicks(window, tickOptions);
+  const ticks = axis.type === 'time' ? selectTimeTicks(window, tickOptions) : selectNumericTicks(window, tickOptions);
   if (ticks.status === 'invalid') fail(ticks.diagnostic.path, ticks.diagnostic.reason, ticks.diagnostic.code);
   const domain = ticks.value.domain;
   const range: readonly [number, number] = axis.reversed ? [plot.x + plot.width, plot.x] : [plot.x, plot.x + plot.width];
-  const scale = axis.kind === 'time' ? createTimeScale(domain, range, true) : createLinearScale(domain, range, true);
+  const scale = axis.type === 'time' ? createTimeScale(domain, range, true) : createLinearScale(domain, range, true);
   if (scale.status === 'invalid') fail(scale.diagnostic.path, scale.diagnostic.reason, scale.diagnostic.code);
-  const labels = ticks.value.ticks.map(value => ({x: scale.value.map(value)!, label: formatAxis(value, axis.kind, 'interval' in ticks.value ? ticks.value.interval : null, new Map()), value, kind: axis.kind === 'time' ? 'time' as const : 'number' as const}));
+  const labels = ticks.value.ticks.map(value => ({x: scale.value.map(value)!, label: formatAxis(value, axis.type, 'interval' in ticks.value ? ticks.value.interval : null, new Map()), value, type: axis.type === 'time' ? 'time' as const : 'number' as const}));
   const references: PlanProjectedReference[] = options.references.map(reference => {
     if (reference.axis !== 'x' || typeof reference.value !== 'number') fail('options.references', 'X_REFERENCE_ONLY');
     const value = reference.value;

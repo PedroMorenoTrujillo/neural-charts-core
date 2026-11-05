@@ -52,26 +52,26 @@ export function comparisonExampleSpec(family: ComparisonFamily, id: string, loca
   if (family === 'bullet') {
     const base: PlanBulletSpec = {family: 'bullet', title: local(locale, 'Delivery against targets', 'Entregas frente a objetivos'),
       description: local(locale, 'The filled measure and its target share one scale.', 'La medida rellena y su objetivo comparten escala.'),
-      axes: {x: {kind: 'category', values: [{id: 'north', label: local(locale, 'North', 'Norte')}, {id: 'central', label: local(locale, 'Central', 'Centro')}, {id: 'south', label: local(locale, 'South', 'Sur')}]}, y: {kind: 'linear', domain: [0, 100], unit: '%'}},
+      axes: {x: {type: 'category', values: [{id: 'north', label: local(locale, 'North', 'Norte')}, {id: 'central', label: local(locale, 'Central', 'Centro')}, {id: 'south', label: local(locale, 'South', 'Sur')}]}, y: {type: 'linear', domain: [0, 100], unit: '%'}},
       bands: [{id: 'below', from: 0, to: 50, label: local(locale, 'Needs attention', 'Requiere atención'), color: '#edf0f3'}, {id: 'progress', from: 50, to: 80, label: local(locale, 'Progressing', 'En progreso'), color: '#dce3eb'}, {id: 'goal', from: 80, to: 100, label: local(locale, 'On target', 'En objetivo'), color: '#c5d0de'}],
       series: [{id: 'delivered', name: local(locale, 'Delivered', 'Entregado'), color: '#2f6fcb', data: [{id: 'north-delivered', x: 'north', y: 72, target: 80}, {id: 'central-delivered', x: 'central', y: 89, target: 85}, {id: 'south-delivered', x: 'south', y: 44, target: 75}]}]};
     const row = base.series[0]!;
     if (id === 'vertical') return {...base, orientation: 'vertical'};
     if (id === 'grouped') return {...base, series: [...base.series, {...row, id: 'previous', name: local(locale, 'Previous period', 'Periodo anterior'), color: '#688f32', data: row.data.map(point => ({...point, id: `${point.id}-previous`, y: point.y! - 10}))}]};
     if (id === 'missing') return {...base, series: [{...row, data: [{...row.data[0]!, y: null, target: 80}, {...row.data[1]!, target: null}, {...row.data[2]!, y: 0, target: 0}]}]};
-    if (id === 'negative') return {...base, axes: {...base.axes, y: {kind: 'linear', domain: [-50, 100], unit: '%'}}, bands: [{id: 'negative', from: -50, to: 0, color: '#f8e5e6'}, ...base.bands!], series: [{...row, data: [{...row.data[0]!, y: -25, target: 0}, {...row.data[1]!, y: 40, target: 60}, {...row.data[2]!, y: 0, target: -15}]}]};
+    if (id === 'negative') return {...base, axes: {...base.axes, y: {type: 'linear', domain: [-50, 100], unit: '%'}}, bands: [{id: 'negative', from: -50, to: 0, color: '#f8e5e6'}, ...base.bands!], series: [{...row, data: [{...row.data[0]!, y: -25, target: 0}, {...row.data[1]!, y: 40, target: 60}, {...row.data[2]!, y: 0, target: -15}]}]};
     if (id === 'reversed') return {...base, axes: {...base.axes, y: {...base.axes.y, reversed: true}}};
     return base;
   }
   const base: PlanVariwideSpec = {family: 'variwide', title: local(locale, 'Output and installed capacity', 'Producción y capacidad instalada'),
     description: local(locale, 'Height represents output; width represents capacity.', 'La altura representa la producción y el ancho, la capacidad.'),
-    axes: {x: {kind: 'category', values: [{id: 'north', label: local(locale, 'North', 'Norte')}, {id: 'central', label: local(locale, 'Central', 'Centro')}, {id: 'south', label: local(locale, 'South', 'Sur')}]}, y: {kind: 'linear', domain: [0, 100]}},
+    axes: {x: {type: 'category', values: [{id: 'north', label: local(locale, 'North', 'Norte')}, {id: 'central', label: local(locale, 'Central', 'Centro')}, {id: 'south', label: local(locale, 'South', 'Sur')}]}, y: {type: 'linear', domain: [0, 100]}},
     series: [{id: 'output', name: local(locale, 'Output', 'Producción'), color: '#2f6fcb', data: [{id: 'north-output', x: 'north', y: 72, z: 180}, {id: 'central-output', x: 'central', y: 89, z: 320}, {id: 'south-output', x: 'south', y: 44, z: 100}]}]};
   const row = base.series[0]!;
   if (id === 'equal') return {...base, series: [{...row, data: row.data.map(point => ({...point, z: 1}))}]};
   if (id === 'missing') return {...base, series: [{...row, data: [{...row.data[0]!, z: null}, {...row.data[1]!, y: null}, {...row.data[2]!, y: 0, z: 0}]}]};
   if (id === 'extremes') return {...base, series: [{...row, data: [{...row.data[0]!, z: Number.MAX_VALUE}, {...row.data[1]!, z: Number.MAX_VALUE}, {...row.data[2]!, z: Number.MIN_VALUE}]}]};
   if (id === 'reversed') return {...base, axes: {...base.axes, x: {...base.axes.x, reversed: true}}};
-  if (id === 'negative') return {...base, axes: {...base.axes, y: {kind: 'linear', domain: [-50, 100]}}, series: [{...row, data: row.data.map((point, i) => ({...point, y: i === 1 ? -30 : point.y}))}]};
+  if (id === 'negative') return {...base, axes: {...base.axes, y: {type: 'linear', domain: [-50, 100]}}, series: [{...row, data: row.data.map((point, i) => ({...point, y: i === 1 ? -30 : point.y}))}]};
   return base;
 }

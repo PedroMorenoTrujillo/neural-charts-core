@@ -99,16 +99,16 @@ export function planTimeline(input: PlanTimelineSpec, inputOptions: PlanOptions)
         const x = projection.map(point.x);
         return x === null ? [] : [{point, index, x}];
       });
-      if (projected.length) commands.push({kind: 'M', x: plot.x, y}, {kind: 'L', x: plot.x + plot.width, y});
+      if (projected.length) commands.push({type: 'M', x: plot.x, y}, {type: 'L', x: plot.x + plot.width, y});
       for (const {point, x} of projected) {
         if (point.x === null) continue;
         const radius = spec.markerRadius ?? 4;
         circles.push({pointId: point.id, cx: x, cy: y, radius});
         observations.push({id: {seriesId: source.id, pointId: point.id}, label: point.title, seriesName: source.name,
           value: point.x, xValue: point.x, x, y, color: source.color,
-          group: {key: JSON.stringify([spec.axes.x.kind, point.x]), label: formatAxis(point.x, spec.axes.x.kind, null, new Map()), coordinate: x},
-          event: {kind: spec.axes.x.kind, coordinate: point.x, title: point.title, ...(point.description === undefined ? {} : {description: point.description})},
-          hit: {kind: 'circle', cx: x, cy: y, radius: Math.max(12, radius)}});
+          group: {key: JSON.stringify([spec.axes.x.type, point.x]), label: formatAxis(point.x, spec.axes.x.type, null, new Map()), coordinate: x},
+          event: {type: spec.axes.x.type, coordinate: point.x, title: point.title, ...(point.description === undefined ? {} : {description: point.description})},
+          hit: {type: 'circle', cx: x, cy: y, radius: Math.max(12, radius)}});
       }
       const ordered = [...projected].sort((a, b) => a.x - b.x || a.index - b.index);
       for (const [ordinal, item] of ordered.entries()) {
@@ -125,8 +125,8 @@ export function planTimeline(input: PlanTimelineSpec, inputOptions: PlanOptions)
           if (box.top < plot.y || box.bottom > plot.y + plot.height || occupied.some(other => collides(box, other))) continue;
           occupied.push(box);
           annotations.push({x: labelLeft + label.width / 2, y: labelY, text: label.text, role: 'label', box: {width: label.width, height: 18, seriesId: source.id}});
-          commands.push({kind: 'M', x: item.x, y: y + direction * (spec.markerRadius ?? 4)},
-            {kind: 'L', x: item.x, y: direction < 0 ? box.bottom : box.top});
+          commands.push({type: 'M', x: item.x, y: y + direction * (spec.markerRadius ?? 4)},
+            {type: 'L', x: item.x, y: direction < 0 ? box.bottom : box.top});
           break;
         }
       }
@@ -134,7 +134,7 @@ export function planTimeline(input: PlanTimelineSpec, inputOptions: PlanOptions)
     }
     const yLabels = visible.length > 1 ? rows.flatMap(row => {const y = positions.center(row.id); return y === null ? [] : [{id: row.id, y, label: row.label}];}) : [];
     const result: PlanTimelineFrame = {schema: 'nc-plan/1', family: 'timeline', title: spec.title, description: spec.description ?? '',
-      unit: spec.axes.x.kind === 'linear' ? spec.axes.x.unit ?? '' : '', width: options.width, height: options.height,
+      unit: spec.axes.x.type === 'linear' ? spec.axes.x.unit ?? '' : '', width: options.width, height: options.height,
       legend: spec.series.map(source => ({id: source.id, name: source.name, color: source.color, visible: !options.hidden.has(source.id)})),
       series, observations, events, annotations, labels: projection.labels, grid: [], yLabels, references: projection.references,
       ...(projection.viewport === undefined ? {} : {viewport: projection.viewport})};

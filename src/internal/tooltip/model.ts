@@ -7,18 +7,18 @@ export function duplicateCategoryLabels(labels: ReadonlyMap<string, string>): Re
   for (const label of labels.values()) { if (seen.has(label)) duplicates.add(label); else seen.add(label); }
   return duplicates;
 }
-export function fullX(x: string | number, kind: 'category' | 'linear' | 'time', labels: ReadonlyMap<string, string>): string {
+export function fullX(x: string | number, type: 'category' | 'linear' | 'time', labels: ReadonlyMap<string, string>): string {
   if (typeof x === 'string') { const label = labels.get(x) ?? x; return label === x ? x : `${label} (${x})`; }
-  return kind === 'time' ? new Date(x).toISOString() : String(x === 0 ? 0 : x);
+  return type === 'time' ? new Date(x).toISOString() : String(x === 0 ? 0 : x);
 }
-export function tooltipModel(revision: number, seriesId: string, pointId: string, x: string | number, kind: 'category' | 'linear' | 'time', mode: 'point' | 'shared', series: readonly TooltipSeries[], labels: ReadonlyMap<string, string>, duplicateLabels: ReadonlySet<string> = duplicateCategoryLabels(labels)): TooltipModel {
+export function tooltipModel(revision: number, seriesId: string, pointId: string, x: string | number, type: 'category' | 'linear' | 'time', mode: 'point' | 'shared', series: readonly TooltipSeries[], labels: ReadonlyMap<string, string>, duplicateLabels: ReadonlySet<string> = duplicateCategoryLabels(labels)): TooltipModel {
   const rows: TooltipRow[] = [];
   for (const s of series) {
     if (mode === 'point' && s.id !== seriesId) continue;
     const sample = s.byX.get(x);
     rows.push(Object.freeze({ seriesId: s.id, name: s.name, value: sample?.y ?? null, availability: !sample ? 'absent' : sample.y === null ? 'null' : 'value', color: s.color, dash: s.dash }));
   }
-  const header = fullX(x, kind, labels), label = typeof x === 'string' ? labels.get(x) ?? x : null;
+  const header = fullX(x, type, labels), label = typeof x === 'string' ? labels.get(x) ?? x : null;
   return Object.freeze({ revision, seriesId, pointId, x, header, displayHeader: label !== null && !duplicateLabels.has(label) ? label : header, rows: Object.freeze(rows) });
 }
 export function rowText(row: TooltipRow): string { return `${row.name}: ${row.availability === 'absent' ? 'No sample' : row.availability === 'null' ? 'Missing observation' : String(row.value)}`; }

@@ -2,7 +2,7 @@ import { expect, test } from 'vitest';
 import { categoryViewportAxis, numericViewportAxis, prepareViewport, requestViewport, sameViewport, zoomViewport, panViewport, type Viewport, type ViewportContext } from '../../src/internal/interaction/viewport.js';
 import type { ChartResult } from '../../src/public/chart-types.js';
 function value<T>(result: ChartResult<T>): T { if (result.status !== 'ok') throw Error(JSON.stringify(result)); return result.value; }
-const numeric = (low = 0, high = 100, kind: 'linear' | 'time' = 'linear') => value(numericViewportAxis(kind, [low, high]));
+const numeric = (low = 0, high = 100, type: 'linear' | 'time' = 'linear') => value(numericViewportAxis(type, [low, high]));
 const context = (): ViewportContext => ({ x: numeric(), y: numeric(-50, 50) });
 test('millisecond pan rounds one translation and preserves exact window duration at epoch extremes', () => {
   const limit = 8640000000000000;

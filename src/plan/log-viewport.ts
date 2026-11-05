@@ -7,12 +7,12 @@ export function transformLogViewport(state:PlanViewportState,intent:PlanViewport
  try{
   const bounds={...state.bounds},displayed={...state.displayed},value:MutableWindow={...state.value};
   const originals=new Map<'x'|'y',Readonly<{domain:Domain;origin:number;encoded:Domain;shown:Domain;shownHigh:number}>>();
-  for(const axis of ['x','y'] as const){const current=bounds[axis];if(current.kind!=='log')continue;
-   if(Object.keys(current).some(key=>!['kind','base','domain'].includes(key))||current.base!==10)throw Error('BAD_LOG_VIEWPORT_AXIS');
+  for(const axis of ['x','y'] as const){const current=bounds[axis];if(current.type!=='log')continue;
+   if(Object.keys(current).some(key=>!['type','base','domain'].includes(key))||current.base!==10)throw Error('BAD_LOG_VIEWPORT_AXIS');
    const domain=checkedLogDomain(current.domain),shown=checkedLogDomain(displayed[axis]),expected=value[axis]===undefined?domain:checkedLogDomain(value[axis]);
    if(shown[0]!==expected[0]||shown[1]!==expected[1])throw Error('INCONSISTENT_LOG_VIEWPORT');
    const origin=shown[0],encoded:Domain=[logDistance(origin,domain[0]),logDistance(origin,domain[1])];originals.set(axis,{domain,origin,encoded,shown,shownHigh:logDistance(origin,shown[1])});
-   bounds[axis]={kind:'linear',domain:encoded};
+   bounds[axis]={type:'linear',domain:encoded};
    const encode=(raw:unknown):Domain=>{const pair=checkedLogDomain(raw);if(pair[0]<domain[0]||pair[1]>domain[1])throw Error('LOG_WINDOW_OUTSIDE_DOMAIN');return [logDistance(origin,pair[0]),logDistance(origin,pair[1])];};
    if(displayed[axis])displayed[axis]=encode(displayed[axis]);else throw Error('BAD_LOG_DISPLAYED_DOMAIN');
    if(value[axis]!==undefined)value[axis]=encode(value[axis]);
@@ -26,4 +26,4 @@ export function transformLogViewport(state:PlanViewportState,intent:PlanViewport
   return {status:'ok',value:decoded};
  }catch(error){return {status:'invalid',diagnostic:{code:'INVALID_CONFIG',reason:'BAD_LOG_VIEWPORT',path:'viewport',message:error instanceof Error?error.message:'Invalid log viewport.'}};}
 }
-export function logViewportAxis(domain:Domain):PlanViewportAxis{return {kind:'log',base:10,domain};}
+export function logViewportAxis(domain:Domain):PlanViewportAxis{return {type:'log',base:10,domain};}

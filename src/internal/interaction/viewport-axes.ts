@@ -5,15 +5,15 @@ import type { AxesPlan, AxisInput } from '../axes/plan.js';
 import { invalid, ok } from '../diagnostics.js';
 import { categoryViewportAxis, numericViewportAxis, type ViewportContext, type Viewport } from './viewport.js';
 
-type CategoryAxis = Readonly<{ kind: 'category'; values: readonly Readonly<{ id: string; label?: string }>[]; edgeSpacing?: number }>;
-type NumericAxis = Readonly<{ kind: 'linear' | 'time'; domain?: Domain; nice?: boolean; includeZero?: boolean }>;
+type CategoryAxis = Readonly<{ type: 'category'; values: readonly Readonly<{ id: string; label?: string }>[]; edgeSpacing?: number }>;
+type NumericAxis = Readonly<{ type: 'linear' | 'time'; domain?: Domain; nice?: boolean; includeZero?: boolean }>;
 type Axis = CategoryAxis | NumericAxis;
 type CartesianAxes = Readonly<{ x: AxisInput; y: AxisInput }>;
 const numeric = (value: ChartAxisWindow): value is ChartNumericWindow => Array.isArray(value);
 export function cartesianViewportContext(axes: Readonly<{ x: Axis; y: Axis }>, domains: Readonly<{ x: Domain | null; y: Domain | null }>, automatic = domains): ChartResult<ViewportContext> {
-  const x = axes.x.kind === 'category' ? categoryViewportAxis(axes.x.values.map(value => value.id)) : numericViewportAxis(axes.x.kind, domains.x, automatic.x);
+  const x = axes.x.type === 'category' ? categoryViewportAxis(axes.x.values.map(value => value.id)) : numericViewportAxis(axes.x.type, domains.x, automatic.x);
   if (x.status === 'invalid') return x;
-  const y = axes.y.kind === 'category' ? categoryViewportAxis(axes.y.values.map(value => value.id)) : numericViewportAxis(axes.y.kind, domains.y, automatic.y); if (y.status === 'invalid') return y;
+  const y = axes.y.type === 'category' ? categoryViewportAxis(axes.y.values.map(value => value.id)) : numericViewportAxis(axes.y.type, domains.y, automatic.y); if (y.status === 'invalid') return y;
   return ok(Object.freeze({ x: x.value, y: y.value }));
 }
 export function withViewportDomains(domains: Readonly<{ x: Domain | null; y: Domain | null }>, viewport: Viewport | null): Readonly<{ x: Domain | null; y: Domain | null }> {
@@ -29,11 +29,11 @@ export function withViewportAxes(axes: CartesianAxes, viewport: Viewport | null)
   const xWindow = viewport.value.x, yWindow = viewport.value.y;
   if (xWindow) {
     if (numeric(xWindow)) {
-      if (x.kind === 'category') return invalid('INVALID_CONFIG', 'BAD_VIEWPORT_AXIS', 'viewport.x');
+      if (x.type === 'category') return invalid('INVALID_CONFIG', 'BAD_VIEWPORT_AXIS', 'viewport.x');
       x = Object.freeze({ ...x, domain: xWindow, nice: false });
     } else {
       const bounds = viewport.context.x;
-      if (x.kind !== 'category' || bounds.kind !== 'category') return invalid('INVALID_CONFIG', 'BAD_VIEWPORT_AXIS', 'viewport.x');
+      if (x.type !== 'category' || bounds.type !== 'category') return invalid('INVALID_CONFIG', 'BAD_VIEWPORT_AXIS', 'viewport.x');
       const first = bounds.ranks.get(xWindow.firstId), last = bounds.ranks.get(xWindow.lastId);
       if (first === undefined || last === undefined || first > last) return invalid('INVALID_CONFIG', 'BAD_CATEGORY_WINDOW', 'viewport.x');
       if (!x.values) return invalid('INVALID_CONFIG', 'BAD_VIEWPORT_AXIS', 'viewport.x');
@@ -42,11 +42,11 @@ export function withViewportAxes(axes: CartesianAxes, viewport: Viewport | null)
   }
   if (yWindow) {
     if (numeric(yWindow)) {
-      if (y.kind === 'category') return invalid('INVALID_CONFIG', 'BAD_VIEWPORT_AXIS', 'viewport.y');
+      if (y.type === 'category') return invalid('INVALID_CONFIG', 'BAD_VIEWPORT_AXIS', 'viewport.y');
       y = Object.freeze({ ...y, domain: yWindow, nice: false, includeZero: false });
     } else {
       const bounds = viewport.context.y;
-      if (y.kind !== 'category' || bounds.kind !== 'category' || !y.values) return invalid('INVALID_CONFIG', 'BAD_VIEWPORT_AXIS', 'viewport.y');
+      if (y.type !== 'category' || bounds.type !== 'category' || !y.values) return invalid('INVALID_CONFIG', 'BAD_VIEWPORT_AXIS', 'viewport.y');
       const first = bounds.ranks.get(yWindow.firstId), last = bounds.ranks.get(yWindow.lastId);
       if (first === undefined || last === undefined || first > last) return invalid('INVALID_CONFIG', 'BAD_CATEGORY_WINDOW', 'viewport.y');
       y = Object.freeze({ ...y, values: Object.freeze(y.values.slice(first, last + 1)) });
@@ -56,7 +56,7 @@ export function withViewportAxes(axes: CartesianAxes, viewport: Viewport | null)
 }
 export function extendLineViewportMap(plan: AxesPlan, viewport: Viewport | null): ChartResult<AxesPlan> {
   const window = viewport?.value.x, bounds = viewport?.context.x;
-  if (!window || numeric(window) || bounds?.kind !== 'category' || plan.tooSmall) return ok(plan);
+  if (!window || numeric(window) || bounds?.type !== 'category' || plan.tooSmall) return ok(plan);
   const first = bounds.ranks.get(window.firstId), last = bounds.ranks.get(window.lastId), start = plan.mapX(window.firstId), end = plan.mapX(window.lastId);
   if (first === undefined || last === undefined || start === null || end === null) return invalid('INVALID_DOMAIN', 'BAD_VIEWPORT_AXIS', 'viewport.x');
   const step = last === first ? plan.plot.width : (end - start) / (last - first);

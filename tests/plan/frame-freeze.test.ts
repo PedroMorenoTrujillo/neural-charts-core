@@ -3,7 +3,7 @@ import {freezePlan} from '../../src/plan/input.js';
 
 it('freezes the complete owned frame graph, including array entries and shared identities', () => {
   const id = {seriesId: 's', pointId: 'p'}, group = {key: 'x:1', label: 'Point', coordinate: 1};
-  const frame = {series: [{id: 's', commands: [{kind: 'M', x: 0, y: 1}]}], observations: [{id, group}, {id, group}]};
+  const frame = {series: [{id: 's', commands: [{type: 'M', x: 0, y: 1}]}], observations: [{id, group}, {id, group}]};
   expect(freezePlan(frame)).toBe(frame);
   expect(Object.isFrozen(frame)).toBe(true);expect(Object.isFrozen(frame.observations)).toBe(true);
   expect(Object.isFrozen(frame.series[0]!.commands[0])).toBe(true);expect(Object.isFrozen(id)).toBe(true);expect(Object.isFrozen(group)).toBe(true);

@@ -137,7 +137,7 @@ export function planChart(value:PlanSpec,options:PlanOptions):PlanResult {
     if(spec.family==='waterfall')return planWaterfall(spec,ownedOptions,references);
     if(spec.family==='treemap')return planTreemap(spec,ownedOptions);
     if(spec.family==='column'&&ownedOptions.stackGroups)return planGroupedStacks(spec,ownedOptions,references);
-    if(spec.family==='mixed'&&Array.isArray(spec.series)&&spec.series.some(s=>s?.kind==='arearange'||s?.kind==='areasplinerange'))return planMixedRanges(spec,ownedOptions,references);
+    if(spec.family==='mixed'&&Array.isArray(spec.series)&&spec.series.some(s=>s?.type==='arearange'||s?.type==='areasplinerange'))return planMixedRanges(spec,ownedOptions,references);
     if(spec.family==='mixed'&&(spec.axes?.secondaryY!==undefined||Array.isArray(spec.series)&&spec.series.some(s=>s?.yAxis!==undefined)))return planMixedAxes(spec,ownedOptions,references);
     if(spec.family==='mixed')return planMixed(spec,ownedOptions,references);
     if((spec.family==='area'||spec.family==='areaspline')&&ownedOptions.stacking)return planStackedArea(spec,ownedOptions,references);

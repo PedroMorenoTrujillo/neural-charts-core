@@ -7,7 +7,7 @@ import type {PlanFanSpec,PlanFanBand,PlanFanPoint} from '../public/fan-plan-type
 import type {PlanOptions,PlanResult,PlanRangeSpec,PlanRangeSeries,PlanFrame,PlanCommand} from '../public/plan-types.js';
 const bad=(reason:string,path:string):PlanResult=>({status:'invalid',diagnostic:{code:'INVALID_CONFIG',reason,path,message:reason}});
 const text=(v:unknown,max:number)=>typeof v==='string'&&v.length>0&&v.length<=max;
-function categoryFan(spec:PlanFanSpec):spec is Extract<PlanFanSpec,{axes:{x:{kind:'category'}}}>{return spec.axes?.x?.kind==='category';}
+function categoryFan(spec:PlanFanSpec):spec is Extract<PlanFanSpec,{axes:{x:{type:'category'}}}>{return spec.axes?.x?.type==='category';}
 function rangeSeries<TX extends string|number>(data:readonly PlanFanPoint<TX>[],bands:readonly PlanFanBand[],name:string,color:string,bandColor:string):readonly PlanRangeSeries<TX>[] {
   return [...bands.map(band=>({id:band.id,name:band.label,color:band.color??bandColor,data:data.map(p=>{const range=p.intervals.find(r=>r.bandId===band.id);return {id:p.id,x:p.x,low:range?.low??null,high:range?.high??null};})})),{id:'center',name,color,data:data.map(p=>({id:p.id,x:p.x,low:p.value,high:p.value}))}];
 }
@@ -15,14 +15,14 @@ function rangeSource(spec:PlanFanSpec,bands:readonly PlanFanBand[]):PlanRangeSpe
   const palette=defaultPalette('light',false).series,common={family:'arearange' as const,title:spec.title,...(spec.description===undefined?{}:{description:spec.description})};
   if(categoryFan(spec))return {...common,axes:spec.axes,series:rangeSeries<string>(spec.data,bands,spec.centerName??spec.title,spec.centerColor??palette[0]!,palette[0]!)};
   const series=rangeSeries<number>(spec.data,bands,spec.centerName??spec.title,spec.centerColor??palette[0]!,palette[0]!);
-  return spec.axes.x.kind==='time'
-    ? {...common,axes:{x:{...spec.axes.x,kind:'time'},y:spec.axes.y},series}
-    : {...common,axes:{x:{...spec.axes.x,kind:'linear'},y:spec.axes.y},series};
+  return spec.axes.x.type==='time'
+    ? {...common,axes:{x:{...spec.axes.x,type:'time'},y:spec.axes.y},series}
+    : {...common,axes:{x:{...spec.axes.x,type:'linear'},y:spec.axes.y},series};
 }
 /** One shared range-owner frame, including the central estimate in the same domain. */
 export function planFan(spec:PlanFanSpec,options:PlanOptions):PlanResult{
   if(Object.keys(spec).some(k=>!['family','title','description','axes','bands','data','centerName','centerColor'].includes(k))||!Array.isArray(spec.bands)||spec.bands.length<1||spec.bands.length>6||!Array.isArray(spec.data)||spec.data.length>1024)return bad('BAD_FAN_SOURCE','spec');
-  if(!spec.axes?.x||!['category','linear','time'].includes(spec.axes.x.kind))return bad('BAD_FAN_AXIS','axes.x');
+  if(!spec.axes?.x||!['category','linear','time'].includes(spec.axes.x.type))return bad('BAD_FAN_AXIS','axes.x');
   if(spec.centerName!==undefined&&!text(spec.centerName,200)||spec.centerColor!==undefined&&!/^#[\da-f]{6}$/i.test(spec.centerColor))return bad('BAD_FAN_PRESENTATION','spec');
   const ids=new Set<string>(['center']),bands:readonly PlanFanBand[]=spec.bands,data:readonly PlanFanPoint[]=spec.data,pointIds=new Set<string>();let previous=0;
   for(const [i,b]of bands.entries()){
@@ -43,11 +43,11 @@ export function planFan(spec:PlanFanSpec,options:PlanOptions):PlanResult{
   const rangeSpec=rangeSource(spec,bands);
   const transform=(frame:PlanFrame,context:RangeGlyphContext):PlanFrame=>{
     const bandMap=new Map(bands.map(b=>[b.id,b])),commands:PlanCommand[]=[];let active=false;
-    for(const p of spec.data){if(p.value===null){active=false;continue;}const x=context.mapX(p.x),y=context.mapY(p.value);if(x===null||y===null){active=false;continue;}commands.push({kind:active?'L':'M',x,y});active=true;}
+    for(const p of spec.data){if(p.value===null){active=false;continue;}const x=context.mapX(p.x),y=context.mapY(p.value);if(x===null||y===null){active=false;continue;}commands.push({type:active?'L':'M',x,y});active=true;}
     const center=frame.series.find(s=>s.id==='center'),ordered=[...frame.series.filter(s=>s.id!=='center')].sort((a,b)=>bandMap.get(b.id)!.coverage-bandMap.get(a.id)!.coverage);
     if(center)ordered.push({id:center.id,name:center.name,color:center.color,commands,circles:frame.observations.filter(p=>p.id.seriesId==='center').map(p=>({pointId:p.id.pointId,cx:p.x,cy:p.y,radius:3}))});
-    const points=frame.observations.map(p=>{if(p.id.seriesId==='center'){const {lowValue:_,highValue:__,...point}=p;return {...point,fan:{kind:'center' as const}};}return {...p,fan:{kind:'interval' as const,coverage:bandMap.get(p.id.seriesId)!.coverage,low:p.lowValue!,high:p.highValue!}};});
-    const observations=[...points.filter(p=>p.fan.kind==='center'),...points.filter(p=>p.fan.kind!=='center')],legend=[...(frame.legend??[]).filter(s=>s.id==='center'),...(frame.legend??[]).filter(s=>s.id!=='center')];
+    const points=frame.observations.map(p=>{if(p.id.seriesId==='center'){const {lowValue:_,highValue:__,...point}=p;return {...point,fan:{type:'center' as const}};}return {...p,fan:{type:'interval' as const,coverage:bandMap.get(p.id.seriesId)!.coverage,low:p.lowValue!,high:p.highValue!}};});
+    const observations=[...points.filter(p=>p.fan.type==='center'),...points.filter(p=>p.fan.type!=='center')],legend=[...(frame.legend??[]).filter(s=>s.id==='center'),...(frame.legend??[]).filter(s=>s.id!=='center')];
     return {...frame,family:'fan',fan:{centerId:'center',bands:bands.map(({id,label,coverage})=>({id,label,coverage}))},series:ordered,observations,legend};
   };
   const references=validatePlanReferences(options.references,rangeSpec);if(references.status==='invalid')return references;

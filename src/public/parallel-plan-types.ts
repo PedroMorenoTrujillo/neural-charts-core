@@ -2,7 +2,7 @@ import type {PlanCommand} from './plan-types.js';
 export interface PlanParallelAxis {
   readonly id:string;
   readonly label?:string;
-  readonly kind:'linear';
+  readonly type:'linear';
   readonly unit?:string;
   readonly domain?:readonly [number,number];
   readonly reversed?:boolean;

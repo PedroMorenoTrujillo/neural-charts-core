@@ -12,7 +12,7 @@ export interface PlanDendrogramSpec {
   readonly orientation?:'horizontal'|'vertical';
 }
 export interface PlanDendrogramValue {
-  readonly kind:'leaf'|'cluster';readonly heightMode:'distance'|'topology';
+  readonly type:'leaf'|'cluster';readonly heightMode:'distance'|'topology';
   readonly heightSource:'source'|'topology'|'leafZero';
   readonly leafCount:number;readonly depth:number;readonly unit:string;
 }

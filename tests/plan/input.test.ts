@@ -84,7 +84,7 @@ describe('bounded planning snapshots', () => {
   });
 
   it('keeps the public frame detached from caller updates and reports invalid accessors', () => {
-    const input: PlanLineSpec = {family: 'line', title: 'Measured', axes: {x: {kind: 'linear'}, y: {kind: 'linear'}}, series: [{id: 's', name: 'Source', data: [{id: 'p', x: 0, y: 0}, {id: 'q', x: 1, y: 4}]}]};
+    const input: PlanLineSpec = {family: 'line', title: 'Measured', axes: {x: {type: 'linear'}, y: {type: 'linear'}}, series: [{id: 's', name: 'Source', data: [{id: 'p', x: 0, y: 0}, {id: 'q', x: 1, y: 4}]}]};
     const result = planChart(input, {width: 390, height: 300});
     expect(result.status).toBe('ok');
     if (result.status === 'invalid') throw Error(result.diagnostic.reason);

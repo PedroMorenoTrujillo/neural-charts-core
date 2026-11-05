@@ -33,7 +33,7 @@ export function planStreamgraph(spec:PlanStreamgraphSpec,options:PlanOptions,ref
     const checked=validateStackedArea({...input,family:'stacked-area',stacking:'sum',...(references?{references}:{})});if(checked.status==='invalid')return checked;
     const validated=checked.value;
     if(hidden.some(id=>!validated.series.some(s=>s.id===id)))fail('options.hiddenSeriesIds','UNKNOWN_SERIES');
-    if(validated.axes.x.kind==='category'&&validated.axes.x.values.length>64)fail('axes.x.values','LABEL_LIMIT');
+    if(validated.axes.x.type==='category'&&validated.axes.x.values.length>64)fail('axes.x.values','LABEL_LIMIT');
     for(const [si,s]of validated.series.entries())for(const [pi,p]of s.data.entries())if(p.y!==null&&p.y<0)fail('series['+si+'].data['+pi+'].y','NONNEGATIVE_STREAM_VALUES_REQUIRED');
     const state={hiddenSeriesIds:hidden},data=normalizeStackedArea(validated),raw=areaStack(data,state);if(raw.status==='invalid')return raw;
     const offsets=new Map([...raw.value.categories].map(([id,row])=>[id,row.complete&&row.total!==null?-row.total/2:0]));
@@ -58,11 +58,11 @@ export function planStreamgraph(spec:PlanStreamgraphSpec,options:PlanOptions,ref
     if(!domains.value.y)return freezePlan({status:'empty',frame:withPlanReferences({...base,series:[],observations:[],labels:[],grid:[]},references)});
     const xa=validated.axes.x;
     let yt=selectNumericTicks(domains.value.y,{nice:validated.axes.y.nice??!validated.axes.y.domain,targetCount:validated.axes.y.ticks?.targetCount??5});if(yt.status==='invalid')return yt;
-    let xt=xa.kind==='category'||!domains.value.x?null:(xa.kind==='time'?selectTimeTicks:selectNumericTicks)(domains.value.x,{nice:xa.nice??false,targetCount:xa.ticks?.targetCount??6});if(xt?.status==='invalid')return xt;
+    let xt=xa.type==='category'||!domains.value.x?null:(xa.type==='time'?selectTimeTicks:selectNumericTicks)(domains.value.x,{nice:xa.nice??false,targetCount:xa.ticks?.targetCount??6});if(xt?.status==='invalid')return xt;
     const prepared=preparePlanViewport(validated.axes,{x:xt?.value.domain??domains.value.x,y:yt.value.domain},options.viewport);if(prepared.status==='invalid')return prepared;
     const view=prepared.value,scoped=withViewportDomains({x:xt?.value.domain??domains.value.x,y:yt.value.domain},view);
     if(view?.value.y){yt=selectNumericTicks(scoped.y!,{nice:false,targetCount:validated.axes.y.ticks?.targetCount??5});if(yt.status==='invalid')return yt;}
-    if(view?.value.x&&xa.kind!=='category'&&scoped.x){xt=(xa.kind==='time'?selectTimeTicks:selectNumericTicks)(scoped.x,{nice:false,targetCount:xa.ticks?.targetCount??6});if(xt.status==='invalid')return xt;}
+    if(view?.value.x&&xa.type!=='category'&&scoped.x){xt=(xa.type==='time'?selectTimeTicks:selectNumericTicks)(scoped.x,{nice:false,targetCount:xa.ticks?.targetCount??6});if(xt.status==='invalid')return xt;}
     const xDomain=xt?.value.domain??domains.value.x,yDomain=yt.value.domain,interval=xt&&'interval' in xt.value?xt.value.interval:null;
     const scales=planLineViewportScales(validated.axes,plot,xDomain,yDomain,view);if(scales.status==='invalid')return scales;
     const mapped=projectLine(data.line,state,plot,xDomain,yDomain,scales.value);if(mapped.status==='invalid')return mapped;
@@ -73,13 +73,13 @@ export function planStreamgraph(spec:PlanStreamgraphSpec,options:PlanOptions,ref
       const color=legend.find(item=>item.id===s.series.spec.id)!.color;
       series.push({id:s.series.spec.id,name:s.series.spec.name,color,commands:s.commands,areaCommands:p.fills.get(s.series.spec.id)??[]});
       for(const point of s.eligible){
-        const label=formatAxis(point.point.x,xa.kind,interval,data.line.labels),segment=p.segments.get(pointKey(s.series.spec.id,point.point.id))!;
+        const label=formatAxis(point.point.x,xa.type,interval,data.line.labels),segment=p.segments.get(pointKey(s.series.spec.id,point.point.id))!;
         if(!Number.isFinite(segment.base)||!Number.isFinite(segment.end))fail('series.data','UNREPRESENTABLE_STREAM_GEOMETRY');
-        observations.push({id:{seriesId:s.series.spec.id,pointId:point.point.id},label,seriesName:s.series.spec.name,value:point.point.y!,x:point.x,y:point.y,color,...(typeof point.point.x==='number'?{xValue:point.point.x}:{}),group:{key:JSON.stringify([xa.kind,point.point.x]),label,coordinate:point.x}});
+        observations.push({id:{seriesId:s.series.spec.id,pointId:point.point.id},label,seriesName:s.series.spec.name,value:point.point.y!,x:point.x,y:point.y,color,...(typeof point.point.x==='number'?{xValue:point.point.x}:{}),group:{key:JSON.stringify([xa.type,point.point.x]),label,coordinate:point.x}});
       }
     }
-    const values=xa.kind==='category'?xa.values.map(c=>c.id):xt?.value.ticks??[],labels=values.flatMap(value=>{const x=p.mapX(value);return x===null||x<plot.x||x>plot.x+plot.width?[]:[{x,label:formatAxis(value,xa.kind,interval,data.line.labels),...(typeof value==='number'?{value,kind:xa.kind==='time'?'time' as const:'number' as const}:{})}];});
-    const context=p.series.some(s=>s.series.valid.length>0)?{plot,domains:{x:xDomain,y:yDomain},mapX:p.mapX,mapY:p.mapY,...(xa.kind==='category'?{categories:referenceCategories(xa.values,plot,p.mapX)}:{})}:undefined;
-    return freezePlan({status:observations.length?'ok':'empty',frame:withPlanReferences({...base,series,observations,labels,grid:yt.value.ticks.map(value=>({y:p.mapY(value)!,label:String(value),value:value,kind:'number' as const})),...(view?{viewport:planViewportState(view,{x:xDomain,y:yDomain},validated.axes,plot)!}:{})},references,context)});
+    const values=xa.type==='category'?xa.values.map(c=>c.id):xt?.value.ticks??[],labels=values.flatMap(value=>{const x=p.mapX(value);return x===null||x<plot.x||x>plot.x+plot.width?[]:[{x,label:formatAxis(value,xa.type,interval,data.line.labels),...(typeof value==='number'?{value,type:xa.type==='time'?'time' as const:'number' as const}:{})}];});
+    const context=p.series.some(s=>s.series.valid.length>0)?{plot,domains:{x:xDomain,y:yDomain},mapX:p.mapX,mapY:p.mapY,...(xa.type==='category'?{categories:referenceCategories(xa.values,plot,p.mapX)}:{})}:undefined;
+    return freezePlan({status:observations.length?'ok':'empty',frame:withPlanReferences({...base,series,observations,labels,grid:yt.value.ticks.map(value=>({y:p.mapY(value)!,label:String(value),value:value,type:'number' as const})),...(view?{viewport:planViewportState(view,{x:xDomain,y:yDomain},validated.axes,plot)!}:{})},references,context)});
   }catch(error){return error instanceof ValidationFailure?{status:'invalid',diagnostic:error.diagnostic}:{status:'invalid',diagnostic:{code:'INVALID_CONFIG',reason:'BAD_SPEC',path:'spec',message:'BAD_SPEC'}};}
 }

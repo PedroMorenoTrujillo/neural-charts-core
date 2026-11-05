@@ -102,7 +102,7 @@ export function planBullet(input: PlanBulletSpec, inputOptions: PlanOptions): Pl
         observations.push({id, label: labels.get(point.x)!, seriesName: row.name, color: row.color,
           value: measure ? point.y! : target!, x: horizontal ? valuePosition : center, y: horizontal ? center : valuePosition,
           group: {key: point.x, label: labels.get(point.x)!, coordinate: categoryScale.value.center(point.x)!},
-          bullet: {kind: measure ? 'measure' : 'target', measure: point.y, ...(target === undefined ? {} : {target})},
+          bullet: {type: measure ? 'measure' : 'target', measure: point.y, ...(target === undefined ? {} : {target})},
           hit: comparisonHit(left, top, right, bottom, plot)});
       }
       series.push({id: row.id, name: row.name, color: row.color, bars, circles});
@@ -119,8 +119,8 @@ export function planBullet(input: PlanBulletSpec, inputOptions: PlanOptions): Pl
     const categoryLabels = spec.axes.x.values.flatMap(category => {const coordinate = categoryScale.value.center(category.id); return coordinate === null ? [] : [{id: category.id, label: category.label, coordinate}];});
     const frame: PlanBulletFrame = {schema: 'nc-plan/1', family: 'bullet', title: spec.title, description: spec.description ?? '', unit: spec.axes.y.unit ?? '', width: options.width, height: options.height,
       legend: spec.series.map(row => ({id: row.id, name: row.name, color: row.color, visible: !options.hidden.has(row.id)})), series, observations,
-      labels: horizontal ? projection.ticks.map(tick => ({x: tick.position, label: tick.label, value: tick.value, kind: 'number' as const})) : categoryLabels.map(category => ({x: category.coordinate, label: category.label})),
-      grid: horizontal ? [] : projection.ticks.map(tick => ({y: tick.position, label: tick.label, value: tick.value, kind: 'number' as const})),
+      labels: horizontal ? projection.ticks.map(tick => ({x: tick.position, label: tick.label, value: tick.value, type: 'number' as const})) : categoryLabels.map(category => ({x: category.coordinate, label: category.label})),
+      grid: horizontal ? [] : projection.ticks.map(tick => ({y: tick.position, label: tick.label, value: tick.value, type: 'number' as const})),
       ...(horizontal ? {yLabels: categoryLabels.map(category => ({id: category.id, label: category.label, y: category.coordinate}))} : {}), references,
       bulletData: spec.series.flatMap(row => row.data.map(point => ({id: {seriesId: row.id, pointId: point.id}, categoryId: point.x, measure: point.y, ...(point.target === undefined ? {} : {target: point.target}), visible: !options.hidden.has(row.id)}))),
       bulletBands, bulletTargets, bulletOrientation: orientation,

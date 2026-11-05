@@ -4,7 +4,7 @@ import type {PlanVariwideResult, PlanVariwideSpec} from '../../src/public/variwi
 
 const size = {width: 400, height: 320};
 function spec(values: readonly Readonly<{y: number | null; z: number | null}>[] = [{y: 12, z: 1}, {y: 8, z: 2}, {y: -3, z: 3}]): PlanVariwideSpec {
-  return {family: 'variwide', title: 'Output and capacity', axes: {x: {kind: 'category', values: values.map((_, i) => ({id: `c${i}`, label: `Category ${i}`}))}, y: {kind: 'linear', domain: [-10, 20]}},
+  return {family: 'variwide', title: 'Output and capacity', axes: {x: {type: 'category', values: values.map((_, i) => ({id: `c${i}`, label: `Category ${i}`}))}, y: {type: 'linear', domain: [-10, 20]}},
     series: [{id: 'output', name: 'Output', data: values.map((value, i) => ({id: `p${i}`, x: `c${i}`, ...value}))}]};
 }
 function frame(result: PlanVariwideResult) {if (result.status === 'invalid') throw new Error(JSON.stringify(result.diagnostic)); return result.frame;}
@@ -62,7 +62,7 @@ describe('variwide source and geometry', () => {
     const result = frame(planVariwide(spec([{y: 0, z: 1}]), size));
     expect(result.observations[0]).toMatchObject({id: {seriesId: 'output', pointId: 'p0'}, value: 0});
     expect(result.series[0]!.bars).toEqual([]); expect(result.series[0]!.circles).toHaveLength(1);
-    expect(result.observations[0]!.hit).toMatchObject({kind: 'polygon'});
+    expect(result.observations[0]!.hit).toMatchObject({type: 'polygon'});
   });
 
   it('reflects actual weighted category bands when reversed', () => {

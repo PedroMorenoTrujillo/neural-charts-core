@@ -8,7 +8,7 @@ import { projectStacked, pickStacked } from '../../src/stacked/geometry.js';
 function value<T>(result: ChartResult<T>): T { if (result.status !== 'ok') throw Error(JSON.stringify(result)); return result.value; }
 const state = Object.freeze({ hiddenSeriesIds: Object.freeze([]) });
 function input(horizontal: boolean): ColumnChartSpec {
-  return { family: 'column', title: 'Stable duplicate categories', orientation: horizontal ? 'horizontal' : 'vertical', axes: { x: { kind: 'category', values: [{ id: 'a', label: 'January' }, { id: 'b', label: 'January' }, { id: 'c', label: 'March' }] }, y: { kind: 'linear' } }, series: [{ id: 'actual', name: 'Actual', data: [{ id: 'a1', x: 'a', y: 4 }, { id: 'b1', x: 'b', y: -2 }, { id: 'c1', x: 'c', y: 0 }] }, { id: 'target', name: 'Target', data: [{ id: 'a2', x: 'a', y: 2 }, { id: 'b2', x: 'b', y: 3 }, { id: 'c2', x: 'c', y: 5 }] }] };
+  return { family: 'column', title: 'Stable duplicate categories', orientation: horizontal ? 'horizontal' : 'vertical', axes: { x: { type: 'category', values: [{ id: 'a', label: 'January' }, { id: 'b', label: 'January' }, { id: 'c', label: 'March' }] }, y: { type: 'linear' } }, series: [{ id: 'actual', name: 'Actual', data: [{ id: 'a1', x: 'a', y: 4 }, { id: 'b1', x: 'b', y: -2 }, { id: 'c1', x: 'c', y: 0 }] }, { id: 'target', name: 'Target', data: [{ id: 'a2', x: 'a', y: 2 }, { id: 'b2', x: 'b', y: 3 }, { id: 'c2', x: 'c', y: 5 }] }] };
 }
 for (const horizontal of [false, true]) {
   test('grouped viewport retains global category identity and translates its local band hit index; horizontal=' + horizontal, () => {

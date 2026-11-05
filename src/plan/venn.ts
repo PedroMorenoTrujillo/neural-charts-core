@@ -64,7 +64,7 @@ export function planVenn(input:PlanVennSpec,inputOptions:PlanOptions):PlanVennRe
       if(measure.value===null)continue;
       const anchor=anchors.get(measure.mask),set=sets.find(set=>set.id===measure.members[0])!;
       observations.push({id:{seriesId:set.id,pointId:measure.id},label:measure.label,seriesName:measure.label,value:measure.value,x:anchor?.x??width/2,y:anchor?.y??height/2,color:set.color,
-        venn:{kind:'inclusive-intersection',sets:measure.members,mask:measure.mask,geometry:anchor?'placed':'omitted'}});
+        venn:{type:'inclusive-intersection',sets:measure.members,mask:measure.mask,geometry:anchor?'placed':'omitted'}});
       if(anchor&&anchor.clearance>=10){const size=anchor.clearance*Math.SQRT2;annotations.push({x:anchor.x,y:anchor.y,text:String(measure.value),role:'value',box:{width:size,height:size,seriesId:set.id}});}
     }
     const series:PlanSeries[]=visible.map(set=>({id:set.id,name:set.label,color:set.color,circles:circles.filter(c=>c.id===set.id&&c.radius>0).map(c=>({pointId:byMask.get(set.bit)!.id,cx:c.cx,cy:c.cy,radius:c.radius}))}));

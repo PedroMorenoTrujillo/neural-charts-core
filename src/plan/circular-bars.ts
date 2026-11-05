@@ -13,14 +13,14 @@ const at=(cx:number,cy:number,r:number,a:number)=>({x:cx+Math.sin(a)*r,y:cy-Math
 /** Closed exact annular sectors, including two-arc complete circles. */
 function sector(cx:number,cy:number,inner:number,outer:number,start:number,end:number):PlanCommand[]{
   if(outer<=inner||end<=start)return [];
-  const arc=(r:number,a:number,sweep:0|1,largeArc:0|1):PlanCommand=>({kind:'A',radius:r,sweep,largeArc,...at(cx,cy,r,a)});
+  const arc=(r:number,a:number,sweep:0|1,largeArc:0|1):PlanCommand=>({type:'A',radius:r,sweep,largeArc,...at(cx,cy,r,a)});
   const full=end-start>=tau-1e-12;
-  const commands:PlanCommand[]=[{kind:'M',...at(cx,cy,outer,start)}];
+  const commands:PlanCommand[]=[{type:'M',...at(cx,cy,outer,start)}];
   if(full)commands.push(arc(outer,start+Math.PI,1,0),arc(outer,end,1,0));
   else commands.push(arc(outer,end,1,end-start>Math.PI?1:0));
-  commands.push({kind:'L',...at(cx,cy,inner,end)});
+  commands.push({type:'L',...at(cx,cy,inner,end)});
   if(inner>0){if(full)commands.push(arc(inner,start+Math.PI,0,0),arc(inner,start,0,0));else commands.push(arc(inner,start,0,end-start>Math.PI?1:0));}
-  commands.push({kind:'Z'});return commands;
+  commands.push({type:'Z'});return commands;
 }
 const bad=(reason:string,path:string):PlanResult=>({status:'invalid',diagnostic:{code:'INVALID_CONFIG',reason,path,message:reason}});
 const ratio=(value:unknown,max:number)=>value===undefined||typeof value==='number'&&Number.isFinite(value)&&value>=0&&value<=max;
@@ -39,8 +39,8 @@ export function planCircularBars(spec:PlanWindRoseSpec|PlanRadialBarSpec,options
     if(!Array.isArray(spec.series)||spec.series.length>16)return bad('WIND_ROSE_SERIES_LIMIT','series');
     const {gapRatio:_gap,stacking:_stack,...source}=spec;
     const checked=validateLine({...source,family:'line'});if(checked.status==='invalid')return checked;
-    if(spec.axes.x.kind!=='category'||spec.axes.x.values.length<2||spec.axes.x.values.length>32)return bad('WIND_ROSE_CATEGORY_LIMIT','axes.x');
-    if(Object.keys(spec.axes).some(k=>!['x','y'].includes(k))||Object.keys(spec.axes.x).some(k=>!['kind','values','title'].includes(k))||Object.keys(spec.axes.y).some(k=>!['kind','domain','title','nice','ticks'].includes(k)))return bad('UNKNOWN_RADIAL_AXIS_OPTION','axes');
+    if(spec.axes.x.type!=='category'||spec.axes.x.values.length<2||spec.axes.x.values.length>32)return bad('WIND_ROSE_CATEGORY_LIMIT','axes.x');
+    if(Object.keys(spec.axes).some(k=>!['x','y'].includes(k))||Object.keys(spec.axes.x).some(k=>!['type','values','title'].includes(k))||Object.keys(spec.axes.y).some(k=>!['type','domain','title','nice','ticks'].includes(k)))return bad('UNKNOWN_RADIAL_AXIS_OPTION','axes');
     if(spec.series.some(s=>Object.keys(s).some(k=>!['id','name','color','data'].includes(k))))return bad('BAD_WIND_ROSE_SERIES','series');
     if(spec.series.reduce((n,s)=>n+s.data.length,0)>512)return bad('WIND_ROSE_INPUT_LIMIT','series');
     if(spec.series.some(s=>s.data.some((p:FrequencyPoint)=>p.y!==null&&p.y<0)))return bad('NONNEGATIVE_FREQUENCY_REQUIRED','series.data.y');
@@ -69,7 +69,7 @@ export function planCircularBars(spec:PlanWindRoseSpec|PlanRadialBarSpec,options
         const inner=scale.value.map(low)!,outer=scale.value.map(high)!,angle=ci/categories.length*tau,half=(1-gap)*Math.PI/categories.length,start=angle-half,end=angle+half;
         commands.push(...sector(cx,cy,inner,outer,start,end));
         const anchor=at(cx,cy,(inner+outer)/2,angle);
-        observations.push({id:{seriesId:s.id,pointId:p.id},label:c.label??c.id,seriesName:s.name,value:p.y,color,...anchor,...(percentage===undefined?{}:{percentage}),...(!total.complete?{incomplete:true}:{}),...(outer>inner?{hit:{kind:'sector',cx,cy,radius:outer,innerRadius:inner,start,end}}:{})});
+        observations.push({id:{seriesId:s.id,pointId:p.id},label:c.label??c.id,seriesName:s.name,value:p.y,color,...anchor,...(percentage===undefined?{}:{percentage}),...(!total.complete?{incomplete:true}:{}),...(outer>inner?{hit:{type:'sector',cx,cy,radius:outer,innerRadius:inner,start,end}}:{})});
       }
       series.push({id:s.id,name:s.name,color,commands,fill:true});
     }
@@ -90,7 +90,7 @@ export function planCircularBars(spec:PlanWindRoseSpec|PlanRadialBarSpec,options
     if(hidden.has(p.id)||p.value===null)continue;
     const outer=radius-i*band-gap*band/2,low=radius-(i+1)*band+gap*band/2,end=angleScale.value.map(p.value)!,color=legend[i]!.color,commands=sector(cx,cy,low,outer,0,end),anchor=at(cx,cy,(outer+low)/2,end/2);
     series.push({id:p.id,name:p.label,color,commands,fill:true});
-    observations.push({id:{seriesId:p.id,pointId:p.id},label:p.label,seriesName:spec.title,value:p.value,color,...anchor,...(end>0?{hit:{kind:'sector',cx,cy,radius:outer,innerRadius:low,start:0,end}}:{})});
+    observations.push({id:{seriesId:p.id,pointId:p.id},label:p.label,seriesName:spec.title,value:p.value,color,...anchor,...(end>0?{hit:{type:'sector',cx,cy,radius:outer,innerRadius:low,start:0,end}}:{})});
   }
   return freezePlan({status:observations.length?'ok':'empty',frame:{schema:'nc-plan/1',family:spec.family,title:spec.title,description:spec.description??'',unit:spec.unit??'',width,height,legend,series,observations,grid:[],labels:[],polarGrid:{cx,cy,radius,rings:[],spokes:[]}}});
 }

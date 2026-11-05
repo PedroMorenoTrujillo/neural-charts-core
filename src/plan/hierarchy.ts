@@ -43,7 +43,7 @@ function connector(curve:CubicSegment,plot:Plot,commands:PlanCommand[]):void{
     const segment=item.curve.d.x<item.curve.a.x?{a:item.curve.d,b:item.curve.c,c:item.curve.b,d:item.curve.a}:item.curve;
     const flat=flattenCubics([segment],.3,Math.floor((1000000-commands.length)/2));if(flat.status==='invalid')throw new ValidationFailure(flat.diagnostic);
     let previous:Vertex|undefined;
-    for(const point of flat.value){if(point.kind==='Z'||point.kind==='A')continue;if(previous){const line=clip(previous,point,plot);if(line)commands.push({kind:'M',...line[0]},{kind:'L',...line[1]});}previous=point;}
+    for(const point of flat.value){if(point.type==='Z'||point.type==='A')continue;if(previous){const line=clip(previous,point,plot);if(line)commands.push({type:'M',...line[0]},{type:'L',...line[1]});}previous=point;}
     if(commands.length>1000000)fail('links','RESOURCE_LIMIT');
   }
 }
@@ -85,11 +85,11 @@ export function planHierarchy(spec:PlanSunburstSpec|PlanNodeGraphSpec,options:Pl
         const point=(a:number,length:number):Vertex=>({x:cx+Math.sin(a)*length,y:cy-Math.cos(a)*length});
         const painted=r.weight>0&&end>start,full=end-start===Math.PI*2;
         if(painted){
-          if(full){const top=point(0,radius),bottom=point(Math.PI,radius);group.commands.push({kind:'M',...top},{kind:'A',radius,largeArc:0,sweep:1,...bottom},{kind:'A',radius,largeArc:0,sweep:1,...top});if(inner>0){const itop=point(0,inner),ibottom=point(Math.PI,inner);group.commands.push({kind:'Z'},{kind:'M',...itop},{kind:'A',radius:inner,largeArc:0,sweep:0,...ibottom},{kind:'A',radius:inner,largeArc:0,sweep:0,...itop});}group.commands.push({kind:'Z'});}
-          else{group.commands.push({kind:'M',...point(start,inner)},{kind:'L',...point(start,radius)},{kind:'A',radius,largeArc:end-start>Math.PI?1:0,sweep:1,...point(end,radius)},{kind:'L',...point(end,inner)});if(inner>0)group.commands.push({kind:'A',radius:inner,largeArc:end-start>Math.PI?1:0,sweep:0,...point(start,inner)});group.commands.push({kind:'Z'});}
+          if(full){const top=point(0,radius),bottom=point(Math.PI,radius);group.commands.push({type:'M',...top},{type:'A',radius,largeArc:0,sweep:1,...bottom},{type:'A',radius,largeArc:0,sweep:1,...top});if(inner>0){const itop=point(0,inner),ibottom=point(Math.PI,inner);group.commands.push({type:'Z'},{type:'M',...itop},{type:'A',radius:inner,largeArc:0,sweep:0,...ibottom},{type:'A',radius:inner,largeArc:0,sweep:0,...itop});}group.commands.push({type:'Z'});}
+          else{group.commands.push({type:'M',...point(start,inner)},{type:'L',...point(start,radius)},{type:'A',radius,largeArc:end-start>Math.PI?1:0,sweep:1,...point(end,radius)},{type:'L',...point(end,inner)});if(inner>0)group.commands.push({type:'A',radius:inner,largeArc:end-start>Math.PI?1:0,sweep:0,...point(start,inner)});group.commands.push({type:'Z'});}
         }
         const label=r.node.label??r.node.id,p=r.depth===0?{x:cx,y:cy}:point(mid,anchor);
-        observations.push({id:{seriesId:groupId,pointId:r.node.id},label,seriesName:name,value:branch?r.weight:r.node.value!,x:p.x,y:p.y,color,...(branch?{subtotal:true}:{}),...(r.missing?{incomplete:true}:{}),...(painted?{hit:{kind:'sector' as const,cx,cy,radius,innerRadius:inner,start,end}}:{})});
+        observations.push({id:{seriesId:groupId,pointId:r.node.id},label,seriesName:name,value:branch?r.weight:r.node.value!,x:p.x,y:p.y,color,...(branch?{subtotal:true}:{}),...(r.missing?{incomplete:true}:{}),...(painted?{hit:{type:'sector' as const,cx,cy,radius,innerRadius:inner,start,end}}:{})});
         let labelWidth=r.depth===0?radius*1.5:Math.min(100,(end-start)*anchor*.8),labelHeight=Math.min(20,band*.7);
         if(painted&&labelHeight>=14&&!ringLabelFits(p,labelWidth,labelHeight,cx,cy,inner,radius,start,end)){let low=0,high=labelWidth;for(let i=0;i<7;i++){const width=(low+high)/2;if(ringLabelFits(p,width,labelHeight,cx,cy,inner,radius,start,end))low=width;else high=width;}labelWidth=low;}
         if(painted&&annotations.length<64&&labelWidth>=36&&labelHeight>=14&&ringLabelFits(p,labelWidth,labelHeight,cx,cy,inner,radius,start,end)&&p.x-labelWidth/2>=plot.x&&p.x+labelWidth/2<=plot.x+plot.width&&p.y-labelHeight/2>=plot.y&&p.y+labelHeight/2<=plot.y+plot.height)annotations.push({x:p.x,y:p.y,text:boundedLabel(label,labelWidth),role:'label',box:{width:labelWidth,height:labelHeight,seriesId:groupId}});
@@ -124,7 +124,7 @@ export function planHierarchy(spec:PlanSunburstSpec|PlanNodeGraphSpec,options:Pl
     }
     if(horizontal)for(const [id,position]of positions)positions.set(id,{x:position.y,y:position.x});
     const config=options.viewport??{axes:'xy' as const};if(config.axes!=='xy')fail('options.viewport.axes','NODEGRAPH_XY_VIEWPORT_ONLY');
-    const axes={x:{kind:'linear' as const,domain:[0,1] as const,nice:false},y:{kind:'linear' as const,domain:[0,1] as const,nice:false,reversed:true}},domains={x:[0,1] as const,y:[0,1] as const},prepared=preparePlanViewport(axes,domains,config);if(prepared.status==='invalid')return prepared;
+    const axes={x:{type:'linear' as const,domain:[0,1] as const,nice:false},y:{type:'linear' as const,domain:[0,1] as const,nice:false,reversed:true}},domains={x:[0,1] as const,y:[0,1] as const},prepared=preparePlanViewport(axes,domains,config);if(prepared.status==='invalid')return prepared;
     const view=prepared.value,displayed=withViewportDomains(domains,view),xScale=createLinearScale(displayed.x!,[plot.x,plot.x+plot.width],false),yScale=createLinearScale(displayed.y!,[plot.y,plot.y+plot.height],false);if(xScale.status==='invalid')return xScale;if(yScale.status==='invalid')return yScale;
     const map=(id:string):Vertex=>{const p=positions.get(id)!,x=xScale.value.map(p.x),y=yScale.value.map(p.y);if(x===null||y===null)fail('options.viewport','UNREPRESENTABLE_GRAPH_GEOMETRY');return {x,y};};
     const pixels=new Map(visible.map(n=>[n.id,map(n.id)])),rows=new Map<number,number[]>();for(const n of visible){const p=pixels.get(n.id)!;if(p.x>=plot.x-96&&p.x<=plot.x+plot.width+96&&p.y>=plot.y-32&&p.y<=plot.y+plot.height+32){const rank=graph.depth.get(n.id)!,row=rows.get(rank)??[];row.push(horizontal?p.y:p.x);rows.set(rank,row);}}
@@ -135,14 +135,14 @@ export function planHierarchy(spec:PlanSunburstSpec|PlanNodeGraphSpec,options:Pl
     const linkCommands:PlanCommand[]=[];
     for(const l of edges){const from=pixels.get(l.from)!,to=pixels.get(l.to)!,offset=family==='treegraph'?radius:horizontal?boxWidth/2:boxHeight/2,start=horizontal?{x:from.x+offset,y:from.y}:{x:from.x,y:from.y+offset},end=horizontal?{x:to.x-offset,y:to.y}:{x:to.x,y:to.y-offset},middle=horizontal?start.x/2+end.x/2:start.y/2+end.y/2,first=horizontal?{x:middle,y:start.y}:{x:start.x,y:middle},last=horizontal?{x:middle,y:end.y}:{x:end.x,y:middle};
       if(family==='treegraph')connector({a:start,b:first,c:last,d:end},plot,linkCommands);
-      else{const points=[start,first,last,end];for(let i=1;i<points.length;i++){const segment=clip(points[i-1]!,points[i]!,plot);if(segment)linkCommands.push({kind:'M',...segment[0]},{kind:'L',...segment[1]});}}
+      else{const points=[start,first,last,end];for(let i=1;i<points.length;i++){const segment=clip(points[i-1]!,points[i]!,plot);if(segment)linkCommands.push({type:'M',...segment[0]},{type:'L',...segment[1]});}}
     }
     const legend=[...groups.values()].map((g,i)=>({id:g.id,name:g.label,color:palette[i%palette.length]!,visible:!hidden.includes(g.id)})),marks=new Map<string,{circles:PlanCircle[];bars:PlanBar[]}>(),observations:PlanObservation[]=[],annotations:PlanAnnotation[]=[];for(const g of legend)if(g.visible)marks.set(g.id,{circles:[],bars:[]});
     for(const n of visible){
       const p=pixels.get(n.id)!,group=legend.find(g=>g.id===n.groupId)!,paint=marks.get(n.groupId)!;let hit:PlanObservation['hit'];
       const anchor={x:Math.max(plot.x,Math.min(plot.x+plot.width,p.x)),y:Math.max(plot.y,Math.min(plot.y+plot.height,p.y))};
-      if(family==='treegraph'){if(Math.hypot(p.x-anchor.x,p.y-anchor.y)>=radius)continue;paint.circles.push({pointId:n.id,cx:p.x,cy:p.y,radius});hit={kind:'circle',cx:p.x,cy:p.y,radius};}
-      else{const x=Math.max(plot.x,p.x-boxWidth/2),y=Math.max(plot.y,p.y-boxHeight/2),right=Math.min(plot.x+plot.width,p.x+boxWidth/2),bottom=Math.min(plot.y+plot.height,p.y+boxHeight/2);if(right<=x||bottom<=y)continue;paint.bars.push({pointId:n.id,x,y,width:right-x,height:bottom-y});hit={kind:'polygon',vertices:[{x,y},{x:right,y},{x:right,y:bottom},{x,y:bottom}]};}
+      if(family==='treegraph'){if(Math.hypot(p.x-anchor.x,p.y-anchor.y)>=radius)continue;paint.circles.push({pointId:n.id,cx:p.x,cy:p.y,radius});hit={type:'circle',cx:p.x,cy:p.y,radius};}
+      else{const x=Math.max(plot.x,p.x-boxWidth/2),y=Math.max(plot.y,p.y-boxHeight/2),right=Math.min(plot.x+plot.width,p.x+boxWidth/2),bottom=Math.min(plot.y+plot.height,p.y+boxHeight/2);if(right<=x||bottom<=y)continue;paint.bars.push({pointId:n.id,x,y,width:right-x,height:bottom-y});hit={type:'polygon',vertices:[{x,y},{x:right,y},{x:right,y:bottom},{x,y:bottom}]};}
       const incoming=graph.incoming.get(n.id)!.length,outgoing=graph.outgoing.get(n.id)!.length;observations.push({id:{seriesId:n.groupId,pointId:n.id},label:n.label,seriesName:group.name,value:incoming+outgoing,node:{incoming,outgoing,depth:graph.depth.get(n.id)!},x:anchor.x,y:anchor.y,color:group.color,hit});
       const labelWidth=family==='organization'?boxWidth-8:Math.min(120,plot.width*.9,horizontal?rankGap*.9:horizontalGap*.9),labelHeight=16,labelY=family==='organization'?p.y:p.y+radius+11;
       const rowGap=horizontal?horizontalGap:plot.height/(maxDepth+1)/(displayed.y![1]-displayed.y![0]);

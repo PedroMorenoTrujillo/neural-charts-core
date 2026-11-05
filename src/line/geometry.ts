@@ -14,7 +14,7 @@ export type ProjectedPoint<T> = Readonly<{ point: LinePoint<T>; x: number; y: nu
 export type ProjectedSeries<T> = Readonly<{ series: NormalizedSeries<T>; points: readonly ProjectedPoint<T>[]; eligible: readonly ProjectedPoint<T>[]; markers: readonly ProjectedPoint<T>[]; commands: readonly PathCommand[] }>;
 export type LineProjection<T> = Readonly<{ plot: Plot; series: readonly ProjectedSeries<T>[]; mapX(value: string | number): number | null; mapY(value: number): number | null }>;
 /** Shared segment writer; callers own their command array. */
-function appendLine(commands: PathCommand[], x: number, y: number): void { commands.push(Object.freeze({kind: 'L', x, y})); }
+function appendLine(commands: PathCommand[], x: number, y: number): void { commands.push(Object.freeze({type: 'L', x, y})); }
 export function appendLineSegment(commands: PathCommand[], x0: number, y0: number, x1: number, y1: number, curve: 'straight' | 'step-before' | 'step-after' | 'step-mid'): void {
   if (curve === 'step-before') appendLine(commands, x0, y1);
   else if (curve === 'step-after') appendLine(commands, x1, y0);
@@ -25,7 +25,7 @@ export function runCommands<T>(runs: readonly (readonly ProjectedPoint<T>[])[], 
   const commands: PathCommand[] = [];
   for (const run of runs) {
     if (run.length < 2) continue;
-    const first = run[0]!; commands.push(Object.freeze({ kind: 'M', x: first.x, y: first.y }));
+    const first = run[0]!; commands.push(Object.freeze({ type: 'M', x: first.x, y: first.y }));
     for (let i = 1; i < run.length; i++) {
       const p0 = run[i - 1]!, p1 = run[i]!;
       appendLineSegment(commands, p0.x, p0.y, p1.x, p1.y, curve);
@@ -42,14 +42,14 @@ export function projectLine<T>(data: NormalizedLine<T>, state: ChartState, plot:
   const yScale = createLinearScale(yDomain, yAxis.reversed ? [plot.y, plot.y + plot.height] : [plot.y + plot.height, plot.y], false);
   if (yScale.status === 'invalid') return yScale;
   mapY = yScale.value.map;
-  if (xAxis.kind === 'category') {
+  if (xAxis.type === 'category') {
     const frame = createCategoryFrame(xAxis.values.map(v => v.id), [plot.x, plot.x + plot.width], xAxis.edgeSpacing ?? .5);
     if (frame.status === 'invalid') return frame;
     const scale = createPointScale(frame.value);
     mapX = v => typeof v === 'string' ? scale.center(v) : null;
   } else {
     if (!xDomain) return invalid('INVALID_DOMAIN', 'UNREPRESENTABLE_GEOMETRY', 'axes.x.domain');
-    const scale = (xAxis.kind === 'time' ? createTimeScale : createLinearScale)(xDomain, [plot.x, plot.x + plot.width], false);
+    const scale = (xAxis.type === 'time' ? createTimeScale : createLinearScale)(xDomain, [plot.x, plot.x + plot.width], false);
     if (scale.status === 'invalid') return scale;
     mapX = v => typeof v === 'number' ? scale.value.map(v) : null;
   }

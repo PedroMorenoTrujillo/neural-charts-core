@@ -15,7 +15,7 @@ it('compact density shares the existing inner-width breakpoint and keeps bounded
 });
 it('compact reservations increase usable plot height while retaining both configured titles and numeric domain', () => {
   const frame = shellFrame({ width: 320, height: 240 }, true, ['Completed'], 'bottom', font, 'ltr', measurer);
-  const result = planAxes({ x: { kind: 'category', values: [{ id: 'a' }, { id: 'b' }], title: 'Day' }, y: { kind: 'linear', title: 'Sessions', nice: false }, domains: { x: null, y: [0, 10] }, width: frame.body.width, height: frame.body.height, compact: frame.compact, font, direction: 'ltr', labels: new Map(), measurer });
+  const result = planAxes({ x: { type: 'category', values: [{ id: 'a' }, { id: 'b' }], title: 'Day' }, y: { type: 'linear', title: 'Sessions', nice: false }, domains: { x: null, y: [0, 10] }, width: frame.body.width, height: frame.body.height, compact: frame.compact, font, direction: 'ltr', labels: new Map(), measurer });
   if (result.status !== 'ok') throw Error('Expected valid compact chart');
   // V04 reserves six additional pixels between tick text and the axis title.
   expect(result.value.plot.height).toBe(63); expect(result.value.tooSmall).toBe(false);

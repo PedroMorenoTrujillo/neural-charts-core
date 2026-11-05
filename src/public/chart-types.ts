@@ -12,10 +12,10 @@ export type ChartResult<V> =
   | Readonly<{ status: 'ok'; value: V }>
   | Readonly<{ status: 'invalid'; diagnostic: ChartDiagnostic }>;
 export type ChartStatus =
-  | Readonly<{ kind: 'ready' }>
-  | Readonly<{ kind: 'loading'; message?: string }>
-  | Readonly<{ kind: 'empty'; message?: string }>
-  | Readonly<{ kind: 'error'; message: string }>;
+  | Readonly<{ type: 'ready' }>
+  | Readonly<{ type: 'loading'; message?: string }>
+  | Readonly<{ type: 'empty'; message?: string }>
+  | Readonly<{ type: 'error'; message: string }>;
 export type ChartState = Readonly<{ hiddenSeriesIds: readonly string[] }>;
 export type ChartStateBinding =
   | Readonly<{ mode: 'internal' }>
