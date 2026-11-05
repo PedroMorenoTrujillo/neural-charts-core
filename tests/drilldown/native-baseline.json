@@ -1,0 +1,182 @@
+{
+  "provenance": {
+    "source": "Native src/native/drilldown-state.ts",
+    "sha256": "27aa13af167db0a8b3d91c2f96f4ba45dff8eb48c31c3c4798dbd5dac39dce6d",
+    "note": "Executed pre-extraction Native implementation with valid fixtures; presentation options validator stubbed only to avoid Angular imports."
+  },
+  "data": {
+    "rootId": "overview",
+    "nodes": [
+      {
+        "id": "overview",
+        "data": {
+          "type": "pie",
+          "data": [
+            {
+              "id": "north",
+              "value": 40
+            },
+            {
+              "id": "south",
+              "value": 60
+            }
+          ]
+        }
+      },
+      {
+        "id": "detail",
+        "data": {
+          "type": "column",
+          "series": [
+            {
+              "id": "sales",
+              "data": [
+                {
+                  "id": "q1",
+                  "y": 0
+                },
+                {
+                  "id": "q2",
+                  "y": 25
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "id": "leaf",
+        "data": {
+          "type": "donut",
+          "data": [
+            {
+              "id": "known-zero",
+              "value": 0
+            },
+            {
+              "id": "known",
+              "value": 25
+            }
+          ]
+        }
+      }
+    ],
+    "links": [
+      {
+        "fromNodeId": "overview",
+        "datumId": {
+          "seriesId": "north",
+          "pointId": "north"
+        },
+        "toNodeId": "detail"
+      },
+      {
+        "fromNodeId": "detail",
+        "datumId": {
+          "seriesId": "sales",
+          "pointId": "q1"
+        },
+        "toNodeId": "leaf"
+      }
+    ]
+  },
+  "snapshots": [
+    {
+      "label": "initial",
+      "nodeId": "overview",
+      "trail": [
+        "overview"
+      ],
+      "restored": null
+    },
+    {
+      "label": "remember overview",
+      "nodeId": "overview",
+      "trail": [
+        "overview"
+      ],
+      "restored": {
+        "hiddenSeriesIds": [
+          "south"
+        ]
+      }
+    },
+    {
+      "label": "detail",
+      "nodeId": "detail",
+      "trail": [
+        "overview",
+        "detail"
+      ],
+      "restored": null
+    },
+    {
+      "label": "remember detail",
+      "nodeId": "detail",
+      "trail": [
+        "overview",
+        "detail"
+      ],
+      "restored": {
+        "hiddenSeriesIds": [
+          "sales"
+        ],
+        "viewport": {
+          "x": {
+            "firstId": "q1",
+            "lastId": "q2"
+          },
+          "y": [
+            0,
+            25
+          ]
+        }
+      }
+    },
+    {
+      "label": "known-zero leaf",
+      "nodeId": "leaf",
+      "trail": [
+        "overview",
+        "detail",
+        "leaf"
+      ],
+      "restored": null
+    },
+    {
+      "label": "back detail",
+      "nodeId": "detail",
+      "trail": [
+        "overview",
+        "detail"
+      ],
+      "restored": {
+        "hiddenSeriesIds": [
+          "sales"
+        ],
+        "viewport": {
+          "x": {
+            "firstId": "q1",
+            "lastId": "q2"
+          },
+          "y": [
+            0,
+            25
+          ]
+        }
+      }
+    },
+    {
+      "label": "back overview",
+      "nodeId": "overview",
+      "trail": [
+        "overview"
+      ],
+      "restored": {
+        "hiddenSeriesIds": [
+          "south"
+        ]
+      }
+    }
+  ]
+}
