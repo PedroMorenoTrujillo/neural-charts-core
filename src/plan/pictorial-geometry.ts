@@ -76,6 +76,14 @@ export function presetMesh(name:keyof typeof outlines):Mesh {
   const previous=preparedPresets.get(name);if(previous)return previous;
   const outline=outlines[name];if(!outline)throw new Error('shape.preset');
   const vertices=outline.points.map(([x,y])=>({x,y}));
+  // The generator verifies the exact eight-decimal vertices and winding.
+  const reflected=vertices.slice(1,name==='bottle'?undefined:-1).reverse()
+    .map(({x,y})=>({x:Math.round((1-x)*1e8)/1e8,y}));
+  if(name==='bottle'){
+    const first=vertices[0]!;
+    vertices.unshift({x:Math.round((1-first.x)*1e8)/1e8,y:first.y});
+  }
+  vertices.push(...reflected);
   const mesh=validateMesh({id:'neural-'+name,aspectRatio:outline.aspectRatio,vertices,triangles:triangulate(vertices)});
   const owned=Object.freeze({...mesh,vertices:Object.freeze(mesh.vertices.map(vertex=>Object.freeze(vertex))),triangles:Object.freeze(mesh.triangles.map(triangle=>Object.freeze(triangle)))});
   preparedPresets.set(name,owned);

@@ -1,3 +1,6 @@
+import { readPlanTitle, readPlotSize } from './plan-presentation.js';
+import { boundedGraphLabel as boundedLabel, clipGraphSegment as clip } from './graph-geometry.js';
+import { planningFailure } from './diagnostics.js';
 import {array,choice,fail,number,record,text,ValidationFailure} from '../internal/data/validation.js';
 import {defaultPalette} from '../internal/chart/presentation.js';
 import {createLinearScale} from '../internal/math/linear.js';
@@ -24,12 +27,6 @@ function ringLabelFits(p:Vertex,width:number,height:number,cx:number,cy:number,i
 }
 const blend=(a:Vertex,b:Vertex):Vertex=>({x:a.x/2+b.x/2,y:a.y/2+b.y/2});
 const split=(s:CubicSegment):readonly[CubicSegment,CubicSegment]=>{const ab=blend(s.a,s.b),bc=blend(s.b,s.c),cd=blend(s.c,s.d),abc=blend(ab,bc),bcd=blend(bc,cd),mid=blend(abc,bcd);return [{a:s.a,b:ab,c:abc,d:mid},{a:mid,b:bcd,c:cd,d:s.d}];};
-const ratio=(v:number,a:number,b:number)=>Number.isFinite(b-a)&&Number.isFinite(v-a)?(v-a)/(b-a):(v/2-a/2)/(b/2-a/2);
-function clip(a:Vertex,b:Vertex,p:Plot):readonly[Vertex,Vertex]|null{
-  let low=0,high=1;
-  for(const [axis,start,end]of [['x',p.x,p.x+p.width],['y',p.y,p.y+p.height]] as const){if(a[axis]===b[axis]){if(a[axis]<start||a[axis]>end)return null;continue;}const t1=ratio(start,a[axis],b[axis]),t2=ratio(end,a[axis],b[axis]);low=Math.max(low,Math.min(t1,t2));high=Math.min(high,Math.max(t1,t2));if(high<=low)return null;}
-  const at=(t:number):Vertex=>({x:Math.max(p.x,Math.min(p.x+p.width,a.x*(1-t)+b.x*t)),y:Math.max(p.y,Math.min(p.y+p.height,a.y*(1-t)+b.y*t))});const first=at(low),last=at(high);return first.x===last.x&&first.y===last.y?null:[first,last];
-}
 function connector(curve:CubicSegment,plot:Plot,commands:PlanCommand[]):void{
   const pending=[{curve,depth:0}];
   while(pending.length){
@@ -47,15 +44,14 @@ function connector(curve:CubicSegment,plot:Plot,commands:PlanCommand[]):void{
     if(commands.length>1000000)fail('links','RESOURCE_LIMIT');
   }
 }
-const boundedLabel=(label:string,width:number)=>{const characters=Array.from(label),cap=Math.max(1,Math.floor(width/7));return characters.length<=cap?label:characters.slice(0,Math.max(1,cap-1)).join('')+'…';};
 
 export function planHierarchy(spec:PlanSunburstSpec|PlanNodeGraphSpec,options:PlanOptions):PlanResult{
   try{
     const family=record(spec,['family','title','description','root','nodes','links','groups'],['family'],'spec').family;
     if(!['sunburst','treegraph','organization'].includes(family as string))fail('family');
     const input=record(spec,family==='sunburst'?['family','title','description','root']:['family','title','description','nodes','links','groups'],['family','title',...(family==='sunburst'?['root']:['nodes','links'])],'spec');
-    const title=text(input.title,'title'),description=Object.hasOwn(input,'description')?text(input.description,'description',4096,true):'';
-    const opts=record(options,['width','height','hiddenSeriesIds','stacking','viewport','references','hierarchy'],['width','height'],'options'),width=number(opts.width,'options.width',64,10000),height=number(opts.height,'options.height',64,10000),plot={x:16,y:14,width:width-32,height:height-28};
+    const {title,description}=readPlanTitle(input);
+    const opts=record(options,['width','height','hiddenSeriesIds','stacking','viewport','references','hierarchy'],['width','height'],'options'),{width,height}=readPlotSize(opts),plot={x:16,y:14,width:width-32,height:height-28};
     const layout=Object.hasOwn(opts,'hierarchy')?record(opts.hierarchy,['orientation'],[],'options.hierarchy'):{};
     const horizontal=Object.hasOwn(layout,'orientation')?choice(layout.orientation,['horizontal','vertical'],'options.hierarchy.orientation')==='horizontal':false;
     if(Object.hasOwn(opts,'stacking')||Object.hasOwn(opts,'references'))fail('options','UNSUPPORTED_HIERARCHY_OPTION');
@@ -150,5 +146,5 @@ export function planHierarchy(spec:PlanSunburstSpec|PlanNodeGraphSpec,options:Pl
     }
     const series:PlanSeries[]=[...(linkCommands.length?[{id:'links',name:'Links',color:'#8190A5',commands:linkCommands}]:[]),...legend.filter(g=>g.visible).map(g=>({id:g.id,name:g.name,color:g.color,...(family==='treegraph'?{circles:marks.get(g.id)!.circles}:{bars:marks.get(g.id)!.bars})}))];
     return freezePlan({status:observations.length||linkCommands.length?'ok':'empty',frame:{schema:'nc-plan/1',family:family as 'treegraph'|'organization',title,description,unit:'Connections',width,height,legend,series,observations,annotations,grid:[],labels:[],viewport:planViewportState(view,{x:displayed.x,y:displayed.y},axes,plot)!}});
-  }catch(error){return error instanceof ValidationFailure?{status:'invalid',diagnostic:error.diagnostic}:{status:'invalid',diagnostic:{code:'INVALID_CONFIG',reason:'BAD_SPEC',path:'spec',message:'BAD_SPEC'}};}
+  }catch(error){return planningFailure(error);}
 }

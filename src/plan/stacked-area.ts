@@ -1,3 +1,4 @@
+import { planLegend } from './plan-presentation.js';
 import {validateStackedArea} from '../stacked-area/validate.js';
 import {normalizeStackedArea,areaStack,stackAreaDomains} from '../stacked-area/data.js';
 import {projectStackedArea} from '../stacked-area/geometry.js';
@@ -26,7 +27,7 @@ export function planStackedArea(spec:PlanAreaSpec|PlanAreaSplineSpec,options:Pla
   const data=normalizeStackedArea(input),stack=areaStack(data,state);if(stack.status==='invalid')return stack;
   const domains=stackAreaDomains(data,stack.value);if(domains.status==='invalid')return domains;
   const {width,height}=options,plot={x:16,y:14,width:width-32,height:height-28},palette=defaultPalette('light',false).series;
-  const legend=input.series.map((s,i)=>({id:s.id,name:s.name,color:s.color??palette[i%palette.length]!,visible:!hidden.includes(s.id)}));
+  const legend=planLegend(input.series,palette,hidden);
   const base={schema:'nc-plan/1' as const,family:spec.family,width,height,title:input.title,description:input.description??'',unit:input.axes.y.title??'',legend};
   if(!domains.value.y)return freezePlan({status:'empty',frame:withPlanReferences({...base,series:[],observations:[],labels:[],grid:[]},references,undefined,options.referenceBands)});
   const xa=input.axes.x;

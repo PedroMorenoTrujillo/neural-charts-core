@@ -1,4 +1,6 @@
-import {array,fail,number,record,text,ValidationFailure} from '../internal/data/validation.js';
+import { planLegend, readPlotSize } from './plan-presentation.js';
+import { planningFailure } from './diagnostics.js';
+import {array,fail,number,record,text} from '../internal/data/validation.js';
 import {validateStackedArea} from '../stacked-area/validate.js';
 import {normalizeStackedArea,areaStack,stackAreaDomains} from '../stacked-area/data.js';
 import type {AreaStack} from '../stacked-area/data.js';
@@ -27,7 +29,7 @@ export function planStreamgraph(spec:PlanStreamgraphSpec,options:PlanOptions,ref
     for(const [i,s]of array(input.series,16,'series').entries())record(s,['id','name','color','data'],['id','name','data'],'series['+i+']');
     const opts=record(options,['width','height','hiddenSeriesIds','viewport','references','stacking'],['width','height'],'options');
     if(Object.hasOwn(opts,'stacking'))fail('options.stacking','STREAMGRAPH_HAS_FIXED_STACK');
-    const width=number(opts.width,'options.width',64,10000),height=number(opts.height,'options.height',64,10000);
+    const {width,height}=readPlotSize(opts);
     const hidden=Object.hasOwn(opts,'hiddenSeriesIds')?array(opts.hiddenSeriesIds,16,'options.hiddenSeriesIds').map((id,i)=>text(id,'options.hiddenSeriesIds['+i+']',128)):[];
     if(new Set(hidden).size!==hidden.length)fail('options.hiddenSeriesIds','BAD_VISIBILITY');
     const checked=validateStackedArea({...input,family:'stacked-area',stacking:'sum',...(references?{references}:{})});if(checked.status==='invalid')return checked;
@@ -53,7 +55,7 @@ export function planStreamgraph(spec:PlanStreamgraphSpec,options:PlanOptions,ref
     })}));
     const domains=stackAreaDomains(data,centered);if(domains.status==='invalid')return domains;
     const plot={x:16,y:14,width:width-32,height:height-28},palette=defaultPalette('light',false).series;
-    const legend=validated.series.map((s,i)=>({id:s.id,name:s.name,color:s.color??palette[i%palette.length]!,visible:!hidden.includes(s.id)}));
+    const legend=planLegend(validated.series,palette,hidden);
     const base={schema:'nc-plan/1' as const,family:'streamgraph' as const,title:validated.title,description:validated.description??'',unit:validated.axes.y.title??'',width,height,legend};
     if(!domains.value.y)return freezePlan({status:'empty',frame:withPlanReferences({...base,series:[],observations:[],labels:[],grid:[]},references)});
     const xa=validated.axes.x;
@@ -81,5 +83,5 @@ export function planStreamgraph(spec:PlanStreamgraphSpec,options:PlanOptions,ref
     const values=xa.type==='category'?xa.values.map(c=>c.id):xt?.value.ticks??[],labels=values.flatMap(value=>{const x=p.mapX(value);return x===null||x<plot.x||x>plot.x+plot.width?[]:[{x,label:formatAxis(value,xa.type,interval,data.line.labels),...(typeof value==='number'?{value,type:xa.type==='time'?'time' as const:'number' as const}:{})}];});
     const context=p.series.some(s=>s.series.valid.length>0)?{plot,domains:{x:xDomain,y:yDomain},mapX:p.mapX,mapY:p.mapY,...(xa.type==='category'?{categories:referenceCategories(xa.values,plot,p.mapX)}:{})}:undefined;
     return freezePlan({status:observations.length?'ok':'empty',frame:withPlanReferences({...base,series,observations,labels,grid:yt.value.ticks.map(value=>({y:p.mapY(value)!,label:String(value),value:value,type:'number' as const})),...(view?{viewport:planViewportState(view,{x:xDomain,y:yDomain},validated.axes,plot)!}:{})},references,context)});
-  }catch(error){return error instanceof ValidationFailure?{status:'invalid',diagnostic:error.diagnostic}:{status:'invalid',diagnostic:{code:'INVALID_CONFIG',reason:'BAD_SPEC',path:'spec',message:'BAD_SPEC'}};}
+  }catch(error){return planningFailure(error);}
 }

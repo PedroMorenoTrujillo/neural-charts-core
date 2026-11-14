@@ -1,3 +1,4 @@
+import { invalidPlan } from './diagnostics.js';
 import type {PlanFinancialSpec,PlanFinancialPoint,PlanFinancialSeries,PlanFinancialParameters,PlanFinancialValue} from '../public/financial-plan-types.js';
 import type {PlanOptions,PlanResult,PlanFrame,PlanSeries,PlanObservation,PlanCommand,PlanBar,PlanCircle,PlanLineSpec} from '../public/plan-types.js';
 import {financialFamilies,financialParameterKeys} from '../public/financial-plan-types.js';
@@ -8,7 +9,6 @@ import {financialIndicators,type FinancialCalculation} from './financial-indicat
 import {createLinearScale} from '../internal/math/linear.js';
 import {defaultPalette} from '../internal/chart/presentation.js';
 
-const bad=(reason:string,path='spec'):PlanResult=>({status:'invalid',diagnostic:{code:'INVALID_CONFIG',reason,path,message:reason}});
 const rawFamilies=new Set(['ohlc','hlc','candlestick','hollowcandlestick','heikinashi','renko','pointandfigure','flags','vbp']);
 function validate(spec:PlanFinancialSpec,options:PlanOptions):void {
   const capacity=planCapacity(options.capacity);
@@ -58,8 +58,8 @@ function financialXAxis(spec:PlanFinancialSpec,coordinates:readonly number[],ord
   return Number.isFinite(minimum)&&Number.isFinite(maximum)&&minimum<maximum?{...axis,domain:[minimum,maximum]}:axis;
 }
 function volumeProfile(spec:PlanFinancialSpec,options:PlanOptions):PlanResult {
-  const bins=spec.parameters?.period??12;if(bins>256)return bad('VOLUME_PROFILE_BIN_LIMIT');
-  const all=spec.series.flatMap(s=>s.data).filter(p=>p.close!==null);if(all.some(p=>p.volume===undefined))return bad('VOLUME_REQUIRED');
+  const bins=spec.parameters?.period??12;if(bins>256)return invalidPlan('VOLUME_PROFILE_BIN_LIMIT');
+  const all=spec.series.flatMap(s=>s.data).filter(p=>p.close!==null);if(all.some(p=>p.volume===undefined))return invalidPlan('VOLUME_REQUIRED');
   let min=Infinity,max=-Infinity;for(const p of all){min=Math.min(min,p.low!);max=Math.max(max,p.high!);}if(!all.length){min=0;max=1;}if(min===max){min-=.5;max+=.5;}
   const step=(max-min)/bins,categories=Array.from({length:bins},(_,i)=>({id:'price-'+i,label:String(min+step*i)+'–'+String(min+step*(i+1))}));
   const series=spec.series.map(s=>{const values=Array(bins).fill(0) as number[];for(const p of s.data)if(p.close!==null&&p.volume!==null){const price=p.high!/3+p.low!/3+p.close/3,index=Math.max(0,Math.min(bins-1,Math.floor((price-min)/step)));values[index]!+=p.volume??0;}return {id:s.id,name:s.name,...(s.color?{color:s.color}:{}),data:values.map((y,i)=>({id:'price-'+i,x:'price-'+i,y}))};});
@@ -71,7 +71,7 @@ function volumeProfile(spec:PlanFinancialSpec,options:PlanOptions):PlanResult {
 export function planFinancialChart(input:PlanFinancialSpec,configuration:PlanOptions):PlanResult {
   try {
     const options=ownPlanInput(configuration) as PlanOptions,capacity=planCapacity(options.capacity),spec=ownPlanInput(input,capacity) as PlanFinancialSpec;
-    if(Object.keys(options).some(k=>!['width','height','viewport','hiddenSeriesIds','references','referenceBands','capacity'].includes(k)))return bad('UNSUPPORTED_FINANCIAL_OPTION','options');
+    if(Object.keys(options).some(k=>!['width','height','viewport','hiddenSeriesIds','references','referenceBands','capacity'].includes(k)))return invalidPlan('UNSUPPORTED_FINANCIAL_OPTION','options');
     validate(spec,options);if(spec.family==='vbp')return volumeProfile(spec,options);
     const hidden=new Set(options.hiddenSeriesIds??[]),palette=defaultPalette('light',false).series,computed:Computed[]=spec.series.filter(s=>!hidden.has(s.id)).map(source=>({source,points:spec.family==='heikinashi'?heikin(source.data):spec.family==='renko'?bricks(source.data,spec.parameters??{},capacity.points):spec.family==='pointandfigure'?pointFigure(source.data,spec.parameters??{},capacity.points):source.data,...(!rawFamilies.has(spec.family)?{calculation:financialIndicators(spec.family,source.data,spec.parameters)}:{})}));
     const ordinal=spec.family==='renko'||spec.family==='pointandfigure',grouped=['ohlc','hlc','candlestick','hollowcandlestick','heikinashi','renko','pointandfigure'].includes(spec.family);
@@ -122,5 +122,5 @@ export function planFinancialChart(input:PlanFinancialSpec,configuration:PlanOpt
     }
     const frame:PlanFrame={...base,family:spec.family,legend,series,observations,financial:{layout:ordinal?'ordinal':rawFamilies.has(spec.family)?'price':'indicator'},...(spec.family==='flags'?{annotations:computed.flatMap(row=>row.points.flatMap(p=>p.close===null?[]:[{x:x(p.x)!+10,y:y(p.close)!-26,text:p.title??'•',role:'label' as const}]))}:{})};
     return freezePlan({status:observations.length?'ok':'empty',frame});
-  }catch(error){return bad(error instanceof Error?error.message:'BAD_FINANCIAL_SPEC');}
+  }catch(error){return invalidPlan(error instanceof Error?error.message:'BAD_FINANCIAL_SPEC');}
 }

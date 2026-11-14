@@ -1,4 +1,5 @@
-import {array,color,fail,number,record,text,ValidationFailure} from '../internal/data/validation.js';
+import { planningFailure } from './diagnostics.js';
+import {array,color,fail,number,record,text} from '../internal/data/validation.js';
 import {freezePlan} from './input.js';
 import {planRanges} from './ranges.js';
 import type {PlanBar,PlanBoxplotSpec,PlanCommand,PlanErrorbarSpec,PlanFrame,PlanObservation,PlanOptions,PlanRangeSpec,PlanReference,PlanResult,PlanSeries} from '../public/plan-types.js';
@@ -78,5 +79,5 @@ export function planStatisticalRanges(spec:PlanBoxplotSpec|PlanErrorbarSpec,opti
     // Empty source tables do not invoke the geometry callback, but still retain
     // their real public family and legend instead of leaking the range adapter.
     return planned.status==='invalid'?planned:freezePlan({...planned,frame:{...planned.frame,family:box?'boxplot':'errorbar'}});
-  }catch(error){return error instanceof ValidationFailure?{status:'invalid',diagnostic:error.diagnostic}:{status:'invalid',diagnostic:{code:'INVALID_CONFIG',reason:'BAD_SPEC',path:'spec',message:'BAD_SPEC'}};}
+  }catch(error){return planningFailure(error);}
 }

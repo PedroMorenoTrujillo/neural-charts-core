@@ -1,3 +1,4 @@
+import { invalidPlan } from './diagnostics.js';
 import {validateTreemap} from '../treemap/validate.js';
 import {projectTreemap} from '../treemap/geometry.js';
 import {treeColors} from '../treemap/color.js';
@@ -7,13 +8,12 @@ import type {PlanTreemapSpec,PlanOptions,PlanResult,PlanSeries,PlanObservation,P
 
 /** Hierarchy validation, compensated totals and squarified tiling remain owned. */
 export function planTreemap(spec:PlanTreemapSpec,options:PlanOptions):PlanResult{
-  const bad=(reason:string,path:string):PlanResult=>({status:'invalid',diagnostic:{code:'INVALID_CONFIG',reason,path,message:reason}});
-  if(options.hiddenSeriesIds?.length)return bad('TREEMAP_HAS_NO_VISIBILITY_LEGEND','options.hiddenSeriesIds');
+  if(options.hiddenSeriesIds?.length)return invalidPlan('TREEMAP_HAS_NO_VISIBILITY_LEGEND','options.hiddenSeriesIds');
   const checked=validateTreemap(spec);if(checked.status==='invalid')return checked;
   const data=checked.value,nodes=data.hierarchy.nodes;
-  if(nodes.length>512||nodes.some(node=>node.depth>16))return bad('NATIVE_TREE_LIMIT','root');
-  for(const record of nodes){if((record.node.label?.length??0)>200)return bad('LABEL_LIMIT','root.label');if(Object.hasOwn(record.node,'datum')||Object.hasOwn(record.node,'colorValue'))return bad('UNSUPPORTED_TREE_FIELD','root');}
-  if(new Set(nodes.map(node=>node.groupId)).size>16)return bad('TREE_GROUP_LIMIT','root.children');
+  if(nodes.length>512||nodes.some(node=>node.depth>16))return invalidPlan('NATIVE_TREE_LIMIT','root');
+  for(const record of nodes){if((record.node.label?.length??0)>200)return invalidPlan('LABEL_LIMIT','root.label');if(Object.hasOwn(record.node,'datum')||Object.hasOwn(record.node,'colorValue'))return invalidPlan('UNSUPPORTED_TREE_FIELD','root');}
+  if(new Set(nodes.map(node=>node.groupId)).size>16)return invalidPlan('TREE_GROUP_LIMIT','root.children');
   const {width,height}=options,palette=defaultPalette('light',false),colors=treeColors(data,palette);if(colors.status==='invalid')return colors;
   const projected=projectTreemap(data.hierarchy,{x:4,y:4,width:width-8,height:height-8},12,true);if(projected.status==='invalid')return projected;
   const p=projected.value,groups=new Map<string,{id:string;name:string;color:string;bars:PlanBar[]}>(),observations:PlanObservation[]=[],annotations:PlanAnnotation[]=[];

@@ -1,3 +1,4 @@
+import { invalidPlan } from './diagnostics.js';
 import {validateLine} from '../line/validate.js';
 import {finiteExtent,normalizeNumericDomain} from '../internal/math/domain.js';
 import {selectNumericTicks} from '../internal/math/numeric-ticks.js';
@@ -6,31 +7,30 @@ import {defaultPalette} from '../internal/chart/presentation.js';
 import {freezePlan} from './input.js';
 import type {PlanParallelSpec,PlanParallelPoint,PlanParallelAxisFrame,PlanParallelLayout} from '../public/parallel-plan-types.js';
 import type {PlanOptions,PlanResult,PlanSeries,PlanObservation,PlanCommand} from '../public/plan-types.js';
-const bad=(reason:string,path:string):PlanResult=>({status:'invalid',diagnostic:{code:'INVALID_CONFIG',reason,path,message:reason}});
 const text=(v:unknown,max:number)=>typeof v==='string'&&v.length<=max;
 
 /** Independent linear dimensions; no global Y domain is substituted for them. */
 export function planParallel(spec:PlanParallelSpec,options:PlanOptions):PlanResult{
-  if(Object.keys(spec).some(k=>!['family','title','description','axes','series','coordinates'].includes(k)))return bad('UNKNOWN_OPTION','spec');
-  if(options.viewport!==undefined||options.references!==undefined||options.stacking!==undefined)return bad('UNSUPPORTED_PARALLEL_OPTION','options');
-  if(!text(spec.title,200)||spec.description!==undefined&&!text(spec.description,1000))return bad('BAD_DESCRIPTION','title');
-  if(!Array.isArray(spec.axes)||spec.axes.length<2||spec.axes.length>16)return bad('PARALLEL_AXIS_LIMIT','axes');
-  if(!Array.isArray(spec.series)||spec.series.length>16)return bad('PARALLEL_SERIES_LIMIT','series');
-  if(spec.coordinates!==undefined&&!['cartesian','polar'].includes(spec.coordinates))return bad('BAD_COORDINATES','coordinates');
-  const polar=spec.coordinates==='polar';if(polar&&spec.axes.length<3)return bad('POLAR_PARALLEL_REQUIRES_THREE_AXES','axes');
+  if(Object.keys(spec).some(k=>!['family','title','description','axes','series','coordinates'].includes(k)))return invalidPlan('UNKNOWN_OPTION','spec');
+  if(options.viewport!==undefined||options.references!==undefined||options.stacking!==undefined)return invalidPlan('UNSUPPORTED_PARALLEL_OPTION','options');
+  if(!text(spec.title,200)||spec.description!==undefined&&!text(spec.description,1000))return invalidPlan('BAD_DESCRIPTION','title');
+  if(!Array.isArray(spec.axes)||spec.axes.length<2||spec.axes.length>16)return invalidPlan('PARALLEL_AXIS_LIMIT','axes');
+  if(!Array.isArray(spec.series)||spec.series.length>16)return invalidPlan('PARALLEL_SERIES_LIMIT','series');
+  if(spec.coordinates!==undefined&&!['cartesian','polar'].includes(spec.coordinates))return invalidPlan('BAD_COORDINATES','coordinates');
+  const polar=spec.coordinates==='polar';if(polar&&spec.axes.length<3)return invalidPlan('POLAR_PARALLEL_REQUIRES_THREE_AXES','axes');
   const axisIds=new Set<string>();
   for(const [i,a]of spec.axes.entries()){
-    if(!a||typeof a!=='object'||Object.keys(a).some(k=>!['id','label','type','unit','domain','reversed','nice','ticks'].includes(k))||a.type!=='linear'||!text(a.id,128)||!a.id||axisIds.has(a.id)||a.label!==undefined&&!text(a.label,200)||a.unit!==undefined&&!text(a.unit,64)||a.reversed!==undefined&&typeof a.reversed!=='boolean'||a.nice!==undefined&&typeof a.nice!=='boolean')return bad('BAD_PARALLEL_AXIS','axes.'+i);
-    if(a.ticks!==undefined&&(!a.ticks||typeof a.ticks!=='object'||Array.isArray(a.ticks)||Object.keys(a.ticks).some(k=>k!=='targetCount')))return bad('BAD_PARALLEL_TICKS','axes.'+i+'.ticks');
+    if(!a||typeof a!=='object'||Object.keys(a).some(k=>!['id','label','type','unit','domain','reversed','nice','ticks'].includes(k))||a.type!=='linear'||!text(a.id,128)||!a.id||axisIds.has(a.id)||a.label!==undefined&&!text(a.label,200)||a.unit!==undefined&&!text(a.unit,64)||a.reversed!==undefined&&typeof a.reversed!=='boolean'||a.nice!==undefined&&typeof a.nice!=='boolean')return invalidPlan('BAD_PARALLEL_AXIS','axes.'+i);
+    if(a.ticks!==undefined&&(!a.ticks||typeof a.ticks!=='object'||Array.isArray(a.ticks)||Object.keys(a.ticks).some(k=>k!=='targetCount')))return invalidPlan('BAD_PARALLEL_TICKS','axes.'+i+'.ticks');
     axisIds.add(a.id);
   }
   const checked=validateLine({family:'line',title:spec.title,...(spec.description===undefined?{}:{description:spec.description}),axes:{x:{type:'category',values:spec.axes.map(a=>({id:a.id,...(a.label===undefined?{}:{label:a.label})}))},y:{type:'linear'}},series:spec.series.map(s=>({...s,data:Array.isArray(s?.data)?s.data.map((p:PlanParallelPoint)=>({id:p?.id,x:p?.axisId,y:p?.value})):s?.data}))});if(checked.status==='invalid')return checked;
   for(const s of spec.series){
-    if(Object.keys(s).some(k=>!['id','name','color','data'].includes(k)))return bad('BAD_PARALLEL_SERIES','series');
-    if(s.data.some((p:PlanParallelPoint)=>Object.keys(p).some(k=>!['id','axisId','value'].includes(k))))return bad('BAD_PARALLEL_POINT','series.data');
-    if(new Set(s.data.map((p:PlanParallelPoint)=>p.axisId)).size!==s.data.length)return bad('DUPLICATE_PARALLEL_COORDINATE','series.data.axisId');
+    if(Object.keys(s).some(k=>!['id','name','color','data'].includes(k)))return invalidPlan('BAD_PARALLEL_SERIES','series');
+    if(s.data.some((p:PlanParallelPoint)=>Object.keys(p).some(k=>!['id','axisId','value'].includes(k))))return invalidPlan('BAD_PARALLEL_POINT','series.data');
+    if(new Set(s.data.map((p:PlanParallelPoint)=>p.axisId)).size!==s.data.length)return invalidPlan('DUPLICATE_PARALLEL_COORDINATE','series.data.axisId');
   }
-  const hidden=new Set(options.hiddenSeriesIds??[]);if([...hidden].some(id=>!spec.series.some(s=>s.id===id)))return bad('UNKNOWN_SERIES','options.hiddenSeriesIds');
+  const hidden=new Set(options.hiddenSeriesIds??[]);if([...hidden].some(id=>!spec.series.some(s=>s.id===id)))return invalidPlan('UNKNOWN_SERIES','options.hiddenSeriesIds');
   const source:PlanParallelSpec['series']=spec.series,indexes=source.map(s=>new Map(s.data.map(p=>[p.axisId,p])));
   const {width,height}=options,cx=width/2,cy=height/2,inset=Math.min(44,Math.min(width,height)*.16),radius=Math.min(width,height)/2-inset;
   const left=Math.min(40,width*.15),right=width-left,top=Math.min(36,height*.2),bottom=height-Math.min(28,height*.16);
@@ -38,7 +38,7 @@ export function planParallel(spec:PlanParallelSpec,options:PlanOptions):PlanResu
   for(const [i,a]of spec.axes.entries()){
     const values=indexes.flatMap(index=>{const p=index.get(a.id);return !p||p.value===null?[]:[p.value];});
     const normalized=normalizeNumericDomain(finiteExtent(values),{includeZero:false,...(a.domain===undefined?{}:{explicit:a.domain})});if(normalized.status==='invalid')return normalized;
-    if(a.domain&&values.some(v=>v<a.domain![0]||v>a.domain![1]))return bad('PARALLEL_DOMAIN_EXCLUDES_SOURCE','axes.'+i+'.domain');
+    if(a.domain&&values.some(v=>v<a.domain![0]||v>a.domain![1]))return invalidPlan('PARALLEL_DOMAIN_EXCLUDES_SOURCE','axes.'+i+'.domain');
     const angle=i/spec.axes.length*Math.PI*2,x=left+(right-left)*i/(spec.axes.length-1);
     const from=polar?{x:cx,y:cy}:{x,y:bottom},to=polar?{x:cx+Math.sin(angle)*radius,y:cy-Math.cos(angle)*radius}:{x,y:top};
     const labelRadius=Math.min(radius+18,Math.min(width,height)/2-4);

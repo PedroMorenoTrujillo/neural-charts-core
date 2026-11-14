@@ -1,3 +1,4 @@
+import { invalidPlan } from './diagnostics.js';
 import {planRanges} from './ranges.js';
 import type {RangeGlyphContext} from './ranges.js';
 import {freezePlan} from './input.js';
@@ -5,7 +6,6 @@ import {validatePlanReferences} from './references.js';
 import {defaultPalette} from '../internal/chart/presentation.js';
 import type {PlanFanSpec,PlanFanBand,PlanFanPoint} from '../public/fan-plan-types.js';
 import type {PlanOptions,PlanResult,PlanRangeSpec,PlanRangeSeries,PlanFrame,PlanCommand} from '../public/plan-types.js';
-const bad=(reason:string,path:string):PlanResult=>({status:'invalid',diagnostic:{code:'INVALID_CONFIG',reason,path,message:reason}});
 const text=(v:unknown,max:number)=>typeof v==='string'&&v.length>0&&v.length<=max;
 function categoryFan(spec:PlanFanSpec):spec is Extract<PlanFanSpec,{axes:{x:{type:'category'}}}>{return spec.axes?.x?.type==='category';}
 function rangeSeries<TX extends string|number>(data:readonly PlanFanPoint<TX>[],bands:readonly PlanFanBand[],name:string,color:string,bandColor:string):readonly PlanRangeSeries<TX>[] {
@@ -21,24 +21,24 @@ function rangeSource(spec:PlanFanSpec,bands:readonly PlanFanBand[]):PlanRangeSpe
 }
 /** One shared range-owner frame, including the central estimate in the same domain. */
 export function planFan(spec:PlanFanSpec,options:PlanOptions):PlanResult{
-  if(Object.keys(spec).some(k=>!['family','title','description','axes','bands','data','centerName','centerColor'].includes(k))||!Array.isArray(spec.bands)||spec.bands.length<1||spec.bands.length>6||!Array.isArray(spec.data)||spec.data.length>1024)return bad('BAD_FAN_SOURCE','spec');
-  if(!spec.axes?.x||!['category','linear','time'].includes(spec.axes.x.type))return bad('BAD_FAN_AXIS','axes.x');
-  if(spec.centerName!==undefined&&!text(spec.centerName,200)||spec.centerColor!==undefined&&!/^#[\da-f]{6}$/i.test(spec.centerColor))return bad('BAD_FAN_PRESENTATION','spec');
+  if(Object.keys(spec).some(k=>!['family','title','description','axes','bands','data','centerName','centerColor'].includes(k))||!Array.isArray(spec.bands)||spec.bands.length<1||spec.bands.length>6||!Array.isArray(spec.data)||spec.data.length>1024)return invalidPlan('BAD_FAN_SOURCE','spec');
+  if(!spec.axes?.x||!['category','linear','time'].includes(spec.axes.x.type))return invalidPlan('BAD_FAN_AXIS','axes.x');
+  if(spec.centerName!==undefined&&!text(spec.centerName,200)||spec.centerColor!==undefined&&!/^#[\da-f]{6}$/i.test(spec.centerColor))return invalidPlan('BAD_FAN_PRESENTATION','spec');
   const ids=new Set<string>(['center']),bands:readonly PlanFanBand[]=spec.bands,data:readonly PlanFanPoint[]=spec.data,pointIds=new Set<string>();let previous=0;
   for(const [i,b]of bands.entries()){
-    if(!b||Object.keys(b).some(k=>!['id','label','coverage','color'].includes(k))||!text(b.id,64)||ids.has(b.id)||!text(b.label,200)||!Number.isFinite(b.coverage)||b.coverage<=previous||b.coverage>=1||b.color!==undefined&&!/^#[\da-f]{6}$/i.test(b.color))return bad('BAD_FAN_BAND','bands['+i+']');
+    if(!b||Object.keys(b).some(k=>!['id','label','coverage','color'].includes(k))||!text(b.id,64)||ids.has(b.id)||!text(b.label,200)||!Number.isFinite(b.coverage)||b.coverage<=previous||b.coverage>=1||b.color!==undefined&&!/^#[\da-f]{6}$/i.test(b.color))return invalidPlan('BAD_FAN_BAND','bands['+i+']');
     ids.add(b.id);previous=b.coverage;
   }
   for(const [i,p]of data.entries()){
     const path='data['+i+']';
-    if(!p||Object.keys(p).some(k=>!['id','x','value','intervals'].includes(k))||!text(p.id,64)||pointIds.has(p.id)||p.value!==null&&!Number.isFinite(p.value)||!Array.isArray(p.intervals)||p.intervals.length>bands.length)return bad('BAD_FAN_POINT',path);
+    if(!p||Object.keys(p).some(k=>!['id','x','value','intervals'].includes(k))||!text(p.id,64)||pointIds.has(p.id)||p.value!==null&&!Number.isFinite(p.value)||!Array.isArray(p.intervals)||p.intervals.length>bands.length)return invalidPlan('BAD_FAN_POINT',path);
     pointIds.add(p.id);const seen=new Set<string>(),intervals=new Map<string,typeof p.intervals[number]>();
     for(const [j,range]of p.intervals.entries()){
-      if(!range||Object.keys(range).some(k=>!['bandId','low','high'].includes(k))||!ids.has(range.bandId)||range.bandId==='center'||seen.has(range.bandId)||(range.low===null)!==(range.high===null)||range.low!==null&&(!Number.isFinite(range.low)||!Number.isFinite(range.high)||range.low>range.high!||p.value===null||range.low>p.value||range.high!<p.value))return bad('BAD_FAN_INTERVAL',path+'.intervals['+j+']');
+      if(!range||Object.keys(range).some(k=>!['bandId','low','high'].includes(k))||!ids.has(range.bandId)||range.bandId==='center'||seen.has(range.bandId)||(range.low===null)!==(range.high===null)||range.low!==null&&(!Number.isFinite(range.low)||!Number.isFinite(range.high)||range.low>range.high!||p.value===null||range.low>p.value||range.high!<p.value))return invalidPlan('BAD_FAN_INTERVAL',path+'.intervals['+j+']');
       seen.add(range.bandId);intervals.set(range.bandId,range);
     }
     let low:number|undefined,high:number|undefined;
-    for(const band of bands){const interval=intervals.get(band.id);if(interval?.low===undefined||interval.low===null)continue;if(low!==undefined&&(interval.low>low||interval.high!<high!))return bad('NON_NESTED_FAN_INTERVAL',path+'.intervals');low=interval.low;high=interval.high!;}
+    for(const band of bands){const interval=intervals.get(band.id);if(interval?.low===undefined||interval.low===null)continue;if(low!==undefined&&(interval.low>low||interval.high!<high!))return invalidPlan('NON_NESTED_FAN_INTERVAL',path+'.intervals');low=interval.low;high=interval.high!;}
   }
   const rangeSpec=rangeSource(spec,bands);
   const transform=(frame:PlanFrame,context:RangeGlyphContext):PlanFrame=>{

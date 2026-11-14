@@ -1,3 +1,4 @@
+import { invalidPlan } from './diagnostics.js';
 import {validateMixed} from '../mixed/validate.js';
 import {normalizeMixed} from '../mixed/data.js';
 import {mixedStackDomain} from './mixed-stack.js';
@@ -23,11 +24,10 @@ import type {PlanMixedSpec,PlanOptions,PlanReference,PlanResult,PlanSeries,PlanO
 export function planMixed(spec:PlanMixedSpec,options:PlanOptions,references?:readonly PlanReference[]):PlanResult{
   const checked=validateMixed({...spec,...(references?{references}:{})});if(checked.status==='invalid')return checked;
   const input=checked.value,hidden=options.hiddenSeriesIds??[],state={hiddenSeriesIds:[...hidden]};
-  const bad=(reason:string,path:string):PlanResult=>({status:'invalid',diagnostic:{code:'INVALID_CONFIG',reason,path,message:reason}});
-  if(hidden.some(id=>!input.series.some(s=>s.id===id)))return bad('UNKNOWN_SERIES','options.hiddenSeriesIds');
-  if(input.axes.x.values.length>64)return bad('LABEL_LIMIT','axes.x.values');
+  if(hidden.some(id=>!input.series.some(s=>s.id===id)))return invalidPlan('UNKNOWN_SERIES','options.hiddenSeriesIds');
+  if(input.axes.x.values.length>64)return invalidPlan('LABEL_LIMIT','axes.x.values');
   const data=normalizeMixed(input),domains=mixedStackDomain(data,state,options.stacking);if(domains.status==='invalid')return domains;
-  if(options.stacking&&!data.column.series.length)return bad('STACKING_REQUIRES_COLUMNS','options.stacking');
+  if(options.stacking&&!data.column.series.length)return invalidPlan('STACKING_REQUIRES_COLUMNS','options.stacking');
   const {width,height}=options,plot={x:16,y:14,width:width-32,height:height-28},palette=defaultPalette('light',false);
   const legend=input.series.map((s,i)=>({id:s.id,name:s.name,color:s.color??palette.series[i%palette.series.length]!,visible:!hidden.includes(s.id)}));
   const base={schema:'nc-plan/1' as const,family:'mixed' as const,width,height,title:input.title,description:input.description??'',unit:input.axes.y.title??'',legend};
@@ -44,7 +44,7 @@ export function planMixed(spec:PlanMixedSpec,options:PlanOptions,references?:rea
   const maps=extended.value??{mapX:(value:string|number)=>typeof value==='string'?shared.value.points.center(value):null,mapY:y.value.map};
   const axes:AxesPlan={plot,tooSmall:false,...maps,x:{domain:null,ticks:visible.map(c=>c.id),labels:[],interval:null,target:6},y:{domain:yt.value.domain,ticks:yt.value.ticks,labels:[],interval:null,target:5},xTitle:null,yTitle:null,font:{family:'sans-serif',size:12,weight:400},direction:'ltr'};
   const stacked=options.stacking?projectStacked(data.column,state,plot,yt.value.domain,options.stacking,window):undefined;if(stacked?.status==='invalid')return stacked;
-  if(stacked?.status==='ok'&&options.stacking==='percent')for(const row of stacked.value.stack.categories.values())if(!row.complete&&shared.value.points.center(row.id)!==null)return bad('INCOMPLETE_PERCENT_CATEGORY','series');
+  if(stacked?.status==='ok'&&options.stacking==='percent')for(const row of stacked.value.stack.categories.values())if(!row.complete&&shared.value.points.center(row.id)!==null)return invalidPlan('INCOMPLETE_PERCENT_CATEGORY','series');
   const projected=projectMixed(data,state,axes,shared.value,window,stacked?.status==='ok'?stacked.value:undefined,options.stacking==='percent');if(projected.status==='invalid')return projected;
   const p=projected.value,layers=emptyLayers(),painted=mixedScene(p,palette,layers,new Map());if(painted.status==='invalid')return painted;
   const series:PlanSeries[]=[],observations:PlanObservation[]=[];

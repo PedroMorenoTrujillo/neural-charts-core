@@ -1,3 +1,5 @@
+import { planLegend } from './plan-presentation.js';
+import { invalidPlan } from './diagnostics.js';
 import {validateRadial} from '../radial/validate.js';
 import {projectRadial} from '../radial/geometry.js';
 import {validateGauge} from '../gauge/validate.js';
@@ -8,17 +10,14 @@ import {projectScatter} from '../scatter/geometry.js';
 import {createLinearScale} from '../internal/math/linear.js';
 import {selectNumericTicks} from '../internal/math/numeric-ticks.js';
 import {defaultPalette} from '../internal/chart/presentation.js';
-import type {PlanPieSpec,PlanDonutSpec,PlanGaugeSpec,PlanBubbleSpec,PlanScatterSpec,PlanBubbleSeries,PlanResult,PlanFrame,PlanSeries,PlanObservation,PlanLegendItem,PlanViewportConfig,PlanReference,PlanCircle} from '../public/plan-types.js';
+import type {PlanPieSpec,PlanDonutSpec,PlanGaugeSpec,PlanBubbleSpec,PlanScatterSpec,PlanBubbleSeries,PlanResult,PlanFrame,PlanSeries,PlanObservation,PlanViewportConfig,PlanReference,PlanCircle} from '../public/plan-types.js';
 import {freezePlan} from './input.js';
 import {preparePlanViewport,planViewportState} from './viewport.js';
 import {withViewportDomains} from '../internal/interaction/viewport-axes.js';
 import {withPlanReferences,type PlanReferenceContext} from './references.js';
 import type {PlanReferenceBand} from '../public/reference-band-plan-types.js';
 
-const bad=(reason:string,path:string):PlanResult=>({status:'invalid',diagnostic:{code:'INVALID_CONFIG',reason,path,message:reason}});
 const finish=(frame:PlanFrame,references?:readonly PlanReference[],context?:PlanReferenceContext,bands?:readonly PlanReferenceBand[]):PlanResult=>freezePlan({status:frame.observations.length?'ok':'empty',frame:withPlanReferences(frame,references,context,bands)});
-const legendFor=(items:readonly Readonly<{id:string;name:string;color?:string}>[],palette:readonly string[],hidden:readonly string[]):readonly PlanLegendItem[]=>
-  items.map((item,i)=>({id:item.id,name:item.name,color:item.color??palette[i%palette.length]!,visible:!hidden.includes(item.id)}));
 export interface ScatterFrameContext{
   readonly plot:Readonly<{x:number;y:number;width:number;height:number}>;
   readonly xDomain:readonly[number,number];readonly yDomain:readonly[number,number];
@@ -30,12 +29,12 @@ export type ScatterFrameTransform=(frame:PlanFrame,context:ScatterFrameContext)=
 export function planAdditional(spec:PlanPieSpec|PlanDonutSpec|PlanGaugeSpec|PlanBubbleSpec|PlanScatterSpec,width:number,height:number,hidden:readonly string[],viewport?:PlanViewportConfig,references?:readonly PlanReference[],transform?:ScatterFrameTransform,bands?:readonly PlanReferenceBand[]):PlanResult {
   const palette=defaultPalette('light',false).series;
   if(spec.family==='pie'||spec.family==='donut'){
-    if(Array.isArray(spec.data)&&spec.data.length>16)return bad('SLICE_LIMIT','data');
+    if(Array.isArray(spec.data)&&spec.data.length>16)return invalidPlan('SLICE_LIMIT','data');
     const checked=validateRadial(spec,spec.family);if(checked.status==='invalid')return checked;
     const input=checked.value;
-    if(input.data.length>16)return bad('SLICE_LIMIT','data');
-    if(hidden.some(id=>!input.data.some(p=>p.id===id)))return bad('UNKNOWN_SERIES','options.hiddenSeriesIds');
-    const side=Math.min(width,height),legend=legendFor(input.data.map(p=>({id:p.id,name:p.label,...(p.color?{color:p.color}:{})})),palette,hidden);
+    if(input.data.length>16)return invalidPlan('SLICE_LIMIT','data');
+    if(hidden.some(id=>!input.data.some(p=>p.id===id)))return invalidPlan('UNKNOWN_SERIES','options.hiddenSeriesIds');
+    const side=Math.min(width,height),legend=planLegend(input.data.map(p=>({id:p.id,name:p.label,...(p.color?{color:p.color}:{})})),palette,hidden);
     const projected=projectRadial(input,{hiddenSliceIds:[...hidden]},{x:0,y:0,width:side,height:side});if(projected.status==='invalid')return projected;
     const p=projected.value,series:PlanSeries[]=[],observations:PlanObservation[]=[];
     for(const slice of p.data.eligible){
@@ -46,7 +45,7 @@ export function planAdditional(spec:PlanPieSpec|PlanDonutSpec|PlanGaugeSpec|Plan
     return finish({schema:'nc-plan/1',family:spec.family,width:side,height:side,title:input.title,description:input.description??'',unit:'',legend,series,observations,grid:[],labels:[],...(spec.family==='donut'?{annotations:[{x:p.frame.cx,y:p.frame.cy,text:p.data.total===null?'—':String(p.data.total),role:'value' as const}]}:{})});
   }
   if(spec.family==='gauge'){
-    if(hidden.length)return bad('GAUGE_HAS_NO_LEGEND','options.hiddenSeriesIds');
+    if(hidden.length)return invalidPlan('GAUGE_HAS_NO_LEGEND','options.hiddenSeriesIds');
     const checked=validateGauge(spec);if(checked.status==='invalid')return checked;
     const input=checked.value,side=Math.min(width,height);
     const base={schema:'nc-plan/1' as const,family:'gauge' as const,width:side,height:side,title:input.title,description:input.description??'',unit:input.unit??'',legend:[],grid:[],labels:[]};
@@ -61,21 +60,21 @@ export function planAdditional(spec:PlanPieSpec|PlanDonutSpec|PlanGaugeSpec|Plan
     return finish({...base,series,observations:[{id:{seriesId:'reading',pointId:'value'},label:input.title,seriesName:input.unit??'',value:input.value,x:p.anchor.x,y:p.anchor.y,color,hit:{type:'sector',...p.frame,innerRadius:0,start:p.start,end:p.start+p.span}}],annotations:[{x:p.frame.cx,y:p.readingBaseline,text:String(input.value)+(input.unit??''),role:'value'},...(input.target?[{x:p.frame.cx,y:Math.min(side-12,p.readingBaseline+50),text:(input.target.label??'Target')+' '+input.target.value+(input.unit??''),role:'label' as const}]:[])]});
   }
   const scatter=spec.family==='scatter',source=spec.series;
-  if(!Array.isArray(source)||source.length>16||source.reduce((n,s)=>n+(Array.isArray(s?.data)?s.data.length:10001),0)>10000)return bad('INPUT_LIMIT','series');
+  if(!Array.isArray(source)||source.length>16||source.reduce((n,s)=>n+(Array.isArray(s?.data)?s.data.length:10001),0)>10000)return invalidPlan('INPUT_LIMIT','series');
   const sizes=new Map<string,{z:number;label:string}>();let maximum=0;
   for(const s of source){
-    if(Object.keys(s).some(k=>!['id','name','color','data'].includes(k)))return bad('UNKNOWN_OPTION','series');
+    if(Object.keys(s).some(k=>!['id','name','color','data'].includes(k)))return invalidPlan('UNKNOWN_OPTION','series');
     for(const point of s.data){
-    if(!scatter&&(!('z' in point)||!Number.isFinite(point.z)||point.z<0))return bad('BAD_BUBBLE_SIZE','series.data.z');
-    if('label' in point&&point.label!==undefined&&(typeof point.label!=='string'||point.label.length>200))return bad('BAD_BUBBLE_LABEL','series.data.label');
-    if(Object.keys(point).some(k=>!(scatter?['id','x','y']:['id','x','y','z','label']).includes(k)))return bad('UNKNOWN_OPTION','series.data');
+    if(!scatter&&(!('z' in point)||!Number.isFinite(point.z)||point.z<0))return invalidPlan('BAD_BUBBLE_SIZE','series.data.z');
+    if('label' in point&&point.label!==undefined&&(typeof point.label!=='string'||point.label.length>200))return invalidPlan('BAD_BUBBLE_LABEL','series.data.label');
+    if(Object.keys(point).some(k=>!(scatter?['id','x','y']:['id','x','y','z','label']).includes(k)))return invalidPlan('UNKNOWN_OPTION','series.data');
     if(!hidden.includes(s.id)&&point.x!==null&&point.y!==null)maximum=Math.max(maximum,'z' in point?point.z:0);
     sizes.set(JSON.stringify([s.id,point.id]),{z:'z' in point?point.z:0,label:'label' in point?point.label??point.id:point.id});
   }}
   const checked=validateScatter({family:'scatter',title:spec.title,...(spec.description===undefined?{}:{description:spec.description}),...(references===undefined?{}:{references}),axes:spec.axes,series:source.map((s:PlanBubbleSeries|PlanScatterSpec['series'][number])=>({...s,data:s.data.map(p=>({id:p.id,x:p.x,y:p.y}))}))});
   if(checked.status==='invalid')return checked;
-  const input=checked.value,state={hiddenSeriesIds:[...hidden]},legend=legendFor(input.series,palette,hidden);
-  if(hidden.some(id=>!input.series.some(s=>s.id===id)))return bad('UNKNOWN_SERIES','options.hiddenSeriesIds');
+  const input=checked.value,state={hiddenSeriesIds:[...hidden]},legend=planLegend(input.series,palette,hidden);
+  if(hidden.some(id=>!input.series.some(s=>s.id===id)))return invalidPlan('UNKNOWN_SERIES','options.hiddenSeriesIds');
   const base={schema:'nc-plan/1' as const,family:spec.family,width,height,title:input.title,description:input.description??'',unit:input.axes.y.title??'',legend};
   const data=normalizeScatter(input);if(data.status==='invalid')return data;
   const domains=scatterDomains(data.value,state);if(domains.status==='invalid')return domains;

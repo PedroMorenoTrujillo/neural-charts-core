@@ -1,3 +1,5 @@
+import { planLegend } from './plan-presentation.js';
+import { invalidPlan } from './diagnostics.js';
 import {planMixedAxes} from './mixed-axes.js';
 import {planOwnedCartesianChart} from './cartesian.js';
 import {planCapacity} from './capacity.js';
@@ -60,7 +62,7 @@ import {selectNumericTicks} from '../internal/math/numeric-ticks.js';
 import {selectTimeTicks} from '../internal/math/time.js';
 import {formatAxis} from '../internal/axes/plan.js';
 import {defaultPalette} from '../internal/chart/presentation.js';
-import type {PlanSpec,PlanOptions,PlanResult,PlanFrame,PlanSeries,PlanObservation,PlanLegendItem} from '../public/plan-types.js';
+import type {PlanSpec,PlanOptions,PlanResult,PlanFrame,PlanSeries,PlanObservation} from '../public/plan-types.js';
 import {ownPlanInput,freezePlan} from './input.js';
 import {planAdditional} from './additional.js';
 import {validateStacked} from '../stacked/validate.js';
@@ -71,29 +73,26 @@ import {viewportCategoryWindow} from '../internal/interaction/viewport.js';
 import {validatePlanReferences,withPlanReferences,referenceCategories,type PlanReferenceContext} from './references.js';
 import {validatePlanReferenceBands} from './reference-bands.js';
 
-const bad=(reason:string,path:string,message=reason):PlanResult=>({status:'invalid',diagnostic:{code:'INVALID_CONFIG',reason,path,message}});
 const isFinancialSpec=(value:PlanSpec):value is PlanFinancialSpec=>!!value&&typeof value==='object'&&financialFamilies.includes(value.family as PlanFinancialSpec['family']);
-const legendFor=(items:readonly Readonly<{id:string;name:string;color?:string}>[],palette:readonly string[],hidden:readonly string[]):readonly PlanLegendItem[]=>
-  items.map((item,i)=>({id:item.id,name:item.name,color:item.color??palette[i%palette.length]!,visible:!hidden.includes(item.id)}));
 
 /** Pure data-to-geometry planning. Never creates a host, schedules work or accesses DOM. */
 export function planChart(value:PlanSpec,options:PlanOptions):PlanResult {
   try{
     const ownedOptions=ownPlanInput(options) as PlanOptions;
-    if(!ownedOptions||typeof ownedOptions!=='object'||Object.keys(ownedOptions).some(key=>!['width','height','hiddenSeriesIds','stacking','stackGroups','viewport','references','referenceBands','scales','hierarchy','wordcloudText','circular','capacity'].includes(key)))return bad('UNKNOWN_OPTION','options');
+    if(!ownedOptions||typeof ownedOptions!=='object'||Object.keys(ownedOptions).some(key=>!['width','height','hiddenSeriesIds','stacking','stackGroups','viewport','references','referenceBands','scales','hierarchy','wordcloudText','circular','capacity'].includes(key)))return invalidPlan('UNKNOWN_OPTION','options');
     const {width,height}=ownedOptions,hidden=ownedOptions.hiddenSeriesIds??[];
-    if(!Number.isFinite(width)||!Number.isFinite(height)||width<64||height<64||width>10000||height>10000)return bad('BAD_VIEWPORT','options');
-    if(!Array.isArray(hidden)||hidden.length>16||hidden.some(id=>typeof id!=='string'||!id||id.length>256)||new Set(hidden).size!==hidden.length)return bad('BAD_VISIBILITY','options.hiddenSeriesIds');
+    if(!Number.isFinite(width)||!Number.isFinite(height)||width<64||height<64||width>10000||height>10000)return invalidPlan('BAD_VIEWPORT','options');
+    if(!Array.isArray(hidden)||hidden.length>16||hidden.some(id=>typeof id!=='string'||!id||id.length>256)||new Set(hidden).size!==hidden.length)return invalidPlan('BAD_VISIBILITY','options.hiddenSeriesIds');
     const capacity=planCapacity(ownedOptions.capacity),spec=ownPlanInput(value,capacity) as PlanSpec;
     if(isFinancialSpec(spec))return planFinancialChart(spec,ownedOptions);
-    if(!spec||typeof spec!=='object'||!['regression','fan','violin','flame','dendrogram','parallel','windrose','radialbar','heatmap','venn','contour','tilemap','pictorial','wordcloud','dependencywheel','arcdiagram','chord','bullet','variwide','xrange','timeline','sankey','vector','windbarb','networkgraph','packedbubble','sunburst','treegraph','organization','variablepie','item','polygon','lollipop','dumbbell','columnpyramid','boxplot','errorbar','streamgraph','arearange','areasplinerange','columnrange','histogram','bellcurve','areaspline','funnel','pyramid','pareto','radar','polar','waterfall','treemap','mixed','line','area','spline','scatter','column','pie','donut','gauge','bubble'].includes(spec.family))return bad('UNSUPPORTED_FAMILY','family');
-    if(ownedOptions.hierarchy!==undefined&&spec.family!=='treegraph'&&spec.family!=='organization')return bad('UNSUPPORTED_HIERARCHY_LAYOUT','options.hierarchy');
+    if(!spec||typeof spec!=='object'||!['regression','fan','violin','flame','dendrogram','parallel','windrose','radialbar','heatmap','venn','contour','tilemap','pictorial','wordcloud','dependencywheel','arcdiagram','chord','bullet','variwide','xrange','timeline','sankey','vector','windbarb','networkgraph','packedbubble','sunburst','treegraph','organization','variablepie','item','polygon','lollipop','dumbbell','columnpyramid','boxplot','errorbar','streamgraph','arearange','areasplinerange','columnrange','histogram','bellcurve','areaspline','funnel','pyramid','pareto','radar','polar','waterfall','treemap','mixed','line','area','spline','scatter','column','pie','donut','gauge','bubble'].includes(spec.family))return invalidPlan('UNSUPPORTED_FAMILY','family');
+    if(ownedOptions.hierarchy!==undefined&&spec.family!=='treegraph'&&spec.family!=='organization')return invalidPlan('UNSUPPORTED_HIERARCHY_LAYOUT','options.hierarchy');
     if(ownedOptions.scales!==undefined)return planLogarithmic(spec,ownedOptions);
     const checkedBands=validatePlanReferenceBands(ownedOptions.referenceBands,spec);if(checkedBands.status==='invalid')return checkedBands;
-    if(ownedOptions.stacking!==undefined&&(!['column','area','areaspline','mixed','pictorial'].includes(spec.family)||!['sum','percent'].includes(ownedOptions.stacking)))return bad('BAD_STACK_MODE','options.stacking');
-    if(ownedOptions.stackGroups!==undefined&&(spec.family!=='column'||!ownedOptions.stacking))return bad('STACK_GROUPS_REQUIRE_STACKED_COLUMNS','options.stackGroups');
-    if(ownedOptions.wordcloudText!==undefined&&spec.family!=='wordcloud')return bad('UNSUPPORTED_TEXT_MEASUREMENTS','options.wordcloudText');
-    if(ownedOptions.circular!==undefined&&!['pie','donut','gauge'].includes(spec.family))return bad('UNSUPPORTED_CIRCULAR_LAYOUT','options.circular');
+    if(ownedOptions.stacking!==undefined&&(!['column','area','areaspline','mixed','pictorial'].includes(spec.family)||!['sum','percent'].includes(ownedOptions.stacking)))return invalidPlan('BAD_STACK_MODE','options.stacking');
+    if(ownedOptions.stackGroups!==undefined&&(spec.family!=='column'||!ownedOptions.stacking))return invalidPlan('STACK_GROUPS_REQUIRE_STACKED_COLUMNS','options.stackGroups');
+    if(ownedOptions.wordcloudText!==undefined&&spec.family!=='wordcloud')return invalidPlan('UNSUPPORTED_TEXT_MEASUREMENTS','options.wordcloudText');
+    if(ownedOptions.circular!==undefined&&!['pie','donut','gauge'].includes(spec.family))return invalidPlan('UNSUPPORTED_CIRCULAR_LAYOUT','options.circular');
     if(spec.family==='regression')return planRegression(spec,ownedOptions);
     if(spec.family==='fan')return planFan(spec,ownedOptions);
     if(spec.family==='violin')return planViolin(spec,ownedOptions);
@@ -115,13 +114,13 @@ export function planChart(value:PlanSpec,options:PlanOptions):PlanResult {
     if(spec.family==='xrange')return planXRange(spec,ownedOptions);
     if(spec.family==='timeline')return planTimeline(spec,ownedOptions);
     if(spec.family==='sankey')return planSankey(spec,ownedOptions);
-    if(ownedOptions.viewport!==undefined&&!['vector','windbarb','networkgraph','packedbubble','treegraph','organization','polygon','lollipop','dumbbell','columnpyramid','boxplot','errorbar','streamgraph','arearange','areasplinerange','columnrange','areaspline','pareto','waterfall','mixed','line','area','spline','scatter','column','bubble'].includes(spec.family))return bad('UNSUPPORTED_VIEWPORT','options.viewport');
+    if(ownedOptions.viewport!==undefined&&!['vector','windbarb','networkgraph','packedbubble','treegraph','organization','polygon','lollipop','dumbbell','columnpyramid','boxplot','errorbar','streamgraph','arearange','areasplinerange','columnrange','areaspline','pareto','waterfall','mixed','line','area','spline','scatter','column','bubble'].includes(spec.family))return invalidPlan('UNSUPPORTED_VIEWPORT','options.viewport');
     const checkedReferences=validatePlanReferences(ownedOptions.references,spec);if(checkedReferences.status==='invalid')return checkedReferences;
     const references=checkedReferences.value;
     const common=['family','title','description'];
     const allowed=spec.family==='funnel'?[...common,'data','neckWidth','neckHeight','reversed']:spec.family==='pyramid'?[...common,'data','reversed']:spec.family==='pareto'?[...common,'data']:spec.family==='radar'?[...common,'axes','series']:spec.family==='polar'?[...common,'data','domain','radiusScale']:spec.family==='waterfall'?[...common,'axes','series','startValue','groupGap','maxBarWidth']:spec.family==='treemap'?[...common,'root']:spec.family==='mixed'?[...common,'axes','series','groupGap','barGap','maxBarWidth']:['line','area','spline','scatter','bubble'].includes(spec.family)?[...common,'axes','series']:spec.family==='column'?[...common,'axes','series','orientation','groupGap','barGap','maxBarWidth']:spec.family==='gauge'?[...common,'value','domain','preset','unit','color','bands','target']:[...common,'data',...(spec.family==='donut'?['holeRatio']:[])];
     const extra=spec.family==='vector'?['axes','series','unit']:spec.family==='windbarb'?['axes','series']:spec.family==='packedbubble'?['series','splitSeries']:spec.family==='networkgraph'?['nodes','links','groups']:spec.family==='sunburst'?['root']:spec.family==='treegraph'||spec.family==='organization'?['nodes','links','groups']:spec.family==='variablepie'?['data','zDomain','minRadiusRatio','radiusScale']:spec.family==='item'?['data','columns']:spec.family==='polygon'?['axes','series']:['lollipop','dumbbell','columnpyramid'].includes(spec.family)?['axes','series','groupGap','barGap','maxBarWidth',...(spec.family==='columnpyramid'?[]:['markerRadius'])]:spec.family==='boxplot'?[...common,'axes','series','groupGap','barGap','maxBarWidth','whiskerWidth']:spec.family==='errorbar'?[...common,'axes','series','groupGap','barGap','maxBarWidth','capWidth']:spec.family==='histogram'?['samples','binCount']:spec.family==='bellcurve'?['samples','intervals','standardDeviations']:spec.family==='columnrange'?['axes','series','groupGap','barGap','maxBarWidth']:['lollipop','dumbbell','columnpyramid','boxplot','errorbar','streamgraph','arearange','areasplinerange','areaspline'].includes(spec.family)?['axes','series']:null;
-    if(Object.keys(spec).some(key=>!(extra?[...common,...extra]:allowed).includes(key)))return bad('UNKNOWN_OPTION','spec');
+    if(Object.keys(spec).some(key=>!(extra?[...common,...extra]:allowed).includes(key)))return invalidPlan('UNKNOWN_OPTION','spec');
     if(spec.family==='vector'||spec.family==='windbarb')return planDirectional(spec,ownedOptions,references);
     if(spec.family==='networkgraph'||spec.family==='packedbubble')return planNetworkPacking(spec,ownedOptions);
     if(spec.family==='sunburst'||spec.family==='treegraph'||spec.family==='organization')return planHierarchy(spec,ownedOptions);
@@ -144,5 +143,5 @@ export function planChart(value:PlanSpec,options:PlanOptions):PlanResult {
     if(ownedOptions.circular!==undefined&&(spec.family==='pie'||spec.family==='donut'||spec.family==='gauge'))return planCircularDisplay(spec,ownedOptions);
     if(spec.family!=='line'&&spec.family!=='area'&&spec.family!=='areaspline'&&spec.family!=='spline'&&spec.family!=='column')return planAdditional(spec,width,height,hidden,ownedOptions.viewport,references,undefined,checkedBands.value);
     return planOwnedCartesianChart(spec,ownedOptions);
-  }catch(error){return bad(error instanceof Error?error.message:'UNREADABLE_INPUT','spec');}
+  }catch(error){return invalidPlan(error instanceof Error?error.message:'UNREADABLE_INPUT','spec');}
 }

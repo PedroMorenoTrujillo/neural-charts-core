@@ -1,3 +1,6 @@
+import { readPlanTitle, readPlotSize } from './plan-presentation.js';
+import { boundedGraphLabel as shortLabel, clipGraphSegment as clip } from './graph-geometry.js';
+import { planningFailure } from './diagnostics.js';
 import {array,color,fail,number,record,text,ValidationFailure} from '../internal/data/validation.js';
 import {defaultPalette} from '../internal/chart/presentation.js';
 import {createLinearScale} from '../internal/math/linear.js';
@@ -11,14 +14,8 @@ type Plot=Readonly<{x:number;y:number;width:number;height:number}>;
 type Disc=Readonly<{id:string;radius:number;index:number}>;
 type Placed=Disc&Readonly<{x:number;y:number}>;
 const insideDisc=(p:Vertex,radius:number,plot:Plot)=>Math.hypot(p.x-Math.max(plot.x,Math.min(plot.x+plot.width,p.x)),p.y-Math.max(plot.y,Math.min(plot.y+plot.height,p.y)))<radius;
-const shortLabel=(label:string,width:number)=>{const characters=Array.from(label),cap=Math.max(1,Math.floor(width/7));return characters.length<=cap?label:characters.slice(0,Math.max(1,cap-1)).join('')+'…';};
 const key=(seriesId:string,pointId:string)=>JSON.stringify([seriesId,pointId]);
 
-function clip(a:Vertex,b:Vertex,p:Plot):readonly[Vertex,Vertex]|null{
-  let first=0,last=1;
-  for(const [axis,low,high]of [['x',p.x,p.x+p.width],['y',p.y,p.y+p.height]] as const){if(a[axis]===b[axis]){if(a[axis]<low||a[axis]>high)return null;continue;}const at=(v:number)=>Number.isFinite(b[axis]-a[axis])&&Number.isFinite(v-a[axis])?(v-a[axis])/(b[axis]-a[axis]):(v/2-a[axis]/2)/(b[axis]/2-a[axis]/2),u=at(low),v=at(high);first=Math.max(first,Math.min(u,v));last=Math.min(last,Math.max(u,v));if(last<=first)return null;}
-  const at=(t:number):Vertex=>({x:Math.max(p.x,Math.min(p.x+p.width,a.x*(1-t)+b.x*t)),y:Math.max(p.y,Math.min(p.y+p.height,a.y*(1-t)+b.y*t))}),start=at(first),end=at(last);return start.x===end.x&&start.y===end.y?null:[start,end];
-}
 
 /** Input-sized force budget: at most 160 iterations and one million n² work
  * units. No RNG, timer or physics service is retained; no timing claim is made.
@@ -99,9 +96,9 @@ function viewport(options:PlanOptions,plot:Plot,isotropic:boolean){
 export function planNetworkPacking(spec:PlanNetworkgraphSpec|PlanPackedBubbleSpec,options:PlanOptions):PlanResult{
   try{
     const family=record(spec,['family','title','description','nodes','links','groups','series','splitSeries'],['family'],'spec').family;if(family!=='networkgraph'&&family!=='packedbubble')fail('family');
-    const input=record(spec,family==='networkgraph'?['family','title','description','nodes','links','groups']:['family','title','description','series','splitSeries'],['family','title',...(family==='networkgraph'?['nodes','links']:['series'])],'spec'),title=text(input.title,'title'),description=Object.hasOwn(input,'description')?text(input.description,'description',4096,true):'';
+    const input=record(spec,family==='networkgraph'?['family','title','description','nodes','links','groups']:['family','title','description','series','splitSeries'],['family','title',...(family==='networkgraph'?['nodes','links']:['series'])],'spec'),{title,description}=readPlanTitle(input);
     const opts=record(options,['width','height','hiddenSeriesIds','viewport','references','stacking'],['width','height'],'options');if(Object.hasOwn(opts,'references')||Object.hasOwn(opts,'stacking'))fail('options','UNSUPPORTED_LAYOUT_OPTION');
-    const width=number(opts.width,'options.width',64,10000),height=number(opts.height,'options.height',64,10000),full={x:16,y:14,width:width-32,height:height-28},hidden=Object.hasOwn(opts,'hiddenSeriesIds')?array(opts.hiddenSeriesIds,16,'options.hiddenSeriesIds').map((id,i)=>text(id,'options.hiddenSeriesIds['+i+']',128)):[];if(new Set(hidden).size!==hidden.length)fail('options.hiddenSeriesIds','BAD_VISIBILITY');
+    const {width,height}=readPlotSize(opts),full={x:16,y:14,width:width-32,height:height-28},hidden=Object.hasOwn(opts,'hiddenSeriesIds')?array(opts.hiddenSeriesIds,16,'options.hiddenSeriesIds').map((id,i)=>text(id,'options.hiddenSeriesIds['+i+']',128)):[];if(new Set(hidden).size!==hidden.length)fail('options.hiddenSeriesIds','BAD_VISIBILITY');
     const palette=defaultPalette('light',false).series;
     if(family==='networkgraph'){
       const groups=new Map<string,{id:string;label:string}>();if(Object.hasOwn(input,'groups'))for(const [i,raw]of array(input.groups,15,'groups').entries()){const path='groups['+i+']',g=record(raw,['id','label'],['id','label'],path),id=text(g.id,path+'.id',128);if(id==='links'||groups.has(id))fail(path,'BAD_GROUP_ID');groups.set(id,{id,label:text(g.label,path+'.label',256)});}
@@ -139,5 +136,5 @@ export function planNetworkPacking(spec:PlanNetworkgraphSpec|PlanPackedBubbleSpe
         const labelWidth=Math.min(120,radius*1.4);if(p.label&&annotations.length<64&&radius>=14&&labelWidth>=32&&center.x-labelWidth/2>=plot.x&&center.x+labelWidth/2<=plot.x+side&&center.y-8>=plot.y&&center.y+8<=plot.y+side)annotations.push({x:center.x,y:center.y,text:shortLabel(p.label,labelWidth),role:'label',box:{width:labelWidth,height:16,seriesId:s.id}});
       }series.push({id:s.id,name:s.name,color:s.color,circles});}
     return freezePlan({status:observations.length?'ok':'empty',frame:{schema:'nc-plan/1',family:'packedbubble',title,description,unit:'',width,height,legend,series,observations,annotations,grid:[],labels:[],viewport:view.state}});
-  }catch(error){return error instanceof ValidationFailure?{status:'invalid',diagnostic:error.diagnostic}:{status:'invalid',diagnostic:{code:'INVALID_CONFIG',reason:'BAD_SPEC',path:'spec',message:'BAD_SPEC'}};}
+  }catch(error){return planningFailure(error);}
 }

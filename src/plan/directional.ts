@@ -1,8 +1,8 @@
+import { invalidPlan } from './diagnostics.js';
 import type {PlanVectorSpec,PlanWindbarbSpec,PlanVectorPoint,PlanWindbarbPoint,PlanOptions,PlanReference,PlanResult,PlanCommand,PlanObservation,PlanSeries} from '../public/plan-types.js';
 import {planAdditional} from './additional.js';
 import {freezePlan} from './input.js';
 
-const bad=(reason:string,path:string):PlanResult=>({status:'invalid',diagnostic:{code:'INVALID_CONFIG',reason,path,message:reason}});
 const radians=Math.PI/180;
 const paint=(value:number)=>Math.round(value*10000)/10000;
 const key=(seriesId:string,pointId:string)=>JSON.stringify([seriesId,pointId]);
@@ -13,21 +13,21 @@ type Datum=Readonly<{dx:number;dy:number}>|Readonly<{direction:number|null}>;
 /** Directional glyphs reuse scatter domains/projection; no second axis engine. */
 export function planDirectional(spec:PlanVectorSpec|PlanWindbarbSpec,options:PlanOptions,references?:readonly PlanReference[]):PlanResult{
   const vector=spec.family==='vector';
-  if('unit' in spec&&(typeof spec.unit!=='string'||spec.unit.length>32))return bad('BAD_UNIT','unit');
-  if(!Array.isArray(spec.series)||spec.series.length>16||spec.series.reduce((n,s)=>n+(Array.isArray(s?.data)?s.data.length:2049),0)>2048)return bad('INPUT_LIMIT','series');
+  if('unit' in spec&&(typeof spec.unit!=='string'||spec.unit.length>32))return invalidPlan('BAD_UNIT','unit');
+  if(!Array.isArray(spec.series)||spec.series.length>16||spec.series.reduce((n,s)=>n+(Array.isArray(s?.data)?s.data.length:2049),0)>2048)return invalidPlan('INPUT_LIMIT','series');
   const data=new Map<string,Datum>();let maximum=0;
   const hidden=new Set(options.hiddenSeriesIds??[]);
   for(const series of spec.series){
-    if(!series||typeof series!=='object'||!own(series,['id','name','color','data'])||!Array.isArray(series.data))return bad('BAD_SERIES','series');
+    if(!series||typeof series!=='object'||!own(series,['id','name','color','data'])||!Array.isArray(series.data))return invalidPlan('BAD_SERIES','series');
     for(const p of series.data){
-      if(!p||typeof p!=='object'||!own(p,vector?['id','x','y','dx','dy']:['id','x','value','direction']))return bad('UNKNOWN_OPTION','series.data');
-      if(p.x!==null&&!finite(p.x)||'y' in p&&p.y!==null&&!finite(p.y))return bad('BAD_POSITION','series.data');
+      if(!p||typeof p!=='object'||!own(p,vector?['id','x','y','dx','dy']:['id','x','value','direction']))return invalidPlan('UNKNOWN_OPTION','series.data');
+      if(p.x!==null&&!finite(p.x)||'y' in p&&p.y!==null&&!finite(p.y))return invalidPlan('BAD_POSITION','series.data');
       if(vector){
-        if(!('dx' in p)||!('dy' in p)||(p.dx===null)!==(p.dy===null)||p.dx!==null&&(!finite(p.dx)||!finite(p.dy)||!Number.isFinite(Math.hypot(p.dx,p.dy))))return bad('BAD_VECTOR','series.data');
+        if(!('dx' in p)||!('dy' in p)||(p.dx===null)!==(p.dy===null)||p.dx!==null&&(!finite(p.dx)||!finite(p.dy)||!Number.isFinite(Math.hypot(p.dx,p.dy))))return invalidPlan('BAD_VECTOR','series.data');
         if(p.dx!==null&&p.dy!==null){data.set(key(series.id,p.id),{dx:p.dx,dy:p.dy});if(!hidden.has(series.id)&&p.x!==null&&'y' in p&&p.y!==null)maximum=Math.max(maximum,Math.hypot(p.dx,p.dy));}
       }else{
-        if(!('value' in p)||p.value!==null&&(!finite(p.value)||p.value<0||p.value>150))return bad('BAD_WIND_SPEED','series.data.value');
-        if(!('direction' in p)||p.direction!==null&&(!finite(p.direction)||p.direction<0||p.direction>=360))return bad('BAD_WIND_DIRECTION','series.data.direction');
+        if(!('value' in p)||p.value!==null&&(!finite(p.value)||p.value<0||p.value>150))return invalidPlan('BAD_WIND_SPEED','series.data.value');
+        if(!('direction' in p)||p.direction!==null&&(!finite(p.direction)||p.direction<0||p.direction>=360))return invalidPlan('BAD_WIND_DIRECTION','series.data.direction');
         data.set(key(series.id,p.id),{direction:p.direction});
       }
     }

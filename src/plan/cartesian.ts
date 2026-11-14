@@ -1,3 +1,5 @@
+import { planLegend } from './plan-presentation.js';
+import { invalidPlan } from './diagnostics.js';
 import {areaScene} from '../area/scene.js';
 import {splineScene} from '../spline/scene.js';
 import {splineAreaCommands} from './areaspline.js';
@@ -13,7 +15,7 @@ import {selectNumericTicks} from '../internal/math/numeric-ticks.js';
 import {selectTimeTicks} from '../internal/math/time.js';
 import {formatAxis} from '../internal/axes/plan.js';
 import {defaultPalette} from '../internal/chart/presentation.js';
-import type {PlanSpec,PlanOptions,PlanResult,PlanFrame,PlanSeries,PlanObservation,PlanLegendItem} from '../public/plan-types.js';
+import type {PlanSpec,PlanOptions,PlanResult,PlanFrame,PlanSeries,PlanObservation} from '../public/plan-types.js';
 import {ownPlanInput,freezePlan} from './input.js';
 import {planCapacity} from './capacity.js';
 import {preparePlanViewport,planViewportState,planLineViewportScales} from './viewport.js';
@@ -28,9 +30,6 @@ import {planLogarithmic} from './logarithmic.js';
 import {prepareOwnedLine} from './prepared-line.js';
 import {projectPlanLine, type PlanLineProjection} from './line-projection.js';
 import {lineObservationMetadata} from './line-observation.js';
-const bad=(reason:string,path:string,message=reason):PlanResult=>({status:'invalid',diagnostic:{code:'INVALID_CONFIG',reason,path,message}});
-const legendFor=(items:readonly Readonly<{id:string;name:string;color?:string}>[],palette:readonly string[],hidden:readonly string[]):readonly PlanLegendItem[]=>
-  items.map((item,i)=>({id:item.id,name:item.name,color:item.color??palette[i%palette.length]!,visible:!hidden.includes(item.id)}));
 
 
 /** Cartesian-only public entry. It shares the certified planners without retaining radial/graph families. */
@@ -45,32 +44,32 @@ export function planOwnedCartesianChart(value:PlanSpec,options:PlanOptions):Plan
 function planCartesian(value:PlanSpec,options:PlanOptions,owned:boolean):PlanResult {
   try {
     const ownedOptions=owned?options:ownPlanInput(options) as PlanOptions;
-    if(!ownedOptions||typeof ownedOptions!=='object'||Object.keys(ownedOptions).some(k=>!['width','height','hiddenSeriesIds','stacking','stackGroups','viewport','references','referenceBands','scales','capacity'].includes(k)))return bad('UNKNOWN_OPTION','options');
+    if(!ownedOptions||typeof ownedOptions!=='object'||Object.keys(ownedOptions).some(k=>!['width','height','hiddenSeriesIds','stacking','stackGroups','viewport','references','referenceBands','scales','capacity'].includes(k)))return invalidPlan('UNKNOWN_OPTION','options');
     const capacity=planCapacity(ownedOptions.capacity),spec=owned?value:ownPlanInput(value,capacity) as PlanSpec,{width,height}=ownedOptions,hidden=ownedOptions.hiddenSeriesIds??[];
-    if(!Number.isFinite(width)||!Number.isFinite(height)||width<64||height<64||width>10000||height>10000)return bad('BAD_VIEWPORT','options');
-    if(!Array.isArray(hidden)||hidden.length>16||hidden.some(id=>typeof id!=='string'||!id||id.length>256)||new Set(hidden).size!==hidden.length)return bad('BAD_VISIBILITY','options.hiddenSeriesIds');
-    if(!spec||!['line','area','areaspline','spline','column'].includes(spec.family))return bad('UNSUPPORTED_FAMILY','family');
-    if(spec.family!=='line'&&spec.family!=='area'&&spec.family!=='areaspline'&&spec.family!=='spline'&&spec.family!=='column')return bad('UNSUPPORTED_FAMILY','family');
+    if(!Number.isFinite(width)||!Number.isFinite(height)||width<64||height<64||width>10000||height>10000)return invalidPlan('BAD_VIEWPORT','options');
+    if(!Array.isArray(hidden)||hidden.length>16||hidden.some(id=>typeof id!=='string'||!id||id.length>256)||new Set(hidden).size!==hidden.length)return invalidPlan('BAD_VISIBILITY','options.hiddenSeriesIds');
+    if(!spec||!['line','area','areaspline','spline','column'].includes(spec.family))return invalidPlan('UNSUPPORTED_FAMILY','family');
+    if(spec.family!=='line'&&spec.family!=='area'&&spec.family!=='areaspline'&&spec.family!=='spline'&&spec.family!=='column')return invalidPlan('UNSUPPORTED_FAMILY','family');
     if(ownedOptions.scales)return planLogarithmic(spec,ownedOptions);
     const checkedBands=validatePlanReferenceBands(ownedOptions.referenceBands,spec);if(checkedBands.status==='invalid')return checkedBands;
     const checkedReferences=validatePlanReferences(ownedOptions.references,spec);if(checkedReferences.status==='invalid')return checkedReferences;const references=checkedReferences.value;
-    if(ownedOptions.stacking!==undefined&&(!['column','area','areaspline'].includes(spec.family)||!['sum','percent'].includes(ownedOptions.stacking)))return bad('BAD_STACK_MODE','options.stacking');
-    if(ownedOptions.stackGroups!==undefined&&(spec.family!=='column'||!ownedOptions.stacking))return bad('STACK_GROUPS_REQUIRE_STACKED_COLUMNS','options.stackGroups');
+    if(ownedOptions.stacking!==undefined&&(!['column','area','areaspline'].includes(spec.family)||!['sum','percent'].includes(ownedOptions.stacking)))return invalidPlan('BAD_STACK_MODE','options.stacking');
+    if(ownedOptions.stackGroups!==undefined&&(spec.family!=='column'||!ownedOptions.stacking))return invalidPlan('STACK_GROUPS_REQUIRE_STACKED_COLUMNS','options.stackGroups');
     if(spec.family==='column'&&ownedOptions.stackGroups)return planGroupedStacks(spec,ownedOptions,references);
     if((spec.family==='area'||spec.family==='areaspline')&&ownedOptions.stacking)return planStackedArea(spec,ownedOptions,references);
-    if(!Array.isArray(spec.series)||spec.series.length>16||spec.series.reduce((n,s)=>n+(Array.isArray(s?.data)?s.data.length:capacity.points+1),0)>capacity.points)return bad('INPUT_LIMIT','series');
-    if(spec.axes?.x?.type==='category'&&Array.isArray(spec.axes.x.values)&&spec.axes.x.values.length>capacity.categories)return bad('LABEL_LIMIT','axes.x.values');
+    if(!Array.isArray(spec.series)||spec.series.length>16||spec.series.reduce((n,s)=>n+(Array.isArray(s?.data)?s.data.length:capacity.points+1),0)>capacity.points)return invalidPlan('INPUT_LIMIT','series');
+    if(spec.axes?.x?.type==='category'&&Array.isArray(spec.axes.x.values)&&spec.axes.x.values.length>capacity.categories)return invalidPlan('LABEL_LIMIT','axes.x.values');
     const state={hiddenSeriesIds:[...hidden]},plot={x:16,y:14,width:width-32,height:height-28},palette=defaultPalette('light',false).series;
     const finish=(frame:PlanFrame,context?:PlanReferenceContext):PlanResult=>freezePlan({status:frame.observations.length?'ok':'empty',frame:withPlanReferences(frame,references,context,checkedBands.value)});
     if(spec.family==='line'||spec.family==='area'||spec.family==='areaspline'||spec.family==='spline'){
       const filled=spec.family==='area'||spec.family==='areaspline';
-      if(filled&&Object.getOwnPropertyDescriptor(spec.axes.y,'includeZero')?.value===false)return bad('AREA_REQUIRES_ZERO','axes.y.includeZero');
-      if((spec.family==='spline'||spec.family==='areaspline')&&spec.series.some(s=>s.curve!==undefined))return bad('SPLINE_HAS_FIXED_CURVE','series.curve');
+      if(filled&&Object.getOwnPropertyDescriptor(spec.axes.y,'includeZero')?.value===false)return invalidPlan('AREA_REQUIRES_ZERO','axes.y.includeZero');
+      if((spec.family==='spline'||spec.family==='areaspline')&&spec.series.some(s=>s.curve!==undefined))return invalidPlan('SPLINE_HAS_FIXED_CURVE','series.curve');
       const lineSpec={...spec,family:'line' as const,...(filled?{axes:{...spec.axes,y:{...spec.axes.y,includeZero:true}}}:{})};
       const checked=prepareOwnedLine(references===undefined?lineSpec:{...lineSpec,references});if(checked.status==='invalid')return checked;
-      const {input,data}=checked.value,domains=lineDomains(data,state),legend=legendFor(input.series,palette,hidden);
+      const {input,data}=checked.value,domains=lineDomains(data,state),legend=planLegend(input.series,palette,hidden);
       if(domains.status==='invalid')return domains;
-      if(hidden.some(id=>!input.series.some(s=>s.id===id)))return bad('UNKNOWN_SERIES','options.hiddenSeriesIds');
+      if(hidden.some(id=>!input.series.some(s=>s.id===id)))return invalidPlan('UNKNOWN_SERIES','options.hiddenSeriesIds');
       const base={schema:'nc-plan/1' as const,family:spec.family,width,height,title:input.title,description:input.description??'',unit:input.axes.y.title??'',legend};
       if(!domains.value.y)return finish({...base,series:[],observations:[],labels:[],grid:[]});
       let yt=selectNumericTicks(domains.value.y,{nice:input.axes.y.nice??!input.axes.y.domain,targetCount:input.axes.y.ticks?.targetCount??5});if(yt.status==='invalid')return yt;
@@ -95,7 +94,7 @@ function planCartesian(value:PlanSpec,options:PlanOptions,owned:boolean):PlanRes
         const areaCommands=layers.marks.flatMap(mark=>mark.type==='path'&&mark.key.startsWith(key+'|area:')?mark.commands:[]);
         const commands=outline?.type==='path'?outline.commands:s.commands;
         const baseline=p.mapY(0);
-        if(spec.family==='areaspline'&&(baseline===null||!Number.isFinite(baseline)))return bad('UNREPRESENTABLE_GEOMETRY','area.baseline');
+        if(spec.family==='areaspline'&&(baseline===null||!Number.isFinite(baseline)))return invalidPlan('UNREPRESENTABLE_GEOMETRY','area.baseline');
         const fill=spec.family==='areaspline'?splineAreaCommands(commands,Math.max(plot.y,Math.min(plot.y+plot.height,baseline!))):areaCommands;
         series.push({id:s.series.spec.id,name:s.series.spec.name,color,commands,...(filled?{areaCommands:fill}:{})});
         const metadata=spec.family==='line'&&data.nonnullCount>2048&&s.eligible.length?lineObservationMetadata(s.series,xa.type):undefined;
@@ -116,9 +115,9 @@ function planCartesian(value:PlanSpec,options:PlanOptions,owned:boolean):PlanRes
     const stacking=ownedOptions.stacking;
     const referenceInput=references===undefined?spec:{...spec,references};
     const checked=stacking?validateStacked({...referenceInput,family:'stacked',stacking}):validateColumn(referenceInput);if(checked.status==='invalid')return checked;
-    const input=checked.value,data=normalizeColumn(input),domain=stacking?stackedDomain(data,state,stacking):columnDomain(data,state),legend=legendFor(input.series,palette,hidden);
+    const input=checked.value,data=normalizeColumn(input),domain=stacking?stackedDomain(data,state,stacking):columnDomain(data,state),legend=planLegend(input.series,palette,hidden);
     if(domain.status==='invalid')return domain;
-    if(hidden.some(id=>!input.series.some(s=>s.id===id)))return bad('UNKNOWN_SERIES','options.hiddenSeriesIds');
+    if(hidden.some(id=>!input.series.some(s=>s.id===id)))return invalidPlan('UNKNOWN_SERIES','options.hiddenSeriesIds');
     // A normalized percentage-axis caption is not a unit of the raw values.
     const base={schema:'nc-plan/1' as const,family:input.orientation==='horizontal'?'bar' as const:'column' as const,width,height,title:input.title,description:input.description??'',unit:spec.axes.y.title??'',legend};
     if(!domain.value)return finish({...base,series:[],observations:[],labels:[],grid:[]});
@@ -131,7 +130,7 @@ function planCartesian(value:PlanSpec,options:PlanOptions,owned:boolean):PlanRes
     const projected=stacked??projectColumn(data,state,plot,ticks.value.domain,window);if(projected.status==='invalid')return projected;
     const p=projected.value,series:PlanSeries[]=[],observations:PlanObservation[]=[];
     if(stacked?.status==='ok'&&stacking==='percent')for(const category of stacked.value.stack.categories.values()){
-      if(!category.complete&&p.bands.center(category.id)!==null)return bad('INCOMPLETE_PERCENT_CATEGORY','series','Percent stacking requires a known value for every visible series in each displayed category. Category '+category.id+' has a missing value; use sum stacking or complete the data without treating null as zero.');
+      if(!category.complete&&p.bands.center(category.id)!==null)return invalidPlan('INCOMPLETE_PERCENT_CATEGORY','series','Percent stacking requires a known value for every visible series in each displayed category. Category '+category.id+' has a missing value; use sum stacking or complete the data without treating null as zero.');
     }
     const percentages=new Map<string,number>();if(stacked?.status==='ok')for(const row of stacked.value.stack.series)for(const segment of row.segments)if(segment.percentage!==null)percentages.set(JSON.stringify([segment.seriesId,segment.point.id]),segment.percentage);
     for(const s of data.series){
@@ -154,5 +153,5 @@ function planCartesian(value:PlanSpec,options:PlanOptions,owned:boolean):PlanRes
     const yLabels=p.horizontal?input.axes.x.values.flatMap(c=>{const y=p.bands.center(c.id);return y===null?[]:[{id:c.id,y,label:c.label??c.id}];}):undefined;
     const annotations=stacked?.status==='ok'&&stacking?planStackLabels(stacked.value.stack.categories.values(),stacking,ticks.value.domain,p.bands.center,p.mapValue,p.horizontal):undefined;
     return finish({...base,series,observations,labels,...(annotations?{annotations}:{}),grid:p.horizontal?[]:ticks.value.ticks.map(v=>({y:p.mapValue(v)!,label:String(v),value:v,type:'number' as const})),...(yLabels?{yLabels}:{}),...(view?{viewport:planViewportState(view,{x:null,y:ticks.value.domain},input.axes,plot)!}:{})},references===undefined&&checkedBands.value===undefined||!data.series.some(series=>!hidden.includes(series.spec.id)&&series.valid.length>0)?undefined:{plot,domains:{x:null,y:ticks.value.domain},mapY:p.mapValue,horizontal:p.horizontal,bandSourceAxes:input.axes,categorySlot:id=>{const band=p.bands.band(id);return band?[band.start,band.end]:null;}});
-  }catch(error){return bad(error instanceof Error?error.message:'UNREADABLE_INPUT','spec');}
+  }catch(error){return invalidPlan(error instanceof Error?error.message:'UNREADABLE_INPUT','spec');}
 }

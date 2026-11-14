@@ -1,4 +1,5 @@
-import {array, choice, color, fail, number, record, text, ValidationFailure} from '../internal/data/validation.js';
+import { planningFailure } from './diagnostics.js';
+import {array, choice, color, fail, number, record, text} from '../internal/data/validation.js';
 import {defaultPalette} from '../internal/chart/presentation.js';
 import {createCategoryFrame, createPointScale} from '../internal/math/category.js';
 import {formatAxis} from '../internal/axes/plan.js';
@@ -140,7 +141,6 @@ export function planTimeline(input: PlanTimelineSpec, inputOptions: PlanOptions)
       ...(projection.viewport === undefined ? {} : {viewport: projection.viewport})};
     return freezePlan({status: observations.length ? 'ok' : 'empty', frame: result});
   } catch (error) {
-    return error instanceof ValidationFailure ? {status: 'invalid', diagnostic: error.diagnostic}
-      : {status: 'invalid', diagnostic: {code: 'INVALID_CONFIG', reason: 'BAD_SPEC', path: 'spec', message: 'BAD_SPEC'}};
+    return planningFailure(error);
   }
 }

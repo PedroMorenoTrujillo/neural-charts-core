@@ -1,3 +1,4 @@
+import { invalidPlan } from './diagnostics.js';
 import {planChart} from './plan.js';
 import {createLinearScale} from '../internal/math/linear.js';
 import {freezePlan} from './input.js';
@@ -5,16 +6,15 @@ import type {PlanParetoSpec,PlanOptions,PlanResult,PlanCommand,PlanObservation,P
 
 /** One category frame, raw-value Y and a separate fixed percentage Y. */
 export function planPareto(spec:PlanParetoSpec,options:PlanOptions):PlanResult{
-  const bad=(reason:string,path:string):PlanResult=>({status:'invalid',diagnostic:{code:'INVALID_CONFIG',reason,path,message:reason}});
-  if(!Array.isArray(spec.data)||!spec.data.length||spec.data.length>64)return bad('PARETO_CATEGORY_LIMIT','data');
+  if(!Array.isArray(spec.data)||!spec.data.length||spec.data.length>64)return invalidPlan('PARETO_CATEGORY_LIMIT','data');
   const ids=new Set<string>();
   for(const p of spec.data){
-    if(!p||Object.keys(p).some(k=>!['id','label','value'].includes(k))||typeof p.id!=='string'||!p.id||p.id.length>128||ids.has(p.id)||typeof p.label!=='string'||p.label.length>128)return bad('BAD_PARETO_CATEGORY','data');
-    if(typeof p.value!=='number'||!Number.isFinite(p.value)||p.value<0)return bad('COMPLETE_NONNEGATIVE_VALUES_REQUIRED','data.value');
+    if(!p||Object.keys(p).some(k=>!['id','label','value'].includes(k))||typeof p.id!=='string'||!p.id||p.id.length>128||ids.has(p.id)||typeof p.label!=='string'||p.label.length>128)return invalidPlan('BAD_PARETO_CATEGORY','data');
+    if(typeof p.value!=='number'||!Number.isFinite(p.value)||p.value<0)return invalidPlan('COMPLETE_NONNEGATIVE_VALUES_REQUIRED','data.value');
     ids.add(p.id);
   }
-  if(options.hiddenSeriesIds?.some(id=>id!=='values'&&id!=='cumulative'))return bad('UNKNOWN_SERIES','options.hiddenSeriesIds');
-  if(options.viewport&&(options.viewport.axes!=='x'||options.viewport.value?.y!==undefined))return bad('PARETO_X_VIEWPORT_ONLY','options.viewport');
+  if(options.hiddenSeriesIds?.some(id=>id!=='values'&&id!=='cumulative'))return invalidPlan('UNKNOWN_SERIES','options.hiddenSeriesIds');
+  if(options.viewport&&(options.viewport.axes!=='x'||options.viewport.value?.y!==undefined))return invalidPlan('PARETO_X_VIEWPORT_ONLY','options.viewport');
   const sorted=spec.data.map((p,index)=>({...p,index})).sort((a,b)=>b.value-a.value||a.index-b.index);
   const column=planChart({family:'column',title:spec.title,...(spec.description?{description:spec.description}:{}),axes:{x:{type:'category',values:sorted.map(p=>({id:p.id,label:p.label}))},y:{type:'linear'}},series:[{id:'values',name:'Values',color:'#2C6DCD',data:sorted.map(p=>({id:p.id,x:p.id,y:p.value}))}]},{width:options.width,height:options.height,...(options.viewport?{viewport:options.viewport}:{})});
   if(column.status==='invalid')return column;

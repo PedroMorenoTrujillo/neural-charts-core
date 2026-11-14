@@ -1,4 +1,5 @@
-import {array,choice,fail,number,record,text,ValidationFailure} from '../internal/data/validation.js';
+import { planningFailure } from './diagnostics.js';
+import {array,choice,fail,number,record,text} from '../internal/data/validation.js';
 import {freezePlan} from './input.js';
 import type {PlanBellcurveSpec,PlanColumnSpec,PlanDistributionSummary,PlanFrame,PlanHistogramSpec,PlanLineSpec,PlanOptions,PlanResult} from '../public/plan-types.js';
 
@@ -143,6 +144,6 @@ export function planStatistics(spec:PlanHistogramSpec|PlanBellcurveSpec,options:
     const bounds=new Map(bins.map(bin=>[bin.id,bin]));
     return freezePlan({status:result.status,frame:{...result.frame,family,distribution,...(family==='histogram'?{labels:histogramLabels(bins,result.frame)}:{}),observations:result.frame.observations.map(observation=>{if(family==='histogram'){const bin=bounds.get(observation.id.pointId)!;return {...observation,lowValue:bin.from,highValue:bin.to};}return {...observation,xValue:densityX.get(observation.id.pointId)!};})}});
   }catch(error){
-    return error instanceof ValidationFailure?{status:'invalid',diagnostic:error.diagnostic}:{status:'invalid',diagnostic:{code:'INVALID_CONFIG',reason:'BAD_SPEC',path:'spec',message:'BAD_SPEC'}};
+    return planningFailure(error);
   }
 }

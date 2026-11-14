@@ -1,3 +1,5 @@
+import { readPlanTitle } from './plan-presentation.js';
+import { planningFailure } from './diagnostics.js';
 import {array,fail,number,record,text,ValidationFailure} from '../internal/data/validation.js';
 import {defaultPalette} from '../internal/chart/presentation.js';
 import {createLinearScale} from '../internal/math/linear.js';
@@ -107,7 +109,7 @@ export function planSankey(spec:PlanSankeySpec,options:PlanOptions):PlanResult {
   try{
     const input=record(spec,['family','title','description','nodes','links','groups','orientation','nodeWidth','nodePadding'],['family','title','nodes','links'],'spec');
     if(input.family!=='sankey')fail('family');
-    const title=text(input.title,'title'),description=Object.hasOwn(input,'description')?text(input.description,'description',4096,true):'';
+    const {title,description}=readPlanTitle(input);
     const width=number(options.width,'options.width',64,10000),height=number(options.height,'options.height',64,10000);
     if(options.references!==undefined||options.stacking!==undefined)fail('options','UNSUPPORTED_LAYOUT_OPTION');
     const orientation=input.orientation??'horizontal';if(orientation!=='horizontal'&&orientation!=='vertical')fail('orientation','BAD_ORIENTATION');
@@ -200,5 +202,5 @@ export function planSankey(spec:PlanSankeySpec,options:PlanOptions):PlanResult {
       if(bars.length||areaCommands.length||observations.length>groupStart)series.push({id:group.id,name:group.label,color,...(bars.length?{bars}:{}),...(areaCommands.length?{areaCommands}:{}),fill:true});
     }
     return freezePlan({status:observations.length?'ok':'empty',frame:{schema:'nc-plan/1',family:'sankey',title,description,unit:'',width,height,legend,series,observations,annotations,grid:[],labels:[],viewport:view.state}});
-  }catch(error){return error instanceof ValidationFailure?{status:'invalid',diagnostic:error.diagnostic}:{status:'invalid',diagnostic:{code:'INVALID_CONFIG',reason:'BAD_SPEC',path:'spec',message:'BAD_SPEC'}};}
+  }catch(error){return planningFailure(error);}
 }

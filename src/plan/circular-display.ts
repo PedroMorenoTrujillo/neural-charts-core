@@ -1,3 +1,4 @@
+import { invalidPlan } from './diagnostics.js';
 import type {PlanPieSpec,PlanDonutSpec,PlanGaugeSpec,PlanOptions,PlanFrame,PlanResult,PlanSeries,PlanObservation} from '../public/plan-types.js';
 import type {PlanCircularFrame,PlanGaugeCircularBase} from '../public/circular-plan-types.js';
 import {validateRadial} from '../radial/validate.js';
@@ -10,7 +11,6 @@ import {defaultPalette} from '../internal/chart/presentation.js';
 import {freezePlan} from './input.js';
 import {circularBounds} from './circular-bounds.js';
 
-const bad=(reason:string,path:string):PlanResult=>({status:'invalid',diagnostic:{code:'INVALID_CONFIG',reason,path,message:reason}});
 const finish=(frame:PlanFrame):PlanResult=>freezePlan({status:frame.observations.length?'ok':'empty',frame});
 const degrees=Math.PI/180;
 // The shared path owner accepts a start within one turn. Hit intervals retain
@@ -23,17 +23,17 @@ function circularPath(frame:RadialFrame,start:number,end:number){
 /** New display envelopes reuse the frozen radial normalization and scalar scale. */
 export function planCircularDisplay(spec:PlanPieSpec|PlanDonutSpec|PlanGaugeSpec,options:PlanOptions):PlanResult{
  const config=options.circular===undefined?{}:options.circular,gauge=spec.family==='gauge';
- if(!config||typeof config!=='object'||Array.isArray(config)||Object.keys(config).some(k=>!['startAngle','endAngle','gaugeStyle','tickCount'].includes(k)))return bad('BAD_CIRCULAR_OPTIONS','options.circular');
- if(!gauge&&(config.gaugeStyle!==undefined||config.tickCount!==undefined))return bad('GAUGE_OPTIONS_ONLY','options.circular');
- if(config.gaugeStyle!==undefined&&!['solid','needle'].includes(config.gaugeStyle))return bad('BAD_GAUGE_STYLE','options.circular.gaugeStyle');
+ if(!config||typeof config!=='object'||Array.isArray(config)||Object.keys(config).some(k=>!['startAngle','endAngle','gaugeStyle','tickCount'].includes(k)))return invalidPlan('BAD_CIRCULAR_OPTIONS','options.circular');
+ if(!gauge&&(config.gaugeStyle!==undefined||config.tickCount!==undefined))return invalidPlan('GAUGE_OPTIONS_ONLY','options.circular');
+ if(config.gaugeStyle!==undefined&&!['solid','needle'].includes(config.gaugeStyle))return invalidPlan('BAD_GAUGE_STYLE','options.circular.gaugeStyle');
  const needle=gauge&&config.gaugeStyle==='needle';
- if(config.tickCount!==undefined&&(!needle||!Number.isInteger(config.tickCount)||config.tickCount<2||config.tickCount>12))return bad('BAD_GAUGE_TICK_COUNT','options.circular.tickCount');
+ if(config.tickCount!==undefined&&(!needle||!Number.isInteger(config.tickCount)||config.tickCount<2||config.tickCount>12))return invalidPlan('BAD_GAUGE_TICK_COUNT','options.circular.tickCount');
  const start=config.startAngle??(gauge&&spec.preset!=='ring'?-90:0),end=config.endAngle??(gauge&&spec.preset!=='ring'?90:360);
- if(!Number.isFinite(start)||!Number.isFinite(end)||start< -360||start>360||end< -359||end>720||end-start<1||end-start>360)return bad('BAD_CIRCULAR_SWEEP','options.circular');
+ if(!Number.isFinite(start)||!Number.isFinite(end)||start< -360||start>360||end< -359||end>720||end-start<1||end-start>360)return invalidPlan('BAD_CIRCULAR_SWEEP','options.circular');
  const from=((start%360)+360)%360*degrees,span=(end-start)*degrees,to=from+span,side=Math.min(options.width,options.height),hidden=options.hiddenSeriesIds??[],palette=defaultPalette('light',false).series;
  if(spec.family==='pie'||spec.family==='donut'){
   const checked=validateRadial(spec,spec.family);if(checked.status==='invalid')return checked;const input=checked.value;
-  if(input.data.length>16)return bad('SLICE_LIMIT','data');if(hidden.some(id=>!input.data.some(p=>p.id===id)))return bad('UNKNOWN_SERIES','options.hiddenSeriesIds');
+  if(input.data.length>16)return invalidPlan('SLICE_LIMIT','data');if(hidden.some(id=>!input.data.some(p=>p.id===id)))return invalidPlan('UNKNOWN_SERIES','options.hiddenSeriesIds');
   const projected=projectRadial(input,{hiddenSliceIds:[...hidden]},{x:0,y:0,width:side,height:side});if(projected.status==='invalid')return projected;
   const p=projected.value,legend=input.data.map((point,i)=>({id:point.id,name:point.label,color:point.color??palette[i%palette.length]!,visible:!hidden.includes(point.id)})),colors=new Map(legend.map(s=>[s.id,s.color])),series:PlanSeries[]=[],observations:PlanObservation[]=[];
   for(const slice of p.data.eligible){
@@ -47,18 +47,18 @@ export function planCircularDisplay(spec:PlanPieSpec|PlanDonutSpec|PlanGaugeSpec
   const knownCount=p.data.eligible.length,knownTotal=knownCount?p.data.total:null;
   return finish({schema:'nc-plan/1',family:spec.family,width:side,height:side,title:input.title,description:input.description??'',unit:'',legend,series,observations,grid:[],labels:[],circular,radialSummary:{knownTotal,overflow:knownCount>0&&p.data.total===null,missingCount:p.data.missing,hiddenCount:p.data.hidden,knownCount,percentageBasis:p.data.missing?'known-visible-subtotal':'complete-visible-total'},...(spec.family==='donut'?{annotations:[{x:p.frame.cx,y:p.frame.cy,text:knownTotal===null?'—':String(knownTotal),role:'value' as const}]}:{})});
  }
- if(hidden.length)return bad('GAUGE_HAS_NO_LEGEND','options.hiddenSeriesIds');
+ if(hidden.length)return invalidPlan('GAUGE_HAS_NO_LEGEND','options.hiddenSeriesIds');
  const checked=validateGauge(spec);if(checked.status==='invalid')return checked;const input=checked.value;
  const normalized=createLinearScale(input.domain,[0,1],true);if(normalized.status==='invalid')return normalized;
  const visualT=input.value===null?null:normalized.value.map(input.value),valueState:PlanGaugeCircularBase['valueState']=input.value===null?'missing':input.value<input.domain[0]?'under':input.value>input.domain[1]?'over':'within';
- if(input.value!==null&&visualT===null)return bad('UNREPRESENTABLE_GAUGE','value');
+ if(input.value!==null&&visualT===null)return invalidPlan('UNREPRESENTABLE_GAUGE','value');
  const angular=createLinearScale(input.domain,[from,to],true);if(angular.status==='invalid')return angular;
  const targetOutside=input.target!==undefined&&(input.target.value<input.domain[0]||input.target.value>input.domain[1]);
  const radius=side*.4,frame:RadialFrame={cx:side/2,cy:side/2,radius,innerRadius:radius*.78},color=input.color??palette[0]!;
  const track=circularPath(frame,from,to);if(track.status==='invalid')return track;
  const series:PlanSeries[]=[{id:'track',name:input.title,color:'#DDE5EF',commands:track.value,fill:true}],tickPoints:{value:number;x:number;y:number}[]=[],extras:{x:number;y:number}[]=[];
  for(const band of input.bands??[]){
-  const a=angular.value.map(band.from),b=angular.value.map(band.to);if(a===null||b===null)return bad('UNREPRESENTABLE_GAUGE_BAND','bands');
+  const a=angular.value.map(band.from),b=angular.value.map(band.to);if(a===null||b===null)return invalidPlan('UNREPRESENTABLE_GAUGE_BAND','bands');
   const path=circularPath({...frame,radius:radius*1.1,innerRadius:radius*1.035},a,b);if(path.status==='invalid')return path;series.push({id:'band:'+band.id,name:band.label??input.title,color:band.color,commands:path.value,fill:true});
  }
  const angle=visualT===null?null:from+span*visualT;
@@ -67,13 +67,13 @@ export function planCircularDisplay(spec:PlanPieSpec|PlanDonutSpec|PlanGaugeSpec
   else{const fill=circularPath(frame,from,angle);if(fill.status==='invalid')return fill;series.push({id:'reading',name:input.title,color,commands:fill.value,fill:true});}
  }
  if(needle){
-  const tickPlan=selectNumericTicks(input.domain,{nice:false,targetCount:config.tickCount??7});if(tickPlan.status==='invalid')return bad('UNREPRESENTABLE_GAUGE_TICKS','domain');
+  const tickPlan=selectNumericTicks(input.domain,{nice:false,targetCount:config.tickCount??7});if(tickPlan.status==='invalid')return invalidPlan('UNREPRESENTABLE_GAUGE_TICKS','domain');
   const commands:NonNullable<PlanSeries['commands']>[number][]=[];
-  for(const value of tickPlan.value.ticks){if(span===2*Math.PI&&value===input.domain[1])continue;const a=angular.value.map(value);if(a===null)return bad('UNREPRESENTABLE_GAUGE_TICK','domain');const first=polar(frame,radius*.96,a),last=polar(frame,radius*1.03,a),label=polar(frame,radius*.66,a);commands.push({type:'M',...first},{type:'L',...last});tickPoints.push({value,...label});extras.push(last);}
-  if(tickPoints.length>16)return bad('GAUGE_TICK_LIMIT','options.circular.tickCount');
+  for(const value of tickPlan.value.ticks){if(span===2*Math.PI&&value===input.domain[1])continue;const a=angular.value.map(value);if(a===null)return invalidPlan('UNREPRESENTABLE_GAUGE_TICK','domain');const first=polar(frame,radius*.96,a),last=polar(frame,radius*1.03,a),label=polar(frame,radius*.66,a);commands.push({type:'M',...first},{type:'L',...last});tickPoints.push({value,...label});extras.push(last);}
+  if(tickPoints.length>16)return invalidPlan('GAUGE_TICK_LIMIT','options.circular.tickCount');
   series.push({id:'scale',name:input.title,color:'#718299',commands,fill:false});
  }
- if(input.target&&!targetOutside){const a=angular.value.map(input.target.value);if(a===null)return bad('UNREPRESENTABLE_GAUGE_TARGET','target');const first=polar(frame,radius*.72,a),last=polar(frame,radius*1.13,a);series.push({id:'target',name:input.target.label??'Target',color:'#718299',commands:[{type:'M',...first},{type:'L',...last}],fill:false});extras.push(first,last);}
+ if(input.target&&!targetOutside){const a=angular.value.map(input.target.value);if(a===null)return invalidPlan('UNREPRESENTABLE_GAUGE_TARGET','target');const first=polar(frame,radius*.72,a),last=polar(frame,radius*1.13,a);series.push({id:'target',name:input.target.label??'Target',color:'#718299',commands:[{type:'M',...first},{type:'L',...last}],fill:false});extras.push(first,last);}
  const readingBaseline=frame.cy+radius*(span<=Math.PI?.3:.2),readingWidth=radius*.65;
  extras.push({x:frame.cx-readingWidth,y:readingBaseline-side*.05},{x:frame.cx+readingWidth,y:readingBaseline+side*.02});
  const targetY=Math.min(side-side*.04,readingBaseline+side*.1);if(input.target)extras.push({x:frame.cx-readingWidth,y:targetY},{x:frame.cx+readingWidth,y:targetY});
