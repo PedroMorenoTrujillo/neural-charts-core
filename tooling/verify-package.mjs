@@ -54,6 +54,7 @@ const packed = packedMetadata(run(npm, ['pack', '--ignore-scripts', '--json', '-
 for (const file of packed.files) {
   assert(/^(?:package\.json|README\.md|LICENSE|dist\/.+\.(?:js|d\.ts))$/.test(file.path), 'Unexpected published file: ' + file.path);
   assert(!file.path.includes('..'), 'Invalid archive path');
+  if (file.path.endsWith('.js')) assert(file.path.startsWith('dist/runtime/'), 'Duplicate unbundled JavaScript in archive: ' + file.path);
 }
 assert(packed.files.some(file => file.path === 'README.md'));
 const consumer = path.join(staging, 'consumer');

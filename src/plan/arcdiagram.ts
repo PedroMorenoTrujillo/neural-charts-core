@@ -1,4 +1,5 @@
-import {fail,number,ValidationFailure} from '../internal/data/validation.js';
+import { planningFailure } from './diagnostics.js';
+import {fail,number} from '../internal/data/validation.js';
 import {freezePlan} from './input.js';
 import type {PlanAnnotation,PlanCircle,PlanCommand,PlanOptions,PlanSeries} from '../public/plan-types.js';
 import type {PlanArcDiagramSpec,PlanRelationshipObservation,PlanRelationshipResult} from '../public/relationship-types.js';
@@ -42,5 +43,5 @@ export function planArcDiagram(spec:PlanArcDiagramSpec,options:PlanOptions):Plan
       if(areaCommands.length||circles.length||observations.length>startCount)series.push({id:group.id,name:group.label,color:group.color,...(areaCommands.length?{areaCommands}:{}),...(circles.length?{circles}:{}),fill:true});
     }
     return freezePlan({status:observations.length?'ok':'empty',frame:{schema:'nc-plan/1',family:'arcdiagram',title:graph.title,description:graph.description,unit:'',width,height,legend:graph.legend,series,observations,annotations,grid:[],labels:[]}});
-  }catch(error){return error instanceof ValidationFailure?{status:'invalid',diagnostic:error.diagnostic}:{status:'invalid',diagnostic:{code:'INVALID_CONFIG',reason:'BAD_SPEC',path:'spec',message:'BAD_SPEC'}};}
+  }catch(error){return planningFailure(error);}
 }

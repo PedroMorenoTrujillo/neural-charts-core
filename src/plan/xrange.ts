@@ -1,4 +1,5 @@
-import {array, choice, color, fail, number, record, text, ValidationFailure} from '../internal/data/validation.js';
+import { planningFailure } from './diagnostics.js';
+import {array, choice, color, fail, number, record, text} from '../internal/data/validation.js';
 import {defaultPalette} from '../internal/chart/presentation.js';
 import {createBandScale, createCategoryFrame} from '../internal/math/category.js';
 import type {Plot} from '../internal/layout/frame.js';
@@ -154,7 +155,6 @@ export function planXRange(input: PlanXRangeSpec, inputOptions: PlanOptions): Pl
       references: projection.references, ...(projection.viewport === undefined ? {} : {viewport: projection.viewport})};
     return freezePlan({status: observations.length ? 'ok' : 'empty', frame: result});
   } catch (error) {
-    return error instanceof ValidationFailure ? {status: 'invalid', diagnostic: error.diagnostic}
-      : {status: 'invalid', diagnostic: {code: 'INVALID_CONFIG', reason: 'BAD_SPEC', path: 'spec', message: 'BAD_SPEC'}};
+    return planningFailure(error);
   }
 }

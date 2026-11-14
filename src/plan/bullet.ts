@@ -1,4 +1,5 @@
-import {array, choice, color, fail, number, record, text, ValidationFailure} from '../internal/data/validation.js';
+import { planningFailure } from './diagnostics.js';
+import {array, choice, color, fail, number, record, text} from '../internal/data/validation.js';
 import {defaultPalette} from '../internal/chart/presentation.js';
 import {createBandScale, createCategoryFrame} from '../internal/math/category.js';
 import type {Plot} from '../internal/layout/frame.js';
@@ -127,7 +128,6 @@ export function planBullet(input: PlanBulletSpec, inputOptions: PlanOptions): Pl
       bulletGrid: projection.ticks.map(tick => horizontal ? {x1: tick.position, y1: plot.y, x2: tick.position, y2: plot.y + plot.height} : {x1: plot.x, y1: tick.position, x2: plot.x + plot.width, y2: tick.position})};
     return freezePlan({status: observations.length ? 'ok' : 'empty', frame});
   } catch (error) {
-    return error instanceof ValidationFailure ? {status: 'invalid', diagnostic: error.diagnostic}
-      : {status: 'invalid', diagnostic: {code: 'INVALID_CONFIG', reason: 'BAD_SPEC', path: 'spec', message: 'BAD_SPEC'}};
+    return planningFailure(error);
   }
 }

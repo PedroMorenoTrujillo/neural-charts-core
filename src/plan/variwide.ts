@@ -1,4 +1,5 @@
-import {array, choice, color, fail, number, record, text, ValidationFailure} from '../internal/data/validation.js';
+import { planningFailure } from './diagnostics.js';
+import {array, choice, color, fail, number, record, text} from '../internal/data/validation.js';
 import {defaultPalette} from '../internal/chart/presentation.js';
 import type {Plot} from '../internal/layout/frame.js';
 import {freezePlan} from './input.js';
@@ -116,7 +117,6 @@ export function planVariwide(input: PlanVariwideSpec, inputOptions: PlanOptions)
       ...(projection.viewport === undefined ? {} : {viewport: projection.viewport})};
     return freezePlan({status: observations.length ? 'ok' : 'empty', frame});
   } catch (error) {
-    return error instanceof ValidationFailure ? {status: 'invalid', diagnostic: error.diagnostic}
-      : {status: 'invalid', diagnostic: {code: 'INVALID_CONFIG', reason: 'BAD_SPEC', path: 'spec', message: 'BAD_SPEC'}};
+    return planningFailure(error);
   }
 }

@@ -1,3 +1,4 @@
+import { invalidPlan } from './diagnostics.js';
 import {validateColumn} from '../column/validate.js';
 import {finiteExtent,normalizeNumericDomain} from '../internal/math/domain.js';
 import {selectNumericTicks} from '../internal/math/numeric-ticks.js';
@@ -12,19 +13,18 @@ import type {PlanWaterfallSpec,PlanOptions,PlanReference,PlanResult,PlanBar,Plan
 
 /** An ordered flow has one compensated accumulator, independent of the view window. */
 export function planWaterfall(spec:PlanWaterfallSpec,options:PlanOptions,references?:readonly PlanReference[]):PlanResult{
-  const bad=(reason:string,path:string,message=reason):PlanResult=>({status:'invalid',diagnostic:{code:'INVALID_CONFIG',reason,path,message}});
-  if(!Array.isArray(spec.series)||spec.series.length!==1)return bad('ONE_FLOW_REQUIRED','series');
-  const flow=spec.series[0];if(!flow||Object.keys(flow).some(key=>!['id','name','color','data'].includes(key))||!Array.isArray(flow.data)||flow.data.length>64)return bad('FLOW_LIMIT','series');
-  if(spec.startValue!==undefined&&!Number.isFinite(spec.startValue))return bad('NONFINITE_START','startValue');
+  if(!Array.isArray(spec.series)||spec.series.length!==1)return invalidPlan('ONE_FLOW_REQUIRED','series');
+  const flow=spec.series[0];if(!flow||Object.keys(flow).some(key=>!['id','name','color','data'].includes(key))||!Array.isArray(flow.data)||flow.data.length>64)return invalidPlan('FLOW_LIMIT','series');
+  if(spec.startValue!==undefined&&!Number.isFinite(spec.startValue))return invalidPlan('NONFINITE_START','startValue');
   for(const point of flow.data){
-    if(!point||!['delta','subtotal','total'].includes(point.type)||Object.keys(point).some(key=>!(point.type==='delta'?['id','x','type','value']:['id','x','type']).includes(key)))return bad('BAD_FLOW_POINT','series.data');
-    if(point.type==='delta'&&!Number.isFinite(point.value))return bad('COMPLETE_FLOW_REQUIRED','series.data.value','A waterfall requires finite deltas. Missing changes cannot be treated as zero.');
+    if(!point||!['delta','subtotal','total'].includes(point.type)||Object.keys(point).some(key=>!(point.type==='delta'?['id','x','type','value']:['id','x','type']).includes(key)))return invalidPlan('BAD_FLOW_POINT','series.data');
+    if(point.type==='delta'&&!Number.isFinite(point.value))return invalidPlan('COMPLETE_FLOW_REQUIRED','series.data.value','A waterfall requires finite deltas. Missing changes cannot be treated as zero.');
   }
   const {startValue:_start,family:_family,...input}=spec;
   const checked=validateColumn({...input,family:'column',series:[{...flow,data:flow.data.map(point=>({id:point.id,x:point.x,y:point.type==='delta'?point.value:0}))}],...(references?{references}:{})});if(checked.status==='invalid')return checked;
   const axes=checked.value.axes,categories=axes.x.values;
-  if(categories.length!==flow.data.length||flow.data.some((point,i)=>point.x!==categories[i]?.id))return bad('ORDERED_COMPLETE_CATEGORIES','series.data','Supply exactly one flow point per category, in category order.');
-  const hidden=options.hiddenSeriesIds??[];if(hidden.some(id=>id!==flow.id))return bad('UNKNOWN_SERIES','options.hiddenSeriesIds');
+  if(categories.length!==flow.data.length||flow.data.some((point,i)=>point.x!==categories[i]?.id))return invalidPlan('ORDERED_COMPLETE_CATEGORIES','series.data','Supply exactly one flow point per category, in category order.');
+  const hidden=options.hiddenSeriesIds??[];if(hidden.some(id=>id!==flow.id))return invalidPlan('UNKNOWN_SERIES','options.hiddenSeriesIds');
   const {width,height}=options,plot={x:16,y:14,width:width-32,height:height-28},color=flow.color??'#2C6DCD';
   const base={schema:'nc-plan/1' as const,family:'waterfall' as const,width,height,title:spec.title,description:spec.description??'',unit:axes.y.title??'',legend:[{id:flow.id,name:flow.name,color,visible:!hidden.includes(flow.id)}]};
   if(hidden.length||!flow.data.length)return freezePlan({status:'empty',frame:withPlanReferences({...base,series:[],observations:[],grid:[],labels:[]},references)});
@@ -35,10 +35,10 @@ export function planWaterfall(spec:PlanWaterfallSpec,options:PlanOptions,referen
     if(point.type==='delta'){const adjusted=point.value-compensation,next=running+adjusted;compensation=(next-running)-adjusted;running=next;value=point.value;}
     else if(point.type==='total'){from=0;value=running;}
     else{from=checkpoint;value=running-checkpoint;checkpoint=running;}
-    if(![from,running,value,compensation].every(Number.isFinite))return bad('FLOW_OVERFLOW','series.data');
+    if(![from,running,value,compensation].every(Number.isFinite))return invalidPlan('FLOW_OVERFLOW','series.data');
     rows.push({point,base:from,end:running,value});extent.push(from,running);
   }
-  const domain=normalizeNumericDomain(finiteExtent(extent),{includeZero:!axes.y.domain,...(axes.y.domain?{explicit:axes.y.domain}:{})});if(domain.status==='invalid')return domain;if(domain.status==='empty')return bad('EMPTY_DOMAIN','axes.y');
+  const domain=normalizeNumericDomain(finiteExtent(extent),{includeZero:!axes.y.domain,...(axes.y.domain?{explicit:axes.y.domain}:{})});if(domain.status==='invalid')return domain;if(domain.status==='empty')return invalidPlan('EMPTY_DOMAIN','axes.y');
   let ticks=selectNumericTicks(domain.domain,{nice:axes.y.nice??!axes.y.domain,targetCount:axes.y.ticks?.targetCount??5});if(ticks.status==='invalid')return ticks;
   const prepared=preparePlanViewport(axes,{x:null,y:ticks.value.domain},options.viewport);if(prepared.status==='invalid')return prepared;
   const view=prepared.value,scoped=withViewportDomains({x:null,y:ticks.value.domain},view);

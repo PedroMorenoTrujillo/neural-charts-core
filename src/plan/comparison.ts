@@ -1,4 +1,5 @@
-import {array,color,fail,number,record,text,ValidationFailure} from '../internal/data/validation.js';
+import { planningFailure } from './diagnostics.js';
+import {array,color,fail,number,record,text} from '../internal/data/validation.js';
 import {planRanges} from './ranges.js';
 import {freezePlan} from './input.js';
 import type {PlanCircle,PlanColumnPyramidSpec,PlanCommand,PlanDumbbellSpec,PlanFrame,PlanLollipopSpec,PlanObservation,PlanOptions,PlanRangeSpec,PlanReference,PlanResult,PlanSeries} from '../public/plan-types.js';
@@ -91,5 +92,5 @@ export function planComparison(spec:PlanLollipopSpec|PlanDumbbellSpec|PlanColumn
       return {...frame,family:dumbbell?'dumbbell':pyramid?'columnpyramid':'lollipop',series:shapes,observations};
     });
     return planned.status==='invalid'?planned:freezePlan({...planned,frame:{...planned.frame,family:dumbbell?'dumbbell':pyramid?'columnpyramid':'lollipop'}});
-  }catch(error){return error instanceof ValidationFailure?{status:'invalid',diagnostic:error.diagnostic}:{status:'invalid',diagnostic:{code:'INVALID_CONFIG',reason:'BAD_SPEC',path:'spec',message:'BAD_SPEC'}};}
+  }catch(error){return planningFailure(error);}
 }

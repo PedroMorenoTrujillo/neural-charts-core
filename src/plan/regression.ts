@@ -1,3 +1,4 @@
+import { invalidPlan } from './diagnostics.js';
 import {validateScatter} from '../scatter/validate.js';
 import {defaultPalette} from '../internal/chart/presentation.js';
 import {planAdditional,type ScatterFrameTransform} from './additional.js';
@@ -7,28 +8,27 @@ import {validatePlanReferences} from './references.js';
 import {freezePlan} from './input.js';
 import type {PlanRegressionSpec,PlanRegressionModel} from '../public/regression-plan-types.js';
 import type {PlanOptions,PlanResult,PlanScatterSpec,PlanObservation,PlanSeries} from '../public/plan-types.js';
-const bad=(reason:string,path:string):PlanResult=>({status:'invalid',diagnostic:{code:'INVALID_CONFIG',reason,path,message:reason}});
 interface Fit{readonly summary:PlanRegressionModel;readonly predict?:(x:number)=>number;readonly name:string;readonly color:string;}
 /** Derived OLS and original scatter points share the same numeric frame. */
 export function planRegression(spec:PlanRegressionSpec,options:PlanOptions):PlanResult{
-  if(Object.keys(spec).some(k=>!['family','title','description','axes','series'].includes(k))||!Array.isArray(spec.series)||spec.series.length>8)return bad('BAD_REGRESSION_SOURCE','spec');
+  if(Object.keys(spec).some(k=>!['family','title','description','axes','series'].includes(k))||!Array.isArray(spec.series)||spec.series.length>8)return invalidPlan('BAD_REGRESSION_SOURCE','spec');
   let count=0;
   for(const s of spec.series){
-    if(!s||Object.keys(s).some(k=>!['id','name','color','data'].includes(k))||typeof s.id!=='string'||s.id.length>96||s.id.startsWith('ols:')||typeof s.name!=='string'||s.name.length>190||!Array.isArray(s.data)||(count+=s.data.length)>4096)return bad('REGRESSION_SOURCE_LIMIT','series');
-    for(const p of s.data)if(!p||Object.keys(p).some(k=>!['id','x','y'].includes(k))||typeof p.id!=='string'||p.id.length>96)return bad('BAD_REGRESSION_SAMPLE','series.data');
+    if(!s||Object.keys(s).some(k=>!['id','name','color','data'].includes(k))||typeof s.id!=='string'||s.id.length>96||s.id.startsWith('ols:')||typeof s.name!=='string'||s.name.length>190||!Array.isArray(s.data)||(count+=s.data.length)>4096)return invalidPlan('REGRESSION_SOURCE_LIMIT','series');
+    for(const p of s.data)if(!p||Object.keys(p).some(k=>!['id','x','y'].includes(k))||typeof p.id!=='string'||p.id.length>96)return invalidPlan('BAD_REGRESSION_SAMPLE','series.data');
   }
   const checked=validateScatter({...spec,family:'scatter'});if(checked.status==='invalid')return checked;
   const source=checked.value,palette=defaultPalette('light',false).series,fits:Fit[]=[];
   const series:PlanScatterSpec['series'][number][]=source.series.map(s=>({id:s.id,name:s.name,...(s.color?{color:s.color}:{}),data:s.data.map(p=>({id:p.id,x:p.x,y:p.y}))}));
   for(const [i,s]of source.series.entries()){
     const pairs:{x:number;y:number}[]=[];for(const p of s.data)if(p.x!==null&&p.y!==null)pairs.push({x:p.x,y:p.y});
-    const calculation=describeRegression(s.id,pairs,s.data.length-pairs.length);if(calculation.status==='invalid')return bad(calculation.reason,'series['+i+']');
+    const calculation=describeRegression(s.id,pairs,s.data.length-pairs.length);if(calculation.status==='invalid')return invalidPlan(calculation.reason,'series['+i+']');
     const summary=calculation.summary,name='OLS · '+s.name,color=palette[(i+1)%palette.length]!;
     fits.push({summary,...(calculation.predict?{predict:calculation.predict}:{}),name,color});
     if(summary.status==='ready')series.push({id:summary.fitSeriesId,name,color,data:[{id:'start',x:summary.minX,y:calculation.predict!(summary.minX)},{id:'end',x:summary.maxX,y:calculation.predict!(summary.maxX)}]});
   }
   const knownIds=new Set(fits.flatMap(f=>[f.summary.sourceSeriesId,f.summary.fitSeriesId])),hidden=options.hiddenSeriesIds??[];
-  if(hidden.some(id=>!knownIds.has(id)))return bad('UNKNOWN_REGRESSION_SERIES','options.hiddenSeriesIds');
+  if(hidden.some(id=>!knownIds.has(id)))return invalidPlan('UNKNOWN_REGRESSION_SERIES','options.hiddenSeriesIds');
   const availableIds=new Set(series.map(s=>s.id)),scatter:PlanScatterSpec={family:'scatter',title:source.title,...(source.description===undefined?{}:{description:source.description}),axes:source.axes,series};
   const references=validatePlanReferences(options.references,scatter);if(references.status==='invalid')return references;
   const fitIds=new Set(fits.map(f=>f.summary.fitSeriesId)),layout={method:'ordinary-least-squares' as const,models:fits.map(f=>f.summary)};

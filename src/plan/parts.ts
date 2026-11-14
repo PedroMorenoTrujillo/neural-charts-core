@@ -1,4 +1,6 @@
-import {array,choice,color,fail,number,record,text,ValidationFailure} from '../internal/data/validation.js';
+import { readPlanTitle, readPlotSize } from './plan-presentation.js';
+import { planningFailure } from './diagnostics.js';
+import {array,choice,color,fail,number,record,text} from '../internal/data/validation.js';
 import {defaultPalette} from '../internal/chart/presentation.js';
 import {formatAxis} from '../internal/axes/plan.js';
 import {validateLine} from '../line/validate.js';
@@ -78,8 +80,8 @@ export function planParts(spec:PlanVariablePieSpec|PlanItemSpec|PlanPolygonSpec,
   try{
     const family=choice(record(spec,['family','title','description','data','zDomain','minRadiusRatio','radiusScale','columns','axes','series'],['family'],'spec').family,['variablepie','item','polygon'],'family');
     const input=record(spec,family==='variablepie'?['family','title','description','data','zDomain','minRadiusRatio','radiusScale']:family==='item'?['family','title','description','data','columns']:['family','title','description','axes','series'],['family','title',...(family==='polygon'?['axes','series']:['data'])],'spec');
-    const title=text(input.title,'title'),description=Object.hasOwn(input,'description')?text(input.description,'description',4096,true):'';
-    const opts=record(options,['width','height','hiddenSeriesIds','stacking','viewport','references'],['width','height'],'options'),width=number(opts.width,'options.width',64,10000),height=number(opts.height,'options.height',64,10000),plot={x:16,y:14,width:width-32,height:height-28};
+    const {title,description}=readPlanTitle(input);
+    const opts=record(options,['width','height','hiddenSeriesIds','stacking','viewport','references'],['width','height'],'options'),{width,height}=readPlotSize(opts),plot={x:16,y:14,width:width-32,height:height-28};
     if(Object.hasOwn(opts,'stacking'))fail('options.stacking','UNSUPPORTED_STACKING');
     const hidden=Object.hasOwn(opts,'hiddenSeriesIds')?array(opts.hiddenSeriesIds,16,'options.hiddenSeriesIds').map((id,i)=>text(id,'options.hiddenSeriesIds['+i+']',128)):[];if(new Set(hidden).size!==hidden.length)fail('options.hiddenSeriesIds','BAD_VISIBILITY');
     const palette=defaultPalette('light',false).series;
@@ -146,5 +148,5 @@ export function planParts(spec:PlanVariablePieSpec|PlanItemSpec|PlanPolygonSpec,
       series.push({id:p.id,name:p.label,color:p.color,commands,fill:true});observations.push({id:{seriesId:p.id,pointId:p.id},label:p.label,seriesName:title,value:p.value,sizeValue:p.z,x:mid.x,y:mid.y,color:p.color,...(denominator>0?{percentage:share*100}:{}),...(painted?{hit:{type:'sector' as const,cx,cy,radius:r,innerRadius:0,start,end}}:{})});
     }
     return freezePlan({status:observations.length?'ok':'empty',frame:{...base,series,observations,grid:[],labels:[]}});
-  }catch(error){return error instanceof ValidationFailure?{status:'invalid',diagnostic:error.diagnostic}:{status:'invalid',diagnostic:{code:'INVALID_CONFIG',reason:'BAD_SPEC',path:'spec',message:'BAD_SPEC'}};}
+  }catch(error){return planningFailure(error);}
 }

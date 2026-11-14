@@ -27,13 +27,13 @@ export function ownPlanInput(value:unknown,limits:Readonly<{nodes:number;charact
     const child=(value:unknown):unknown=>{const owned=visit(value,depth+1);height=Math.max(height,lastHeight+1);immutable=immutable&&lastImmutable;return owned;};
     const finish=<T>(copy:T):T=>{seen.delete(v);lastHeight=height;lastImmutable=immutable;if(immutable){Object.freeze(copy);if(cacheable&&(depth===0||count-beforeCount>=64)){const entry={value:copy,nodes:count-beforeCount,characters:characters-beforeCharacters,height};immutableInputs.set(v,entry);immutableInputs.set(copy as object,entry);}}return copy;};
     if(array){
-      const copy:unknown[]=[];
-      for(const key of keys){
+      // Mapping the fresh key array creates own data properties without
+      // invoking inherited numeric setters or defining each index by hand.
+      const copy=keys.map(key=>{
         const d=Object.getOwnPropertyDescriptor(v,key);
         if(!d||!('value' in d))throw Error('ACCESSOR');
-        // Numeric prototype setters must not run while copying arrays.
-        Object.defineProperty(copy,key,{value:child(d.value),enumerable:true,writable:true,configurable:true});
-      }
+        return child(d.value);
+      });
       return finish(copy);
     }
     // A null prototype makes assignment safe for __proto__, constructor and

@@ -1,4 +1,6 @@
-import {array,choice,color,fail,number,record,text,ValidationFailure} from '../internal/data/validation.js';
+import { readPlanTitle, readPlotSize } from './plan-presentation.js';
+import { planningFailure } from './diagnostics.js';
+import {array,choice,color,fail,number,record,text} from '../internal/data/validation.js';
 import {defaultPalette} from '../internal/chart/presentation.js';
 import {freezePlan} from './input.js';
 import type {PlanCommand,PlanFunnelSpec,PlanObservation,PlanOptions,PlanPyramidSpec,PlanResult,PlanSeries} from '../public/plan-types.js';
@@ -17,13 +19,13 @@ export function planFunnel(spec:PlanFunnelSpec|PlanPyramidSpec,options:PlanOptio
     const input=record(spec,['family','title','description','data','reversed','neckWidth','neckHeight'],['family','title','data'],'spec');
     const family=choice(input.family,['funnel','pyramid'],'family');
     if(family==='pyramid'&&(Object.hasOwn(input,'neckWidth')||Object.hasOwn(input,'neckHeight')))fail('spec','PYRAMID_HAS_NO_NECK');
-    const title=text(input.title,'title'),description=Object.hasOwn(input,'description')?text(input.description,'description',4096,true):'';
+    const {title,description}=readPlanTitle(input);
     if(Object.hasOwn(input,'reversed')&&typeof input.reversed!=='boolean')fail('reversed');
     const reversed=(input.reversed??(family==='pyramid')) as boolean;
     const neckWidth=family==='pyramid'?0:Object.hasOwn(input,'neckWidth')?number(input.neckWidth,'neckWidth',0,1):.3;
     const neckHeight=family==='pyramid'?0:Object.hasOwn(input,'neckHeight')?number(input.neckHeight,'neckHeight',0,1):.25;
     const opts=record(options,['width','height','hiddenSeriesIds','stacking','viewport','references'],['width','height'],'options');
-    const width=number(opts.width,'options.width',64,10000),height=number(opts.height,'options.height',64,10000);
+    const {width,height}=readPlotSize(opts);
     for(const key of ['stacking','viewport','references'])if(Object.hasOwn(opts,key))fail('options.'+key,'UNSUPPORTED_'+key.toUpperCase());
     const hidden=Object.hasOwn(opts,'hiddenSeriesIds')?array(opts.hiddenSeriesIds,16,'options.hiddenSeriesIds').map((id,i)=>text(id,'options.hiddenSeriesIds['+i+']',128)):[];
     if(new Set(hidden).size!==hidden.length)fail('options.hiddenSeriesIds','BAD_VISIBILITY');
@@ -73,6 +75,6 @@ export function planFunnel(spec:PlanFunnelSpec|PlanPyramidSpec,options:PlanOptio
     }
     return freezePlan({status:observations.length?'ok':'empty',frame:{schema:'nc-plan/1',family,title,description,unit:'',width,height,legend:data.map(p=>({id:p.id,name:p.label,color:p.color,visible:!hidden.includes(p.id)})),series,observations,grid:[],labels:[]}});
   }catch(error){
-    return error instanceof ValidationFailure?{status:'invalid',diagnostic:error.diagnostic}:{status:'invalid',diagnostic:{code:'INVALID_CONFIG',reason:'BAD_SPEC',path:'spec',message:'BAD_SPEC'}};
+    return planningFailure(error);
   }
 }

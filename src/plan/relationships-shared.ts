@@ -1,3 +1,4 @@
+import { readPlanTitle } from './plan-presentation.js';
 import {array,fail,number,record,text} from '../internal/data/validation.js';
 import {defaultPalette} from '../internal/chart/presentation.js';
 import type {PlanCommand,PlanOptions,PlanLegendItem} from '../public/plan-types.js';
@@ -30,7 +31,7 @@ export function stableTotal(values:readonly number[],path:string):number {
 export function relationshipGraph(spec:PlanRelationshipSpec,options:PlanOptions,family:PlanRelationshipSpec['family'],layout:readonly string[]):RelationshipGraph {
   const input=record(spec,['family','title','description','nodes','links','groups',...layout],['family','title','nodes','links'],'spec');
   if(input.family!==family)fail('family');
-  const title=text(input.title,'title'),description=Object.hasOwn(input,'description')?text(input.description,'description',4096,true):'';
+  const {title,description}=readPlanTitle(input);
   const ownOptions=record(options,['width','height','hiddenSeriesIds','stacking','references','viewport'],['width','height'],'options');
   const width=number(ownOptions.width,'options.width',64,10000),height=number(ownOptions.height,'options.height',64,10000);
   for(const key of ['stacking','references','viewport'])if(Object.hasOwn(ownOptions,key))fail('options.'+key,'UNSUPPORTED_LAYOUT_OPTION');

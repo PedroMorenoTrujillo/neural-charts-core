@@ -1,3 +1,5 @@
+import { planLegend } from './plan-presentation.js';
+import { invalidPlan } from './diagnostics.js';
 import {validateStacked} from '../stacked/validate.js';
 import {normalizeColumn} from '../column/normalize.js';
 import {stackedDomain,projectStacked} from '../stacked/geometry.js';
@@ -14,23 +16,23 @@ import type {PlanColumnSpec,PlanOptions,PlanReference,PlanResult,PlanSeries,Plan
 
 /** One category frame, value scale and nested group slots. Original stack mathematics is reused. */
 export function planGroupedStacks(spec:PlanColumnSpec,options:PlanOptions,references?:readonly PlanReference[]):PlanResult{
-  const bad=(reason:string,path:string):PlanResult=>({status:'invalid',diagnostic:{code:'INVALID_CONFIG',reason,path,message:reason}}),mode=options.stacking;
-  if(mode!=='sum'&&mode!=='percent'||!Array.isArray(options.stackGroups)||options.stackGroups.length<1||options.stackGroups.length>8)return bad('STACK_GROUPS_REQUIRE_STACKING','options.stackGroups');
+  const mode=options.stacking;
+  if(mode!=='sum'&&mode!=='percent'||!Array.isArray(options.stackGroups)||options.stackGroups.length<1||options.stackGroups.length>8)return invalidPlan('STACK_GROUPS_REQUIRE_STACKING','options.stackGroups');
   const checked=validateStacked({...spec,family:'stacked',stacking:mode});if(checked.status==='invalid')return checked;
   const input=checked.value,hidden=options.hiddenSeriesIds??[],state={hiddenSeriesIds:[...hidden]},sourceIds=new Set(input.series.map(s=>s.id));
-  if(input.axes.x.values.length>64)return bad('LABEL_LIMIT','axes.x.values');
-  if(hidden.some(id=>!sourceIds.has(id)))return bad('UNKNOWN_SERIES','options.hiddenSeriesIds');
+  if(input.axes.x.values.length>64)return invalidPlan('LABEL_LIMIT','axes.x.values');
+  if(hidden.some(id=>!sourceIds.has(id)))return invalidPlan('UNKNOWN_SERIES','options.hiddenSeriesIds');
   const assigned=new Set<string>(),groupIds=new Set<string>(),groups:PlanStackGroup[]=[];
   for(const g of options.stackGroups){
-    if(!g||Object.keys(g).some(k=>!['id','label','seriesIds'].includes(k))||typeof g.id!=='string'||!g.id||g.id.length>64||groupIds.has(g.id)||typeof g.label!=='string'||g.label.length>200||!Array.isArray(g.seriesIds)||g.seriesIds.length<1||g.seriesIds.length>16)return bad('BAD_STACK_GROUP','options.stackGroups');
+    if(!g||Object.keys(g).some(k=>!['id','label','seriesIds'].includes(k))||typeof g.id!=='string'||!g.id||g.id.length>64||groupIds.has(g.id)||typeof g.label!=='string'||g.label.length>200||!Array.isArray(g.seriesIds)||g.seriesIds.length<1||g.seriesIds.length>16)return invalidPlan('BAD_STACK_GROUP','options.stackGroups');
     groupIds.add(g.id);
-    for(const id of g.seriesIds){if(typeof id!=='string'||!sourceIds.has(id)||assigned.has(id))return bad('STACK_GROUP_PARTITION','options.stackGroups.seriesIds');assigned.add(id);}
+    for(const id of g.seriesIds){if(typeof id!=='string'||!sourceIds.has(id)||assigned.has(id))return invalidPlan('STACK_GROUP_PARTITION','options.stackGroups.seriesIds');assigned.add(id);}
     groups.push({id:g.id,label:g.label,seriesIds:[...g.seriesIds]});
   }
-  if(assigned.size!==sourceIds.size)return bad('STACK_GROUP_PARTITION','options.stackGroups.seriesIds');
+  if(assigned.size!==sourceIds.size)return invalidPlan('STACK_GROUP_PARTITION','options.stackGroups.seriesIds');
   const partitions=groups.map(g=>normalizeColumn({...input,series:g.seriesIds.map(id=>input.series.find(s=>s.id===id)!)})),palette=defaultPalette('light',false).series;
   const {width,height}=options,plot={x:16,y:14,width:width-32,height:height-28},horizontal=input.orientation==='horizontal';
-  const legend=input.series.map((s,i)=>({id:s.id,name:s.name,color:s.color??palette[i%palette.length]!,visible:!hidden.includes(s.id)})),bySeries=new Map(legend.map(l=>[l.id,l]));
+  const legend=planLegend(input.series,palette,hidden),bySeries=new Map(legend.map(l=>[l.id,l]));
   const stackGroups:PlanStackGroupsLayout={groups,placement:'grouped',stacking:mode};
   const base={schema:'nc-plan/1' as const,family:horizontal?'bar' as const:'column' as const,width,height,title:input.title,description:input.description??'',unit:input.axes.y.title??'',legend,stackGroups};
   let low=Infinity,high=-Infinity;
@@ -52,7 +54,7 @@ export function planGroupedStacks(spec:PlanColumnSpec,options:PlanOptions,refere
         known=new Map();for(const id of sourceGroups){const b=bands.value.band(id)!;const width=Math.min(b.width,input.maxBarWidth??Infinity);known.set(id,{start:b.center-width/2,width,center:b.center});}slots.set(category,known);
       }return known.get(groups[index]!.id)!;
     };
-    if(mode==='percent'&&data.series.some(s=>!hidden.includes(s.spec.id)))for(const c of p.stack.categories.values())if(!c.complete&&p.bands.center(c.id)!==null)return bad('INCOMPLETE_PERCENT_GROUP','series');
+    if(mode==='percent'&&data.series.some(s=>!hidden.includes(s.spec.id)))for(const c of p.stack.categories.values())if(!c.complete&&p.bands.center(c.id)!==null)return invalidPlan('INCOMPLETE_PERCENT_GROUP','series');
     const percentages=new Map<string,number>();for(const row of p.stack.series)for(const segment of row.segments)if(segment.percentage!==null)percentages.set(JSON.stringify([segment.seriesId,segment.point.id]),segment.percentage);
     for(const s of data.series){if(hidden.includes(s.spec.id))continue;const color=bySeries.get(s.spec.id)!.color,rects=p.rects.filter(r=>r.series.spec.id===s.spec.id),byPoint=new Map(rects.map(r=>[r.point.id,r]));
       const bars=rects.map(r=>{const place=slot(r.point.x)!;return {pointId:r.point.id,x:horizontal?r.x:place.start,y:horizontal?place.start:r.y,width:horizontal?r.width:place.width,height:horizontal?place.width:r.height};});

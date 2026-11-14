@@ -1,3 +1,5 @@
+import { readPlanTitle, readPlotSize } from './plan-presentation.js';
+import { planningFailure } from './diagnostics.js';
 import {array,choice,color,fail,number,record,text,ValidationFailure} from '../internal/data/validation.js';
 import {defaultPalette} from '../internal/chart/presentation.js';
 import {formatAxis} from '../internal/axes/plan.js';
@@ -68,13 +70,13 @@ export function planRanges(spec:PlanRangeSpec,options:PlanOptions,references?:re
   try{
     const input=record(spec,['family','title','description','axes','series','groupGap','barGap','maxBarWidth'],['family','title','axes','series'],'spec');
     const family=choice(input.family,['arearange','areasplinerange','columnrange'],'family'),columns=family==='columnrange';
-    const title=text(input.title,'title'),description=Object.hasOwn(input,'description')?text(input.description,'description',4096,true):'';
+    const {title,description}=readPlanTitle(input);
     if(!columns&&['groupGap','barGap','maxBarWidth'].some(key=>Object.hasOwn(input,key)))fail('spec','COLUMN_RANGE_LAYOUT_ONLY');
     const groupGap=Object.hasOwn(input,'groupGap')?number(input.groupGap,'groupGap',0,.95):.2;
     const barGap=Object.hasOwn(input,'barGap')?number(input.barGap,'barGap',0,1):.2;
     const maxBarWidth=Object.hasOwn(input,'maxBarWidth')?number(input.maxBarWidth,'maxBarWidth',.25,1024):Infinity;
     const opts=record(options,['width','height','hiddenSeriesIds','stacking','viewport','references','referenceBands'],['width','height'],'options');
-    const width=number(opts.width,'options.width',64,10000),height=number(opts.height,'options.height',64,10000),plot={x:16,y:14,width:width-32,height:height-28};
+    const {width,height}=readPlotSize(opts),plot={x:16,y:14,width:width-32,height:height-28};
     if(Object.hasOwn(opts,'stacking'))fail('options.stacking','UNSUPPORTED_STACKING');
     const hidden=Object.hasOwn(opts,'hiddenSeriesIds')?array(opts.hiddenSeriesIds,16,'options.hiddenSeriesIds').map((id,i)=>text(id,'options.hiddenSeriesIds['+i+']',128)):[];
     if(new Set(hidden).size!==hidden.length)fail('options.hiddenSeriesIds','BAD_VISIBILITY');
@@ -180,5 +182,5 @@ export function planRanges(spec:PlanRangeSpec,options:PlanOptions,references?:re
     const values=xa.type==='category'?xa.values.map(c=>c.id):xt?.value.ticks??[],labels=values.flatMap(v=>{const x=p.mapX(v);return x===null||x<plot.x||x>plot.x+plot.width?[]:[{x,label:formatAxis(v,xa.type,interval,normalized.labels),...(typeof v==='number'?{value:v,type:xa.type==='time'?'time' as const:'number' as const}:{})}];});
     const frame:PlanFrame={...base,series,observations,labels,grid:yt.value.ticks.map(v=>({y:p.mapY(v)!,label:String(v),value:v,type:'number' as const})),...(view?{viewport:planViewportState(view,{x:xt?.value.domain??initialX,y:yt.value.domain},validated.axes,plot)!}:{})};
     return finish(transform?transform(frame,{plot,yDomain:yt.value.domain,mapX:p.mapX,mapY:p.mapY,slots}):frame,{plot,domains:{x:xt?.value.domain??initialX,y:yt.value.domain},mapX:p.mapX,mapY:p.mapY,bandSourceAxes:validated.axes,...(xa.type==='category'?{categories:referenceCategories(xa.values,plot,p.mapX)}:{})});
-  }catch(error){return error instanceof ValidationFailure?{status:'invalid',diagnostic:error.diagnostic}:{status:'invalid',diagnostic:{code:'INVALID_CONFIG',reason:'BAD_SPEC',path:'spec',message:'BAD_SPEC'}};}
+  }catch(error){return planningFailure(error);}
 }

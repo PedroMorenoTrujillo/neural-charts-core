@@ -1,4 +1,5 @@
-import {number,ValidationFailure} from '../internal/data/validation.js';
+import { planningFailure } from './diagnostics.js';
+import {number} from '../internal/data/validation.js';
 import {freezePlan} from './input.js';
 import type {PlanAnnotation,PlanCircle,PlanCommand,PlanOptions,PlanSeries} from '../public/plan-types.js';
 import type {PlanChordSpec,PlanDependencyWheelSpec,PlanRelationshipObservation,PlanRelationshipResult} from '../public/relationship-types.js';
@@ -72,6 +73,6 @@ export function planRadialRelationships(spec:PlanDependencyWheelSpec|PlanChordSp
       if(areaCommands.length||nodeCommands.length||circles.length||observations.length>startCount)series.push({id:group.id,name:group.label,color:group.color,...(areaCommands.length?{areaCommands}:{}),...(nodeCommands.length?{nodeCommands}:{}),...(circles.length?{circles}:{}),fill:true});
     }
     return freezePlan({status:observations.length?'ok':'empty',frame:{schema:'nc-plan/1',family,title:graph.title,description:graph.description,unit:'',width,height,legend:graph.legend,series,observations,annotations,grid:[],labels:[]}});
-  }catch(error){return error instanceof ValidationFailure?{status:'invalid',diagnostic:error.diagnostic}:{status:'invalid',diagnostic:{code:'INVALID_CONFIG',reason:'BAD_SPEC',path:'spec',message:'BAD_SPEC'}};}
+  }catch(error){return planningFailure(error);}
 }
 export const planDependencyWheel=(spec:PlanDependencyWheelSpec,options:PlanOptions)=>planRadialRelationships(spec,options,'dependencywheel');
