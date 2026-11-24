@@ -2,7 +2,7 @@ import { planLegend } from './plan-presentation.js';
 import { invalidPlan } from './diagnostics.js';
 import {planMixedAxes} from './mixed-axes.js';
 import {planOwnedCartesianChart} from './cartesian.js';
-import {planCapacity} from './capacity.js';
+import {planCapacity, planSeriesLimit} from './capacity.js';
 import {financialFamilies,type PlanFinancialSpec} from '../public/financial-plan-types.js';
 import {planFinancialChart} from './financial.js';
 import {planGeneralLogarithmic as planLogarithmic} from './logarithmic-generic.js';
@@ -82,8 +82,8 @@ export function planChart(value:PlanSpec,options:PlanOptions):PlanResult {
     if(!ownedOptions||typeof ownedOptions!=='object'||Object.keys(ownedOptions).some(key=>!['width','height','hiddenSeriesIds','stacking','stackGroups','viewport','references','referenceBands','scales','hierarchy','wordcloudText','circular','capacity'].includes(key)))return invalidPlan('UNKNOWN_OPTION','options');
     const {width,height}=ownedOptions,hidden=ownedOptions.hiddenSeriesIds??[];
     if(!Number.isFinite(width)||!Number.isFinite(height)||width<64||height<64||width>10000||height>10000)return invalidPlan('BAD_VIEWPORT','options');
-    if(!Array.isArray(hidden)||hidden.length>16||hidden.some(id=>typeof id!=='string'||!id||id.length>256)||new Set(hidden).size!==hidden.length)return invalidPlan('BAD_VISIBILITY','options.hiddenSeriesIds');
     const capacity=planCapacity(ownedOptions.capacity),spec=ownPlanInput(value,capacity) as PlanSpec;
+    if(!Array.isArray(hidden)||hidden.length>planSeriesLimit(spec?.family,ownedOptions.stacking)||hidden.some(id=>typeof id!=='string'||!id||id.length>256)||new Set(hidden).size!==hidden.length)return invalidPlan('BAD_VISIBILITY','options.hiddenSeriesIds');
     if(isFinancialSpec(spec))return planFinancialChart(spec,ownedOptions);
     if(!spec||typeof spec!=='object'||!['regression','fan','violin','flame','dendrogram','parallel','windrose','radialbar','heatmap','venn','contour','tilemap','pictorial','wordcloud','dependencywheel','arcdiagram','chord','bullet','variwide','xrange','timeline','sankey','vector','windbarb','networkgraph','packedbubble','sunburst','treegraph','organization','variablepie','item','polygon','lollipop','dumbbell','columnpyramid','boxplot','errorbar','streamgraph','arearange','areasplinerange','columnrange','histogram','bellcurve','areaspline','funnel','pyramid','pareto','radar','polar','waterfall','treemap','mixed','line','area','spline','scatter','column','pie','donut','gauge','bubble'].includes(spec.family))return invalidPlan('UNSUPPORTED_FAMILY','family');
     if(ownedOptions.hierarchy!==undefined&&spec.family!=='treegraph'&&spec.family!=='organization')return invalidPlan('UNSUPPORTED_HIERARCHY_LAYOUT','options.hierarchy');

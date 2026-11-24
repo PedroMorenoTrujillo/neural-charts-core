@@ -3,7 +3,7 @@ import type {LineChartSpec} from '../public/line-types.js';
 import {validateLine} from '../line/validate.js';
 import {normalizeLine, type NormalizedLine} from '../line/normalize.js';
 import {ok} from '../internal/diagnostics.js';
-import {isReusablePlanArray} from './input.js';
+import {isOwnedNumericPointArray, isReusablePlanArray} from './input.js';
 
 type Prepared = Readonly<{input: LineChartSpec<unknown>; data: NormalizedLine<unknown>}>;
 const preparedLines = new WeakMap<object, Map<string, Prepared>>();
@@ -18,7 +18,7 @@ export function prepareOwnedLine(spec: unknown): ChartResult<Prepared> {
   const key = reusable ? JSON.stringify(Object.fromEntries(Object.entries(record!).filter(([name]) => name !== 'series'))) : '';
   const cache = reusable ? preparedLines.get(series) : undefined;
   const cached = cache?.get(key); if (cached) return ok(cached);
-  const checked = validateLine(spec); if (checked.status === 'invalid') return checked;
+  const checked = validateLine(spec, isOwnedNumericPointArray); if (checked.status === 'invalid') return checked;
   const prepared = Object.freeze({input: checked.value, data: normalizeLine(checked.value)});
   if (reusable) {
     const next = cache ?? new Map<string, Prepared>();

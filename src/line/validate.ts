@@ -7,6 +7,7 @@ import { viewportBinding } from '../internal/interaction/viewport.js';
 import { ValidationFailure } from '../internal/data/validation.js';
 
 type RecordValue = Record<string, unknown>;
+type NumericPoint = Readonly<{id: string; x: number; y: number | null}>;
 class Rejected { constructor(readonly diagnostic: ChartDiagnostic) {} }
 function fail(reason: string, path: string, code: ChartDiagnostic['code'] = 'INVALID_CONFIG'): never {
   throw new Rejected(invalid(code, reason, path).diagnostic);
@@ -102,7 +103,7 @@ function hidden(value: unknown, ids: ReadonlySet<string>, path: string): ChartSt
 export function validateState(value: unknown, ids: ReadonlySet<string>, path = 'state.value'): ChartResult<ChartState> {
   try { return ok(hidden(value, ids, path)); } catch (e) { return e instanceof Rejected ? { status: 'invalid', diagnostic: e.diagnostic } : invalid('INVALID_CONFIG', 'BAD_STATE', path); }
 }
-export function validateLine<T>(value: unknown): ChartResult<LineChartSpec<T>> {
+export function validateLine<T>(value: unknown, ownsNumericPoints?: (value: unknown) => value is readonly NumericPoint[]): ChartResult<LineChartSpec<T>> {
   try {
     const s = object(value, ['family', 'title', 'description', 'axes', 'series', 'references', 'referenceBands', 'theme', 'direction', 'font', 'legend', 'tooltip', 'state', 'status', 'selection', 'crosshair', 'motion', 'viewport', 'labels'], ['family', 'title', 'axes', 'series'], '');
     choice(s.family, ['line'], 'family'); text(s.title, 'title');
@@ -122,16 +123,31 @@ export function validateLine<T>(value: unknown): ChartResult<LineChartSpec<T>> {
     let count = 0;
     const checked = series.map((v, i) => {
       const a = object(v, ['id', 'name', 'data', 'curve', 'gaps', 'markers', 'dash', 'color'], ['id', 'name', 'data'], `series[${i}]`);
-      const data = array(a.data, 100_000, `series[${i}].data`); count += data.length;
+      const owned = x.type === 'linear' && ownsNumericPoints?.(a.data) ? a.data : undefined;
+      if (owned && owned.length > 100_000) fail('RESOURCE_LIMIT', `series[${i}].data`);
+      const data = owned ?? array(a.data, 100_000, `series[${i}].data`); count += data.length;
       if (count > 100_000) fail('RESOURCE_LIMIT', 'series');
-      return { a, data };
+      return { a, data, owned };
     });
     let explicitMarkers = 0;
-    s.series = Object.freeze(checked.map(({ a, data }, i) => {
+    s.series = Object.freeze(checked.map(({ a, data, owned }, i) => {
       const path = `series[${i}]`, id = text(a.id, `${path}.id`, 64); text(a.name, `${path}.name`);
       if (ids.has(id)) fail('DUPLICATE_SERIES_ID', `${path}.id`); ids.add(id);
       const pointIds = new Set<string>(), xs = new Set<string | number>(); let previous = -Infinity;
-      a.data = Object.freeze(data.map((v, j) => {
+      if (owned) {
+        for (let j = 0; j < owned.length; j++) {
+          const point = owned[j]!;
+          if (!point.id.length || point.id.length > 64) fail('BAD_LINE_SPEC', `${path}.data[${j}].id`);
+          if (pointIds.has(point.id)) fail('DUPLICATE_POINT_ID', `${path}.data[${j}].id`);
+          pointIds.add(point.id);
+          if (xs.has(point.x)) fail('DUPLICATE_X', `${path}.data[${j}].x`);
+          xs.add(point.x);
+          if (point.x < previous) fail('UNSORTED_X', `${path}.data[${j}].x`);
+          previous = point.x;
+          if (point.y !== null && a.markers === 'on' && ++explicitMarkers > 5000) fail('RESOURCE_LIMIT', `${path}.markers`);
+        }
+      }
+      a.data = owned ?? Object.freeze(data.map((v, j) => {
         const pp = `${path}.data[${j}]`, point = object(v, ['id', 'x', 'y', 'datum'], ['id', 'x', 'y'], pp), pid = text(point.id, `${pp}.id`, 64);
         if (pointIds.has(pid)) fail('DUPLICATE_POINT_ID', `${pp}.id`); pointIds.add(pid);
         let rank: number;

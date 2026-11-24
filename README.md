@@ -2,14 +2,18 @@
 
 Renderer-independent chart planning and geometry in strict TypeScript. The Core converts source data and a viewport size into a read-only frame that a renderer can paint.
 
-**Version 0.1.4 is experimental.** Public contracts can change before 1.0. Pin the version while integrating a renderer.
+**Version 0.1.5 is an experimental local candidate.** Public contracts can change before 1.0. Pin the version while integrating a renderer.
 
 Version 0.1.0 replaces the public `kind` discriminator with `type`. This is a breaking contract change from 0.0.24; chart geometry, calculations, source identities and values are unchanged.
+
+The local candidate increases the unstacked line, spline and area series limit to 64. The total point budget still applies. The financial entrypoint adds `groupFinancialOhlc(points, unit)` for UTC buckets with original point IDs. VWAP supports `window: 'blocks'` alongside rolling and cumulative calculation. DPO supports trailing alignment, Trendline can fit by session, Klinger can measure force from the first change and use a simple signal, and ATR/NATR can initialize from prior ranges. These options preserve the existing defaults.
 
 ## Install
 
 ```sh
 npm install @neural-charts/core@0.1.4
+# Registry command once 0.1.5 is published:
+# npm install @neural-charts/core@0.1.5
 ```
 
 The package ships ESM JavaScript and TypeScript declarations. It has no runtime dependencies, framework peer dependencies, browser globals, native bridges or module initialization side effects. Its declarations compile with `lib: ["ES2022"]`, without DOM types. Development and package verification use Node.js 22 or newer.
