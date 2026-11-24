@@ -1,6 +1,7 @@
+import {rangeZigzag, twoSessionSar} from './financial-reversals.js';
 import type {PlanFinancialFamily,PlanFinancialPoint,PlanFinancialParameters} from '../public/financial-plan-types.js';
 import {movingAverage,weightedAverage,extrema,rollingDeviation,meanAbsoluteDeviation,regression,type NullableValues} from './financial-statistics.js';
-export interface FinancialCalculation {readonly components:Readonly<Record<string,NullableValues>>;readonly primary:string;readonly shifts?:Readonly<Record<string,number>>;readonly columns?:readonly string[];}
+export interface FinancialCalculation {readonly components:Readonly<Record<string,NullableValues>>;readonly primary:string;readonly shifts?:Readonly<Record<string,number>>;readonly columns?:readonly string[];readonly edgeInterval?:'shortest';}
 const map=(a:NullableValues,fn:(v:number,i:number)=>number|null):(number|null)[]=>a.map((v,i)=>v===null?null:fn(v,i));
 const zip=(a:NullableValues,b:NullableValues,fn:(a:number,b:number,i:number)=>number|null):(number|null)[]=>a.map((v,i)=>v===null||b[i]===null||b[i]===undefined?null:fn(v,b[i]!,i));
 const ratio=(a:number,b:number,flat:number|null=null)=>b===0?flat:a/b;
@@ -10,7 +11,21 @@ export function financialIndicators(family:PlanFinancialFamily,data:readonly Pla
   const one=(values:NullableValues,name=family):FinancialCalculation=>({components:{[name]:values},primary:name});
   const delta=price.map((c,i)=>!i||c===null||price[i-1]===null?null:c-price[i-1]!);
   const tr=high.map((h,i)=>h===null||low[i]===null?null:Math.max(h-low[i]!,i&&close[i-1]!==null?Math.abs(h-close[i-1]!):0,i&&close[i-1]!==null?Math.abs(low[i]!-close[i-1]!):0));
-  const atr=(p=period)=>movingAverage(tr,p,'wilder');
+  const atr = (p = period): NullableValues => {
+    if (params.atrSeed !== 'prior-ranges' || p < 2) return movingAverage(tr,p,'wilder');
+    let count = 0, sum = 0, previous: number | null = null;
+    return tr.map(range => {
+      if (range === null) {
+        count = sum = 0;
+        previous = null;
+        return null;
+      }
+      if (previous !== null) return previous = previous + (range - previous) / p;
+      if (++count === p) return previous = sum / (p - 1);
+      sum += range;
+      return null;
+    });
+  };
   const requireVolume=()=>{if(data.some(p=>p.close!==null&&p.volume===undefined))throw Error('VOLUME_REQUIRED');};
   const moneyFlow=()=>{requireVolume();return high.map((h,i)=>h===null||low[i]===null||close[i]===null||volume[i]===null?null:h===low[i]?0:(2*close[i]!-h-low[i]!)/(h-low[i]!)*volume[i]!);};
   const cumulative=(values:NullableValues)=>{let sum=0;return values.map(v=>v===null?(sum=0,null):sum+=v);};
@@ -31,26 +46,136 @@ export function financialIndicators(family:PlanFinancialFamily,data:readonly Pla
     case 'ao':return {...one(zip(movingAverage(median,params.shortPeriod??5),movingAverage(median,params.longPeriod??34),(a,b)=>a-b)),columns:['ao']};
     case 'momentum':case 'roc':return one(price.map((v,i)=>i<period||v===null||price[i-period]===null?null:family==='momentum'?v-price[i-period]!:ratio((v-price[i-period]!)*100,price[i-period]!)));
     case 'disparityindex':return one(zip(price,movingAverage(price,period),(v,a)=>ratio((v-a)*100,a)));
-    case 'dpo':{const average=movingAverage(price,period),shift=Math.floor(period/2)+1;return one(average.map((v,i)=>i<shift||v===null||price[i-shift]===null?null:price[i-shift]!-v));}
+    case 'dpo': {
+      const average = movingAverage(price, period), shift = Math.floor(period / 2) + 1;
+      if (params.alignment === 'trailing') {
+        return one(price.map((value, i) => {
+          const baseline = average[i - shift];
+          return value === null || baseline == null ? null : value - baseline;
+        }));
+      }
+      return one(average.map((value, i) => i < shift || value === null || price[i-shift] === null ? null : price[i-shift]! - value));
+    }
     case 'rsi':{const gains=movingAverage(map(delta,v=>Math.max(v,0)),period,'wilder'),losses=movingAverage(map(delta,v=>Math.max(-v,0)),period,'wilder');return one(zip(gains,losses,(g,l)=>l===0?g===0?50:100:100-100/(1+g/l)));}
     case 'cmo':{const up=movingAverage(map(delta,v=>Math.max(v,0)),period),down=movingAverage(map(delta,v=>Math.max(-v,0)),period);return one(zip(up,down,(a,b)=>ratio(100*(a-b),a+b,0)));}
     case 'cci':{const average=movingAverage(typical,period),deviation=meanAbsoluteDeviation(typical,period);return one(zip(zip(typical,average,(a,b)=>a-b),deviation,(a,b)=>ratio(a,.015*b,0)));}
     case 'stochastic':case 'slowstochastic':case 'williamsr':{const highest=extrema(high,period,true).values,lowest=extrema(low,period,false).values,k=close.map((c,i)=>c===null||highest[i]===null||lowest[i]===null?null:ratio(100*(c-lowest[i]!),highest[i]!-lowest[i]!,50));if(family==='williamsr')return one(map(k,v=>v-100));const primary=family==='slowstochastic'?movingAverage(k,params.shortPeriod??3):k;return {components:{k:primary,d:movingAverage(primary,params.signalPeriod??3)},primary:'k'};}
     case 'aroon':case 'aroonoscillator':{const h=extrema(high,period+1,true).indices,l=extrema(low,period+1,false).indices,up=h.map((v,i)=>v===null?null:100*(period-(i-v))/period),down=l.map((v,i)=>v===null?null:100*(period-(i-v))/period);return family==='aroonoscillator'?one(zip(up,down,(a,b)=>a-b)):{components:{up,down},primary:'up'};}
     case 'ad':return one(cumulative(moneyFlow()));
-    case 'chaikin':{const ad=cumulative(moneyFlow());return one(zip(movingAverage(ad,params.shortPeriod??3,'exponential'),movingAverage(ad,params.longPeriod??10,'exponential'),(a,b)=>a-b));}
+    case 'chaikin': {
+      const ad = cumulative(moneyFlow().map((flow, i) => i < (params.warmup ?? 0) ? null : flow));
+      return one(zip(movingAverage(ad,params.shortPeriod??3,'exponential'),movingAverage(ad,params.longPeriod??10,'exponential'),(a,b)=>a-b));
+    }
     case 'cmf':{const flow=movingAverage(moneyFlow(),period),v=movingAverage(volume,period);return one(zip(flow,v,(a,b)=>ratio(a,b,0)));}
     case 'obv':{requireVolume();let total=0;return one(close.map((v,i)=>v===null||volume[i]===null?(total=0,null):!i||close[i-1]===null?(total=0):total+=Math.sign(v-close[i-1]!)*volume[i]!));}
     case 'mfi':{requireVolume();const flow=zip(typical,volume,(a,b)=>a*b),positive=flow.map((v,i)=>!i||v===null||typical[i-1]===null?null:typical[i]!>typical[i-1]!?v:0),negative=flow.map((v,i)=>!i||v===null||typical[i-1]===null?null:typical[i]!<typical[i-1]!?v:0);return one(zip(movingAverage(positive,period),movingAverage(negative,period),(a,b)=>b===0?a===0?50:100:100-100/(1+a/b)));}
-    case 'vwap':{requireVolume();const validVolume=volume.map((value,i)=>typical[i]===null?null:value),weighted=zip(typical,validVolume,(a,b)=>a*b);if(params.period)return one(zip(movingAverage(weighted,period),movingAverage(validVolume,period),(a,b)=>ratio(a,b)));return one(zip(cumulative(weighted),cumulative(validVolume),(a,b)=>ratio(a,b)));}
-    case 'dmi':{const positive=high.map((h,i)=>!i||h===null||high[i-1]===null||low[i]===null||low[i-1]===null?null:Math.max(h-high[i-1]!,0)>Math.max(low[i-1]!-low[i]!,0)?Math.max(h-high[i-1]!,0):0),negative=low.map((l,i)=>!i||l===null||low[i-1]===null||high[i]===null||high[i-1]===null?null:Math.max(low[i-1]!-l,0)>Math.max(high[i]!-high[i-1]!,0)?Math.max(low[i-1]!-l,0):0),range=atr(),plus=zip(movingAverage(positive,period,'wilder'),range,(a,b)=>ratio(a*100,b,0)),minus=zip(movingAverage(negative,period,'wilder'),range,(a,b)=>ratio(a*100,b,0)),dx=zip(plus,minus,(a,b)=>ratio(Math.abs(a-b)*100,a+b,0));return {components:{plus,minus,adx:movingAverage(dx,period,'wilder')},primary:'plus'};}
-    case 'klinger':{requireVolume();let trend=1,cm=0,previousDm=0;const force=volume.map((v,i)=>{if(v===null||high[i]===null||low[i]===null||close[i]===null){trend=1;cm=previousDm=0;return null;}const dm=high[i]!-low[i]!,next=i&&typical[i-1]!==null?Math.sign(typical[i]!-typical[i-1]!)||trend:trend;cm=next===trend?cm+dm:previousDm+dm;trend=next;previousDm=dm;return cm?v*Math.abs(2*(dm/cm-1))*trend*100:0;});const oscillator=zip(movingAverage(force,params.shortPeriod??34,'exponential'),movingAverage(force,params.longPeriod??55,'exponential'),(a,b)=>a-b);return {components:{oscillator,signal:movingAverage(oscillator,params.signalPeriod??13,'exponential')},primary:'oscillator'};}
-    case 'linearregression':case 'linearregressionslope':case 'linearregressionintercept':case 'linearregressionangle':case 'trendline':{let step=Infinity;for(let i=1;i<data.length;i++)step=Math.min(step,data[i]!.x-data[i-1]!.x);const unit=params.xUnit??(Number.isFinite(step)&&step>0?step:1),origin=data[0]?.x??0,coordinates=data.map(p=>(p.x-origin)/unit);if(family==='trendline'){let count=0,mx=0,my=0,covariance=0,variance=0;for(let i=0;i<price.length;i++){const v=price[i];if(v===null||v===undefined)continue;count++;const dx=coordinates[i]!-mx,dy=v-my;mx+=dx/count;my+=dy/count;covariance+=dx*(v-my);variance+=dx*(coordinates[i]!-mx);}const slope=variance?covariance/variance:0;return one(price.map((v,i)=>v===null||count<2?null:my+slope*(coordinates[i]!-mx)));}const r=regression(price,period,coordinates);if(family==='linearregressionslope')return one(r.slope);if(family==='linearregressionintercept')return one(r.intercept);if(family==='linearregressionangle')return one(map(r.slope,m=>Math.atan(m)*180/Math.PI));return one(r.fit);}
-    case 'ikh':{const midpoint=(p:number)=>zip(extrema(high,p,true).values,extrema(low,p,false).values,(a,b)=>a/2+b/2),conversion=midpoint(params.shortPeriod??9),base=midpoint(params.period??26);return {components:{conversion,base,spanA:zip(conversion,base,(a,b)=>a/2+b/2),spanB:midpoint(params.longPeriod??52),lagging:close},primary:'conversion',shifts:{spanA:params.period??26,spanB:params.period??26,lagging:-(params.period??26)}};}
-    case 'pivotpoints':{const names=['pivot','r1','s1','r2','s2','r3','s3'],components=Object.fromEntries(names.map(k=>[k,Array(n).fill(null) as (number|null)[]]));for(let start=period;start<n;start+=period){const window=data.slice(start-period,start);if(window.some(p=>p.high===null||p.low===null||p.close===null))continue;const h=Math.max(...window.map(p=>p.high!)),l=Math.min(...window.map(p=>p.low!)),c=window.at(-1)!.close!,p=h/3+l/3+c/3,values=[p,2*p-l,2*p-h,p+h-l,p-h+l,h+2*(p-l),l-2*(h-p)];for(let i=start;i<Math.min(n,start+period);i++)for(let k=0;k<names.length;k++)components[names[k]!]![i]=values[k]!;}return {components,primary:'pivot'};}
-    case 'psar':{const out:(number|null)[]=Array(n).fill(null);let up=true,sar=0,extreme=0,acceleration=.02,ready=false;for(let i=0;i<n;i++){if(high[i]===null||low[i]===null){ready=false;continue;}if(!ready){up=true;sar=low[i]!;extreme=high[i]!;acceleration=.02;ready=true;continue;}const previousSar=sar;sar+=acceleration*(extreme-sar);if(up){sar=Math.min(sar,low[i-1]??sar,i>1?low[i-2]??sar:sar);if(low[i]!<sar){up=false;sar=extreme;extreme=low[i]!;acceleration=.02;}else if(high[i]!>extreme){extreme=high[i]!;acceleration=Math.min(.2,acceleration+.02);}}else{sar=Math.max(sar,high[i-1]??sar,i>1?high[i-2]??sar:sar);if(high[i]!>sar){up=true;sar=extreme;extreme=high[i]!;acceleration=.02;}else if(low[i]!<extreme){extreme=low[i]!;acceleration=Math.min(.2,acceleration+.02);}}if(Number.isFinite(previousSar))out[i]=sar;}return one(out);}
+    case 'vwap': {
+      requireVolume();
+      const validVolume = volume.map((value, i) => typical[i] === null ? null : value);
+      const weighted = zip(typical, validVolume, (a, b) => a * b);
+      const window = params.window ?? (params.period ? 'rolling' : 'cumulative');
+      if (window === 'rolling') return one(zip(movingAverage(weighted, period), movingAverage(validVolume, period), (a, b) => ratio(a, b)));
+      if (window === 'cumulative') return one(zip(cumulative(weighted), cumulative(validVolume), (a, b) => ratio(a, b)));
+      const blockSize = params.period ?? 30;
+      let offset = 0, total = 0, quantity = 0;
+      return one(weighted.map((value, i) => {
+        if (value === null) {
+          offset = total = quantity = 0;
+          return null;
+        }
+        total += value;
+        quantity += validVolume[i]!;
+        const average = ratio(total, quantity);
+        if (++offset === blockSize) offset = total = quantity = 0;
+        return average;
+      }));
+    }
+    case 'dmi': {
+      if (params.directionalIndex === 'dx') {
+        const movements = high.map((h, i) => {
+          const l = low[i], previousHigh = high[i-1], previousLow = low[i-1];
+          if (h == null || l == null || previousHigh == null || previousLow == null || close[i-1] == null) return null;
+          const up = h - previousHigh, down = previousLow - l;
+          return up > down ? [Math.max(up, 0), 0] as const : [0, Math.max(down, 0)] as const;
+        });
+        const smooth = (values: NullableValues) => movingAverage(values, period, 'wilder');
+        const range = smooth(tr.map((value, i) => movements[i] ? value : null));
+        const plus = zip(smooth(movements.map(value => value?.[0] ?? null)), range, (a,b) => ratio(a*100,b,0));
+        const minus = zip(smooth(movements.map(value => value?.[1] ?? null)), range, (a,b) => ratio(a*100,b,0));
+        const dx = zip(plus,minus,(a,b)=>ratio(Math.abs(a-b)*100,a+b,0));
+        return {components:{dx,plus,minus,adx:smooth(dx)},primary:'dx'};
+      }
+      const positive=high.map((h,i)=>!i||h===null||high[i-1]===null||low[i]===null||low[i-1]===null?null:Math.max(h-high[i-1]!,0)>Math.max(low[i-1]!-low[i]!,0)?Math.max(h-high[i-1]!,0):0),negative=low.map((l,i)=>!i||l===null||low[i-1]===null||high[i]===null||high[i-1]===null?null:Math.max(low[i-1]!-l,0)>Math.max(high[i]!-high[i-1]!,0)?Math.max(low[i-1]!-l,0):0),range=atr(),plus=zip(movingAverage(positive,period,'wilder'),range,(a,b)=>ratio(a*100,b,0)),minus=zip(movingAverage(negative,period,'wilder'),range,(a,b)=>ratio(a*100,b,0)),dx=zip(plus,minus,(a,b)=>ratio(Math.abs(a-b)*100,a+b,0));return {components:{plus,minus,adx:movingAverage(dx,period,'wilder')},primary:'plus'};}
+    case 'klinger': {
+      requireVolume();
+      const firstChange = params.forceStart === 'first-change';
+      let previousPrice: number | null = null, trend = 1, cm = 0, previousDm = 0;
+      const force = volume.map((quantity, i) => {
+        const price = typical[i];
+        if (quantity === null || price == null) {
+          previousPrice = null;
+          trend = 1;
+          cm = previousDm = 0;
+          return null;
+        }
+        const dm = high[i]! - low[i]!;
+        if (firstChange && previousPrice === null) {
+          previousPrice = price;
+          previousDm = dm;
+          cm = dm;
+          return null;
+        }
+        const next = firstChange
+          ? (price > previousPrice! ? 1 : -1)
+          : i && typical[i-1] !== null ? Math.sign(price - typical[i-1]!) || trend : trend;
+        cm = next === trend ? cm + dm : previousDm + dm;
+        previousPrice = price;
+        trend = next;
+        previousDm = dm;
+        return cm ? quantity * Math.abs(2 * (dm / cm - 1)) * trend * 100 : 0;
+      });
+      const fast = movingAverage(force, params.shortPeriod ?? 34, 'exponential');
+      const slow = movingAverage(force, params.longPeriod ?? 55, 'exponential');
+      const oscillator = zip(fast, slow, (a,b) => a-b);
+      const signal = movingAverage(oscillator, params.signalPeriod ?? 13, params.signalAverage ?? 'exponential');
+      return {components:{oscillator,signal},primary:'oscillator'};
+    }
+    case 'linearregression':case 'linearregressionslope':case 'linearregressionintercept':case 'linearregressionangle':case 'trendline':{let step=Infinity;for(let i=1;i<data.length;i++)step=Math.min(step,data[i]!.x-data[i-1]!.x);const unit=params.xUnit??(Number.isFinite(step)&&step>0?step:1),origin=data[0]?.x??0,coordinates=data.map((p,i)=>family==='trendline'&&params.regressionBasis==='session'?i:(p.x-origin)/unit);if(family==='trendline'){let count=0,mx=0,my=0,covariance=0,variance=0;for(let i=0;i<price.length;i++){const v=price[i];if(v===null||v===undefined)continue;count++;const dx=coordinates[i]!-mx,dy=v-my;mx+=dx/count;my+=dy/count;covariance+=dx*(v-my);variance+=dx*(coordinates[i]!-mx);}const slope=variance?covariance/variance:0;return one(price.map((v,i)=>v===null||count<2?null:my+slope*(coordinates[i]!-mx)));}const r=regression(price,period,coordinates);if(family==='linearregressionslope')return one(r.slope);if(family==='linearregressionintercept')return one(r.intercept);if(family==='linearregressionangle')return one(map(r.slope,m=>Math.atan(m)*180/Math.PI));return one(r.fit);}
+    case 'ikh': {
+      const completed = params.cloudAlignment === 'completed-session';
+      const midpoint = (p: number) => {
+        const values = zip(extrema(high,p,true).values,extrema(low,p,false).values,(a,b)=>a/2+b/2);
+        if (completed && values.length) values[values.length - 1] = null;
+        return values;
+      };
+      const conversion = midpoint(params.shortPeriod ?? 9), base = midpoint(params.period ?? 26);
+      const shift = (params.period ?? 26) - (completed ? 1 : 0);
+      return {
+        components: {conversion,base,spanA:zip(conversion,base,(a,b)=>a/2+b/2),spanB:midpoint(params.longPeriod??52),lagging:close},
+        primary: 'conversion', shifts: {spanA:shift, spanB:shift, lagging:-shift},
+        ...(completed ? {edgeInterval:'shortest' as const} : {}),
+      };
+    }
+    case 'pivotpoints': {
+      if (params.pivotPlacement === 'window-close') {
+        const keys = ['pivot','r1','s1','r2','s2'] as const;
+        const components = Object.fromEntries(keys.map(key => [key,Array<number|null>(n).fill(null)]));
+        if (n < period) return {components, primary:'pivot'};
+        for (let start = 0; start < n; start += period) {
+          const end = Math.min(start + period, n - 1), window = data.slice(start, end + 1);
+          const close = window.at(-1)?.close;
+          if (close == null || window.some(point => point.high == null || point.low == null || point.close == null)) continue;
+          const high = Math.max(...window.map(point => point.high!)), low = Math.min(...window.map(point => point.low!));
+          const pivot = high/3 + low/3 + close/3, span = high - low;
+          const levels = [pivot, 2*pivot - low, 2*pivot - high, pivot + span, pivot - span];
+          keys.forEach((key,i) => { components[key]![end] = levels[i]!; });
+        }
+        return {components, primary:'pivot'};
+      }
+      const names=['pivot','r1','s1','r2','s2','r3','s3'],components=Object.fromEntries(names.map(k=>[k,Array(n).fill(null) as (number|null)[]]));for(let start=period;start<n;start+=period){const window=data.slice(start-period,start);if(window.some(p=>p.high===null||p.low===null||p.close===null))continue;const h=Math.max(...window.map(p=>p.high!)),l=Math.min(...window.map(p=>p.low!)),c=window.at(-1)!.close!,p=h/3+l/3+c/3,values=[p,2*p-l,2*p-h,p+h-l,p-h+l,h+2*(p-l),l-2*(h-p)];for(let i=start;i<Math.min(n,start+period);i++)for(let k=0;k<names.length;k++)components[names[k]!]![i]=values[k]!;}return {components,primary:'pivot'};}
+    case 'psar':{if(params.sarInitialization==='two-sessions')return one(twoSessionSar(high,low));const out:(number|null)[]=Array(n).fill(null);let up=true,sar=0,extreme=0,acceleration=.02,ready=false;for(let i=0;i<n;i++){if(high[i]===null||low[i]===null){ready=false;continue;}if(!ready){up=true;sar=low[i]!;extreme=high[i]!;acceleration=.02;ready=true;continue;}const previousSar=sar;sar+=acceleration*(extreme-sar);if(up){sar=Math.min(sar,low[i-1]??sar,i>1?low[i-2]??sar:sar);if(low[i]!<sar){up=false;sar=extreme;extreme=low[i]!;acceleration=.02;}else if(high[i]!>extreme){extreme=high[i]!;acceleration=Math.min(.2,acceleration+.02);}}else{sar=Math.max(sar,high[i-1]??sar,i>1?high[i-2]??sar:sar);if(high[i]!>sar){up=true;sar=extreme;extreme=high[i]!;acceleration=.02;}else if(low[i]!<extreme){extreme=low[i]!;acceleration=Math.min(.2,acceleration+.02);}}if(Number.isFinite(previousSar))out[i]=sar;}return one(out);}
     case 'supertrend':{const range=atr(),out:(number|null)[]=Array(n).fill(null);let upper:number|null=null,lower:number|null=null,previous:number|null=null;for(let i=0;i<n;i++){if(range[i]===null||median[i]===null||close[i]===null){upper=lower=previous=null;continue;}const a=median[i]!+(params.multiplier??3)*range[i]!,b=median[i]!-(params.multiplier??3)*range[i]!,oldUpper=upper,oldLower=lower;upper=upper===null||a<upper||i>0&&close[i-1]!==null&&close[i-1]!>upper?a:upper;lower=lower===null||b>lower||i>0&&close[i-1]!==null&&close[i-1]!<lower?b:lower;previous=previous===null?upper:previous===oldUpper?(close[i]!<=upper?upper:lower):(close[i]!>=lower?lower:upper);out[i]=previous;void oldLower;}return one(out);}
-    case 'zigzag':{const out:(number|null)[]=Array(n).fill(null);let pivot=-1,extreme=-1,direction=0;for(let i=0;i<n;i++){const v=price[i];if(v===null||v===undefined){if(extreme>=0)out[extreme]=price[extreme]!;pivot=extreme=-1;direction=0;continue;}if(pivot<0){pivot=extreme=i;out[i]=v;continue;}const base=price[extreme]!,change=base===0?(v===0?0:Infinity):Math.abs((v-base)/base)*100;if(!direction){if(change>=(params.threshold??5)){direction=v>=base?1:-1;extreme=i;}}else if(direction>0?v>=base:v<=base)extreme=i;else if(change>=(params.threshold??5)){out[extreme]=base;pivot=extreme;extreme=i;direction=-direction;}}if(extreme>=0)out[extreme]=price[extreme]!;return one(out);}
+    case 'zigzag':{if(params.swingSource==='high-low')return one(rangeZigzag(high,low,params.threshold??5));const out:(number|null)[]=Array(n).fill(null);let pivot=-1,extreme=-1,direction=0;for(let i=0;i<n;i++){const v=price[i];if(v===null||v===undefined){if(extreme>=0)out[extreme]=price[extreme]!;pivot=extreme=-1;direction=0;continue;}if(pivot<0){pivot=extreme=i;out[i]=v;continue;}const base=price[extreme]!,change=base===0?(v===0?0:Infinity):Math.abs((v-base)/base)*100;if(!direction){if(change>=(params.threshold??5)){direction=v>=base?1:-1;extreme=i;}}else if(direction>0?v>=base:v<=base)extreme=i;else if(change>=(params.threshold??5)){out[extreme]=base;pivot=extreme;extreme=i;direction=-direction;}}if(extreme>=0)out[extreme]=price[extreme]!;return one(out);}
     default:throw Error('NOT_AN_INDICATOR');
   }
 }

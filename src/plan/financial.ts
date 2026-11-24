@@ -28,6 +28,18 @@ function validate(spec:PlanFinancialSpec,options:PlanOptions):void {
   if(Object.keys(parameters).some(k=>!financialParameterKeys[spec.family].includes(k as keyof PlanFinancialParameters)))throw Error('UNSUPPORTED_FINANCIAL_PARAMETER');
   for(const k of ['period','shortPeriod','longPeriod','signalPeriod','reversal'] as const){const v=parameters[k];if(v!==undefined&&(!Number.isInteger(v)||v<1||v>4096))throw Error('BAD_FINANCIAL_PERIOD');}
   for(const k of ['multiplier','deviation','boxSize','threshold','xUnit'] as const){const v=parameters[k];if(v!==undefined&&(!Number.isFinite(v)||v<0||(k==='boxSize'||k==='xUnit')&&v===0))throw Error('BAD_FINANCIAL_PARAMETER');}
+  if (parameters.window !== undefined && !['rolling','blocks','cumulative'].includes(parameters.window)) throw Error('BAD_VWAP_WINDOW');
+  if (parameters.alignment !== undefined && !['centered','trailing'].includes(parameters.alignment)) throw Error('BAD_DPO_ALIGNMENT');
+  if (parameters.regressionBasis !== undefined && !['time','session'].includes(parameters.regressionBasis)) throw Error('BAD_TRENDLINE_BASIS');
+  if (parameters.forceStart !== undefined && !['first-session','first-change'].includes(parameters.forceStart)) throw Error('BAD_KLINGER_FORCE_START');
+  if (parameters.signalAverage !== undefined && !['simple','exponential'].includes(parameters.signalAverage)) throw Error('BAD_KLINGER_SIGNAL_AVERAGE');
+  if (parameters.atrSeed !== undefined && !['first-window','prior-ranges'].includes(parameters.atrSeed)) throw Error('BAD_ATR_SEED');
+  if (parameters.warmup !== undefined && (!Number.isInteger(parameters.warmup) || parameters.warmup < 0 || parameters.warmup > 4096)) throw Error('BAD_CHAIKIN_WARMUP');
+  if (parameters.directionalIndex !== undefined && !['plus','dx'].includes(parameters.directionalIndex)) throw Error('BAD_DIRECTIONAL_INDEX');
+  if (parameters.cloudAlignment !== undefined && !['period','completed-session'].includes(parameters.cloudAlignment)) throw Error('BAD_CLOUD_ALIGNMENT');
+  if (parameters.pivotPlacement !== undefined && !['following-sessions','window-close'].includes(parameters.pivotPlacement)) throw Error('BAD_PIVOT_PLACEMENT');
+  if (parameters.swingSource !== undefined && !['price','high-low'].includes(parameters.swingSource)) throw Error('BAD_SWING_SOURCE');
+  if (parameters.sarInitialization !== undefined && !['first-session','two-sessions'].includes(parameters.sarInitialization)) throw Error('BAD_SAR_INITIALIZATION');
   if(parameters.index!==undefined&&!['open','high','low','close'].includes(parameters.index))throw Error('BAD_FINANCIAL_INDEX');
   const hidden=options.hiddenSeriesIds??[];if(hidden.some(id=>!ids.has(id)))throw Error('UNKNOWN_SERIES');
 }
@@ -75,9 +87,28 @@ export function planFinancialChart(input:PlanFinancialSpec,configuration:PlanOpt
     validate(spec,options);if(spec.family==='vbp')return volumeProfile(spec,options);
     const hidden=new Set(options.hiddenSeriesIds??[]),palette=defaultPalette('light',false).series,computed:Computed[]=spec.series.filter(s=>!hidden.has(s.id)).map(source=>({source,points:spec.family==='heikinashi'?heikin(source.data):spec.family==='renko'?bricks(source.data,spec.parameters??{},capacity.points):spec.family==='pointandfigure'?pointFigure(source.data,spec.parameters??{},capacity.points):source.data,...(!rawFamilies.has(spec.family)?{calculation:financialIndicators(spec.family,source.data,spec.parameters)}:{})}));
     const ordinal=spec.family==='renko'||spec.family==='pointandfigure',grouped=['ohlc','hlc','candlestick','hollowcandlestick','heikinashi','renko','pointandfigure'].includes(spec.family);
+    const intervals = new Map<Computed, number>();
+    const shiftedCoordinate = (row: Computed, index: number, shift: number): number => {
+      const shifted = index + shift;
+      const direct = row.points[shifted]?.x;
+      if (direct !== undefined) return direct;
+      const last = row.points.length - 1;
+      let interval = intervals.get(row);
+      if (interval === undefined) {
+        interval = last > 0 ? row.points[last]!.x - row.points[last-1]!.x : 1;
+        if (row.calculation?.edgeInterval === 'shortest') {
+          for (let i = 1; i <= last; i++) interval = Math.min(interval, row.points[i]!.x - row.points[i-1]!.x);
+        }
+        intervals.set(row, interval);
+      }
+      if (row.calculation?.edgeInterval !== 'shortest') return row.points[index]!.x + shift*interval;
+      const edge = shifted < 0 ? 0 : last;
+      return row.points[edge]!.x + (shifted - edge)*interval;
+    };
+    const sparsePivots = spec.family === 'pivotpoints' && spec.parameters?.pivotPlacement === 'window-close';
     let minimum=Infinity,maximum=-Infinity;const xs=new Set<number>();
     for(const row of computed){for(const [i,p] of row.points.entries()){xs.add(ordinal?i:p.x);if(!row.calculation&&p.close!==null){minimum=Math.min(minimum,p.low!);maximum=Math.max(maximum,p.high!);}}
-      if(row.calculation)for(const [key,values] of Object.entries(row.calculation.components))for(const [i,value] of values.entries())if(value!==null){if(!Number.isFinite(value))throw Error('UNREPRESENTABLE_FINANCIAL_VALUE');minimum=Math.min(minimum,value);maximum=Math.max(maximum,value);const shift=row.calculation.shifts?.[key]??0;if(shift){const interval=row.points.length>1?row.points.at(-1)!.x-row.points.at(-2)!.x:1;xs.add(row.points[i+shift]?.x??row.points[i]!.x+shift*interval);}}
+      if(row.calculation)for(const [key,values] of Object.entries(row.calculation.components))for(const [i,value] of values.entries())if(value!==null){if(!Number.isFinite(value))throw Error('UNREPRESENTABLE_FINANCIAL_VALUE');minimum=Math.min(minimum,value);maximum=Math.max(maximum,value);const shift=row.calculation.shifts?.[key]??0;if(shift)xs.add(shiftedCoordinate(row,i,shift));}
     }
     if(Number.isFinite(minimum)&&computed.some(row=>row.calculation?.columns?.length)){minimum=Math.min(0,minimum);maximum=Math.max(0,maximum);}
     const sorted=[...xs].sort((a,b)=>a-b),yAxis={...spec.axes.y,...(spec.axes.y.domain===undefined&&minimum<maximum?{domain:[minimum,maximum] as const}:{})},helper={family:'line' as const,title:spec.title,...(spec.description?{description:spec.description}:{}),axes:{x:financialXAxis(spec,sorted,ordinal,grouped||computed.some(row=>row.calculation?.columns?.length)),y:yAxis},series:[{id:'financial-layout',name:spec.title,data:sorted.map((x,i)=>({id:'x'+i,x,y:Number.isFinite(minimum)?minimum:null}))}]};
@@ -92,18 +123,32 @@ export function planFinancialChart(input:PlanFinancialSpec,configuration:PlanOpt
     for(const [rank,row] of computed.entries()){
       const color=legend.find(s=>s.id===row.source.id)!.color,commands:PlanCommand[]=[],bars:PlanBar[]=[],circles:PlanCircle[]=[],parts:NonNullable<PlanSeries['parts']>[number][]=[];
       const originals=new Map(row.source.data.map(p=>[p.id,p]));
+      const shiftedValues = new Map<string, Map<number, number>>();
+      for (const [key, shift] of Object.entries(row.calculation?.shifts ?? {})) {
+        if (!shift) continue;
+        const values = new Map<number, number>();
+        row.calculation!.components[key]!.forEach((value, index) => {
+          if (value != null) values.set(shiftedCoordinate(row,index,shift), value);
+        });
+        shiftedValues.set(key, values);
+      }
       if(row.calculation){
-        for(const [key,values] of Object.entries(row.calculation.components)){const path:PlanCommand[]=[],columns:PlanBar[]=[];let open=false;for(let i=0;i<values.length;i++){const value=values[i];if(value===null||value===undefined){if(spec.family!=='zigzag'||row.points[i]!.close===null)open=false;continue;}const point=row.points[i]!,shift=row.calculation.shifts?.[key]??0,interval=row.points.length>1?row.points.at(-1)!.x-row.points.at(-2)!.x:1,coordinate=row.points[i+shift]?.x??point.x+shift*interval,px=x(coordinate),py=y(value);if(px===null||py===null){open=false;continue;}
+        for(const [key,values] of Object.entries(row.calculation.components)){const path:PlanCommand[]=[],columns:PlanBar[]=[];let open=false;for(let i=0;i<values.length;i++){const value=values[i];if(value===null||value===undefined){if((spec.family!=='zigzag'&&!sparsePivots)||row.points[i]!.close===null)open=false;continue;}const point=row.points[i]!,shift=row.calculation.shifts?.[key]??0,coordinate=shiftedCoordinate(row,i,shift),px=x(coordinate),py=y(value);if(px===null||py===null){open=false;continue;}
             if(spec.family==='psar'){circles.push({pointId:point.id,cx:px,cy:py,radius:2.5});}
             else if(row.calculation.columns?.includes(key)){const baseline=y(0);if(baseline!==null)columns.push({pointId:point.id,x:px+(rank-(computed.length-1)/2)*slotWidth/Math.max(1,computed.length)-width/2,y:Math.min(py,baseline),width,height:Math.max(1,Math.abs(baseline-py)),direction:value>=0?'rising':'falling'});}
-            else {path.push({type:open?'L':'M',x:px,y:py});open=true;}
+            else {
+              const previous = path.at(-1);
+              if(sparsePivots&&open&&previous&&(previous.type==='M'||previous.type==='L'))path.push({type:'L',x:px,y:previous.y});
+              if(sparsePivots&&key===row.calculation.primary)circles.push({pointId:point.id,cx:px,cy:py,radius:2.5});
+              path.push({type:open?'L':'M',x:px,y:py});open=true;
+            }
           }parts.push({key,...(columns.length?{bars:columns}:{}),...(path.length?{commands:path}:{}),...(key!==row.calculation.primary?{dash:'dashed' as const}:{} )});
         }
         if(spec.family==='ikh'){
-          const a=row.calculation.components.spanA!,b=row.calculation.components.spanB!,shift=row.calculation.shifts!.spanA!,interval=row.points.length>1?row.points.at(-1)!.x-row.points.at(-2)!.x:1,cloud:PlanCommand[]=[];
+          const a=row.calculation.components.spanA!,b=row.calculation.components.spanB!,shift=row.calculation.shifts!.spanA!,cloud:PlanCommand[]=[];
           let upper:{x:number;y:number}[]=[],lower:{x:number;y:number}[]=[];
           const flush=()=>{if(upper.length>1){upper.forEach((point,i)=>cloud.push({type:i?'L':'M',...point}));for(let i=lower.length-1;i>=0;i--)cloud.push({type:'L',...lower[i]!});cloud.push({type:'Z'});}upper=[];lower=[];};
-          for(let i=0;i<a.length;i++){if(a[i]===null||b[i]===null||a[i]===undefined||b[i]===undefined){flush();continue;}const px=x(row.points[i+shift]?.x??row.points[i]!.x+shift*interval),ay=y(a[i]!),by=y(b[i]!);if(px===null||ay===null||by===null){flush();continue;}upper.push({x:px,y:ay});lower.push({x:px,y:by});}flush();
+          for(let i=0;i<a.length;i++){if(a[i]===null||b[i]===null||a[i]===undefined||b[i]===undefined){flush();continue;}const px=x(shiftedCoordinate(row,i,shift)),ay=y(a[i]!),by=y(b[i]!);if(px===null||ay===null||by===null){flush();continue;}upper.push({x:px,y:ay});lower.push({x:px,y:by});}flush();
           if(cloud.length)parts.unshift({key:'cloud',commands:cloud,fill:true,opacity:.14});
         }
       }
@@ -116,7 +161,7 @@ export function planFinancialChart(input:PlanFinancialSpec,configuration:PlanOpt
           else if(spec.family==='pointandfigure'){const radius=Math.max(2,width*.3);for(const level of p.symbols??[p.close!]){const yy=y(level);if(yy===null)continue;if(p.close!>=p.open!)commands.push({type:'M',x:px-radius,y:yy-radius},{type:'L',x:px+radius,y:yy+radius},{type:'M',x:px+radius,y:yy-radius},{type:'L',x:px-radius,y:yy+radius});else commands.push({type:'M',x:px+radius,y:yy},{type:'A',radius,largeArc:1,sweep:1,x:px-radius,y:yy},{type:'A',radius,largeArc:1,sweep:1,x:px+radius,y:yy});}}
           else {commands.push({type:'M',x:px,y:high},{type:'L',x:px,y:low});bars.push({pointId:p.id,x:px-width/2,y:Math.min(opening,py),width,height:Math.max(1,Math.abs(opening-py)),direction:p.close!>=p.open!?'rising':'falling',...(spec.family==='hollowcandlestick'&&p.close!>=p.open!?{hollow:true}:{})});}
         }
-        if(px>=plot.x&&px<=plot.x+plot.width&&py>=plot.y&&py<=plot.y+plot.height){const raw=p.original??originals.get(p.id)??p,components=row.calculation?Object.fromEntries(Object.entries(row.calculation.components).map(([key,values])=>[key,values[i]??null])):undefined,financial:PlanFinancialValue={open:raw.open,high:raw.high,low:raw.low,close:raw.close,...(raw.volume!==undefined?{volume:raw.volume}:{}),...(components?{components}:{}),...(ordinal?{originalId:raw.id}:{})};observations.push({id:{seriesId:row.source.id,pointId:p.id},seriesName:row.source.name,label:p.title??(spec.axes.x.type==='time'?new Date(p.x).toISOString():String(p.x)),value,x:px,y:py,color,xValue:p.x,group:{key:JSON.stringify(['financial',p.x]),label:String(p.x),coordinate:px},financial});}
+        if(px>=plot.x&&px<=plot.x+plot.width&&py>=plot.y&&py<=plot.y+plot.height){const raw=p.original??originals.get(p.id)??p,components=row.calculation?Object.fromEntries(Object.entries(row.calculation.components).map(([key,values])=>{const shifted=shiftedValues.get(key);return [key,(shifted?shifted.get(p.x):values[i])??null];})):undefined,financial:PlanFinancialValue={open:raw.open,high:raw.high,low:raw.low,close:raw.close,...(raw.volume!==undefined?{volume:raw.volume}:{}),...(components?{components}:{}),...(ordinal?{originalId:raw.id}:{})};observations.push({id:{seriesId:row.source.id,pointId:p.id},seriesName:row.source.name,label:p.title??(spec.axes.x.type==='time'?new Date(p.x).toISOString():String(p.x)),value,x:px,y:py,color,xValue:p.x,group:{key:JSON.stringify(['financial',p.x]),label:String(p.x),coordinate:px},financial});}
       }
       series.push({id:row.source.id,name:row.source.name,color,...(commands.length?{commands}:{}),...(bars.length?{bars}:{}),...(circles.length?{circles}:{}),...(parts.length?{parts}:{} )});void rank;
     }

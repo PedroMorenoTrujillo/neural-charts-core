@@ -17,7 +17,7 @@ import {formatAxis} from '../internal/axes/plan.js';
 import {defaultPalette} from '../internal/chart/presentation.js';
 import type {PlanSpec,PlanOptions,PlanResult,PlanFrame,PlanSeries,PlanObservation} from '../public/plan-types.js';
 import {ownPlanInput,freezePlan} from './input.js';
-import {planCapacity} from './capacity.js';
+import {planCapacity, planSeriesLimit} from './capacity.js';
 import {preparePlanViewport,planViewportState,planLineViewportScales} from './viewport.js';
 import {withViewportDomains} from '../internal/interaction/viewport-axes.js';
 import {viewportCategoryWindow} from '../internal/interaction/viewport.js';
@@ -47,7 +47,8 @@ function planCartesian(value:PlanSpec,options:PlanOptions,owned:boolean):PlanRes
     if(!ownedOptions||typeof ownedOptions!=='object'||Object.keys(ownedOptions).some(k=>!['width','height','hiddenSeriesIds','stacking','stackGroups','viewport','references','referenceBands','scales','capacity'].includes(k)))return invalidPlan('UNKNOWN_OPTION','options');
     const capacity=planCapacity(ownedOptions.capacity),spec=owned?value:ownPlanInput(value,capacity) as PlanSpec,{width,height}=ownedOptions,hidden=ownedOptions.hiddenSeriesIds??[];
     if(!Number.isFinite(width)||!Number.isFinite(height)||width<64||height<64||width>10000||height>10000)return invalidPlan('BAD_VIEWPORT','options');
-    if(!Array.isArray(hidden)||hidden.length>16||hidden.some(id=>typeof id!=='string'||!id||id.length>256)||new Set(hidden).size!==hidden.length)return invalidPlan('BAD_VISIBILITY','options.hiddenSeriesIds');
+    const seriesLimit = planSeriesLimit(spec?.family, ownedOptions.stacking);
+    if(!Array.isArray(hidden)||hidden.length>seriesLimit||hidden.some(id=>typeof id!=='string'||!id||id.length>256)||new Set(hidden).size!==hidden.length)return invalidPlan('BAD_VISIBILITY','options.hiddenSeriesIds');
     if(!spec||!['line','area','areaspline','spline','column'].includes(spec.family))return invalidPlan('UNSUPPORTED_FAMILY','family');
     if(spec.family!=='line'&&spec.family!=='area'&&spec.family!=='areaspline'&&spec.family!=='spline'&&spec.family!=='column')return invalidPlan('UNSUPPORTED_FAMILY','family');
     if(ownedOptions.scales)return planLogarithmic(spec,ownedOptions);
@@ -57,7 +58,7 @@ function planCartesian(value:PlanSpec,options:PlanOptions,owned:boolean):PlanRes
     if(ownedOptions.stackGroups!==undefined&&(spec.family!=='column'||!ownedOptions.stacking))return invalidPlan('STACK_GROUPS_REQUIRE_STACKED_COLUMNS','options.stackGroups');
     if(spec.family==='column'&&ownedOptions.stackGroups)return planGroupedStacks(spec,ownedOptions,references);
     if((spec.family==='area'||spec.family==='areaspline')&&ownedOptions.stacking)return planStackedArea(spec,ownedOptions,references);
-    if(!Array.isArray(spec.series)||spec.series.length>16||spec.series.reduce((n,s)=>n+(Array.isArray(s?.data)?s.data.length:capacity.points+1),0)>capacity.points)return invalidPlan('INPUT_LIMIT','series');
+    if(!Array.isArray(spec.series)||spec.series.length>seriesLimit||spec.series.reduce((n,s)=>n+(Array.isArray(s?.data)?s.data.length:capacity.points+1),0)>capacity.points)return invalidPlan('INPUT_LIMIT','series');
     if(spec.axes?.x?.type==='category'&&Array.isArray(spec.axes.x.values)&&spec.axes.x.values.length>capacity.categories)return invalidPlan('LABEL_LIMIT','axes.x.values');
     const state={hiddenSeriesIds:[...hidden]},plot={x:16,y:14,width:width-32,height:height-28},palette=defaultPalette('light',false).series;
     const finish=(frame:PlanFrame,context?:PlanReferenceContext):PlanResult=>freezePlan({status:frame.observations.length?'ok':'empty',frame:withPlanReferences(frame,references,context,checkedBands.value)});
@@ -99,8 +100,10 @@ function planCartesian(value:PlanSpec,options:PlanOptions,owned:boolean):PlanRes
         series.push({id:s.series.spec.id,name:s.series.spec.name,color,commands,...(filled?{areaCommands:fill}:{})});
         const metadata=spec.family==='line'&&data.nonnullCount>2048&&s.eligible.length?lineObservationMetadata(s.series,xa.type):undefined;
         for(const point of s.eligible){
-          const label=data.labels.get(String(point.point.x))??formatAxis(point.point.x,xa.type,interval,data.labels);
-          const id=metadata?.ids[point.index]??Object.freeze({seriesId:s.series.spec.id,pointId:point.point.id}),groupKey=metadata?.keys[point.index]??JSON.stringify([xa.type,point.point.x]);
+          const xValue=point.point.x;
+          const label=xa.type==='linear'?String(xValue):formatAxis(xValue,xa.type,interval,data.labels);
+          const id=metadata?.ids[point.index]??Object.freeze({seriesId:s.series.spec.id,pointId:point.point.id});
+          const groupKey=metadata?.keys[point.index]??(xa.type==='linear'?`["linear",${label}]`:JSON.stringify([xa.type,xValue]));
           if(metadata){metadata.ids[point.index]=id;metadata.keys[point.index]=groupKey;}
           // All children are owned immutable identities or primitives. Freeze
           // here rather than allocating traversal arrays for every tiny record.

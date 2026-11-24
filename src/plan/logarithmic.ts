@@ -13,6 +13,7 @@ import {createCategoryFrame,createPointScale} from '../internal/math/category.js
 import {formatAxis} from '../internal/axes/plan.js';
 import type {AxisInput} from '../internal/axes/plan.js';
 import {defaultPalette} from '../internal/chart/presentation.js';
+import {planSeriesLimit} from './capacity.js';
 import {withViewportDomains} from '../internal/interaction/viewport-axes.js';
 import {preparePlanViewport,planLineViewportScales,planViewportState} from './viewport.js';
 import {checkedLogDomain,logDistance,logDomain,logTicks,logValue} from './log-scale.js';
@@ -43,7 +44,7 @@ export function planLogarithmic(spec:PlanSpec,options:PlanOptions,prepareScatter
    if(source.domain!==undefined)checkedLogDomain(source.domain);
   }
   const hidden=options.hiddenSeriesIds??[],state={hiddenSeriesIds:[...hidden]},width=options.width,height=options.height,palette=defaultPalette('light',false).series;
-  if(!Array.isArray(spec.series)||spec.series.length>16||spec.series.reduce((n,s)=>n+(Array.isArray(s?.data)?s.data.length:10001),0)>10000)fail('INPUT_LIMIT','series');
+  if(!Array.isArray(spec.series)||spec.series.length>planSeriesLimit(spec.family,options.stacking)||spec.series.reduce((n,s)=>n+(Array.isArray(s?.data)?s.data.length:10001),0)>10000)fail('INPUT_LIMIT','series');
   if(spec.axes?.x.type==='category'&&spec.axes.x.values.length>64)fail('LABEL_LIMIT','axes.x.values');
   for(const [si,s]of spec.series.entries())for(const [pi,p]of s.data.entries())for(const axis of ['x','y'] as const)if(logs[axis]&&p[axis]!==null&&!(typeof p[axis]==='number'&&p[axis]>0&&Number.isFinite(p[axis])))fail('NONPOSITIVE_LOG_VALUE',`series[${si}].data[${pi}].${axis}`);
   const refs=must(validatePlanReferences(options.references,spec)),bands=must(validatePlanReferenceBands(options.referenceBands,spec));

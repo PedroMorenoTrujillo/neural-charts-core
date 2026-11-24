@@ -5,10 +5,34 @@ const spec={family:'line',title:'Large',axes:{x:{type:'linear'},y:{type:'linear'
 assert.equal(planChart(spec,{width:640,height:360}).status,'invalid','Default resource guarantee preserved');
 const options={width:640,height:360,capacity:{points:50000}},a=planCartesianChart(spec,options),b=planChart(spec,options);
 assert.equal(a.status,'ok');assert.equal(a.frame.observations.length,50000);assert.deepEqual(a,b);
+const wide = {...spec,series:Array.from({length:64},(_,i)=>({id:'s'+i,name:'Series '+i,data:[{id:'p'+i,x:i+1,y:i+1}]}))};
+const wideOptions = {width:640,height:360,hiddenSeriesIds:wide.series.slice(0,63).map(s=>s.id)};
+for (const plan of [planChart,planCartesianChart]) {
+  const visible = plan(wide,wideOptions);
+  assert.equal(visible.status,'ok');
+  assert.equal(visible.frame.legend.length,64);
+  assert.equal(visible.frame.observations.length,1);
+  assert.equal(plan({...wide,series:[...wide.series,{id:'extra',name:'Extra',data:[]}]},wideOptions).status,'invalid');
+  assert.equal(plan(wide,{...wideOptions,scales:{y:{type:'log'}}}).status,'ok');
+}
 const column={family:'column',title:'Categories',axes:{x:{type:'category',values:Array.from({length:1000},(_,i)=>({id:'c'+i,label:'Category '+i}))},y:{type:'linear'}},series:[{id:'s',name:'S',data:Array.from({length:1000},(_,i)=>({id:'p'+i,x:'c'+i,y:i%19-8}))}]};
 assert.equal(planChart(column,{width:900,height:380}).status,'invalid');
 const c=planCartesianChart(column,{width:900,height:380,capacity:{categories:1000}});assert.equal(c.status,'ok');assert.equal(c.frame.observations.length,1000);
 const mutable={...spec,series:[{id:'s',name:'Mutable',data:[{id:'p',x:0,y:3}]}]};
+for (const data of [
+  [{id:'a',x:0,y:0},{id:'b',x:1e-7,y:null},{id:'c',x:2,y:1}],
+  [{id:'a',x:-0,y:-0},{id:'b',x:1,y:0}],
+  [{id:'a',x:0,y:1},{id:'a',x:1,y:2}],
+  [{id:'a',x:0,y:1},{id:'b',x:0,y:2}],
+  [{id:'a',x:1,y:1},{id:'b',x:0,y:2}],
+  [{id:'',x:0,y:1}],
+]) {
+  const line = points => ({...spec,series:[{id:'s',name:'Series',data:points}]});
+  const detached = Object.freeze(data.map(point => Object.freeze({...point})));
+  for (const planner of [planChart,planCartesianChart]) {
+    assert.deepEqual(planner(line(detached),options),planner(line(data),options));
+  }
+}
 for(const planner of [planChart,planCartesianChart]){
   const frame=planner(mutable,{width:640,height:360});assert.equal(frame.status,'ok');
   mutable.series[0].data[0].y=7;
