@@ -15,4 +15,20 @@ assert.equal(actual.status,'ok');for(const observation of actual.frame.observati
 const indexed=preparePlanRegionHit(actual.frame);for(const observation of actual.frame.observations)assert.deepEqual(indexed.query(observation.x,observation.y)?.id,observation.id);
 let probes=0;const many={family:'pictorial',observations:Array.from({length:1000},(_,i)=>({id:{seriesId:'s',pointId:String(i)},hit:{get type(){probes++;return 'circle';},cx:i*3,cy:0,radius:1}}))};
 const accelerated=preparePlanRegionHit(many);probes=0;assert.equal(accelerated.query(1500,0)?.id.pointId,'500');assert(probes<16,'Region lookup does not scan all1000 source regions');assert.equal(accelerated.query(1500,10),undefined);
+const overlap=(horizontal)=>{
+  const positions=[-20,-15,-10,-5,0,0,0,5,10,15,20];
+  const observations=positions.map((p,i)=>({id:{seriesId:'overlap',pointId:String(i)},hit:{type:'circle',cx:horizontal?p:0,cy:horizontal?0:p,radius:3}}));
+  const f={family:'pictorial',observations},index=preparePlanRegionHit(f);
+  for(const p of [...positions,-2,2,4,12,30]){
+    const [x,y]=horizontal?[p,0]:[0,p];
+    assert.deepEqual(index.query(x,y)?.id,hitTestPlanRegion(f,x,y)?.id);
+  }
+  assert.equal(index.query(0,0).id.pointId,'6');
+};
+overlap(false);
+overlap(true);
+assert.equal(indexed.query(NaN,0),undefined);
+assert.equal(indexed.query(2000,2000),undefined);
+assert.equal(hitTestPlanRegion({family:'venn',observations:[]},0,0),undefined);
+assert.equal(preparePlanRegionHit({family:'venn',observations:[]}).query(0,0),undefined);
 console.log('PASS exact region membership, overlap identity, boundaries and real Venn frame');

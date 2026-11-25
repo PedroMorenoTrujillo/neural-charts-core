@@ -1,5 +1,5 @@
 import { expect, test } from 'vitest';
-import { categoryViewportAxis, numericViewportAxis, prepareViewport, requestViewport, sameViewport, zoomViewport, panViewport, type Viewport, type ViewportContext } from '../../src/internal/interaction/viewport.js';
+import { categoryViewportAxis, numericViewportAxis, prepareViewport, requestViewport, sameViewport, viewportBinding, viewportCategoryWindow, zoomViewport, panViewport, type Viewport, type ViewportContext } from '../../src/internal/interaction/viewport.js';
 import type { ChartResult } from '../../src/public/chart-types.js';
 function value<T>(result: ChartResult<T>): T { if (result.status !== 'ok') throw Error(JSON.stringify(result)); return result.value; }
 const numeric = (low = 0, high = 100, type: 'linear' | 'time' = 'linear') => value(numericViewportAxis(type, [low, high]));
@@ -90,4 +90,88 @@ test('invalid config, reversed/nonfinite/foreign windows and double owners rejec
   const current = owner(); for (const input of [getter, { x: [NaN, 1] }, { x: [-1, 1] }, { x: [0, Infinity] }, { x: [0, 1, 2] }, { x: { firstId: 'a', lastId: 'a' } }, { extra: [0, 1] }]) expect(requestViewport(current, input).status).toBe('invalid');
   expect(reads).toBe(0); expect(categoryViewportAxis(['a', 'a']).status).toBe('invalid');
   expect(zoomViewport(current, NaN).status).toBe('invalid'); expect(panViewport(current, { x: Infinity }).status).toBe('invalid');
+});
+
+test('touch, wheel and control settings survive adapter ownership and reject invalid transport settings', () => {
+  const input = {mode: 'internal', axes: 'x', gesture: 'pan', wheel: true, controls: false, initial: {x: [12, 40]}};
+  const applied = owner(input);
+  expect(applied.settings).toEqual({mode: 'internal', axes: 'x', gesture: 'pan', wheel: true, controls: false});
+  expect(Object.isFrozen(applied.settings)).toBe(true);
+  const next = value(panViewport(applied, {x: .5, y: .5}));
+  expect(next.value).toEqual({x: [26, 54]});
+  expect(next.settings).toBe(applied.settings);
+  expect(viewportBinding(false)).toBe(false);
+  for (const [patch, path] of [
+    [{gesture: 'drag'}, 'viewport.gesture'],
+    [{controls: 'false'}, 'viewport.controls'],
+    [{initial: {x: [5]}}, 'viewport.initial.x'],
+  ] as const) {
+    expect(prepareViewport({...input, ...patch}, context())).toMatchObject({
+      status: 'invalid', diagnostic: {path},
+    });
+  }
+  expect(requestViewport(applied, {y: [-10, 10]})).toMatchObject({
+    status: 'invalid', diagnostic: {reason: 'DISABLED_VIEWPORT_AXIS', path: 'viewport.value.y'},
+  });
+  expect(requestViewport(applied, {x: [20]})).toMatchObject({
+    status: 'invalid', diagnostic: {reason: 'BAD_VIEWPORT_WINDOW', path: 'viewport.value.x'},
+  });
+});
+
+test('reconciliation retains category windows by ID and resets a reordered or type-changed axis', () => {
+  const x = value(categoryViewportAxis(['a', 'b', 'c', 'd']));
+  const binding = {mode: 'internal', axes: 'x', initial: {x: {firstId: 'b', lastId: 'c'}}};
+  const current = owner(binding, {x, y: numeric()});
+  const next = owner(binding, {x: value(categoryViewportAxis(['extra', 'a', 'b', 'c', 'd'])), y: numeric()}, current);
+  expect(next.value).toEqual({x: {firstId: 'b', lastId: 'c'}});
+  expect(viewportCategoryWindow(next.resolved.x!)).toEqual(next.value.x);
+  const reordered = owner(binding, {x: value(categoryViewportAxis(['a', 'c', 'b', 'd'])), y: numeric()}, current);
+  expect(reordered.value).toEqual({});
+  expect(reordered.resolved.x).toEqual({firstId: 'a', lastId: 'd'});
+  const plain = owner({mode: 'internal', axes: 'x', initial: {x: [5, 10]}}, context());
+  expect(viewportCategoryWindow(plain.resolved.x!)).toBeNull();
+  const changed = owner({mode: 'internal', axes: 'x'}, {x, y: numeric()}, plain);
+  expect(changed.value).toEqual({});
+  expect(changed.resolved.x).toEqual({firstId: 'a', lastId: 'd'});
+});
+
+test('reconciles a numeric range into epoch milliseconds and drops fractional or disabled ranges', () => {
+  const time = {x: numeric(10, 100, 'time'), y: numeric()};
+  const current = owner({mode: 'internal', axes: 'x', initial: {x: [4, 30]}}, context());
+  expect(owner({mode: 'internal', axes: 'x'}, time, current).value).toEqual({x: [10, 30]});
+  const fractional = owner({mode: 'internal', axes: 'x', initial: {x: [20, 30.5]}}, context());
+  expect(owner({mode: 'internal', axes: 'x'}, time, fractional).value).toEqual({});
+  expect(owner({mode: 'internal', axes: 'y'}, time, current).value).toEqual({});
+  expect(requestViewport(owner({mode: 'internal', axes: 'x'}, time), {x: [20, 30.5]})).toMatchObject({
+    status: 'invalid', diagnostic: {reason: 'BAD_VIEWPORT_WINDOW', path: 'viewport.value.x'},
+  });
+});
+
+test('viewport comparison treats automatic, numeric and categorical windows as distinct identities', () => {
+  const numericWindow = {x: [1, 20]} as const;
+  const categories = {x: {firstId: 'a', lastId: 'c'}} as const;
+  expect(sameViewport(numericWindow, {x: [1, 20]})).toBe(true);
+  expect(sameViewport(numericWindow, {x: [1, 21]})).toBe(false);
+  expect(sameViewport(numericWindow, {x: [2, 20]})).toBe(false);
+  expect(sameViewport(numericWindow, categories)).toBe(false);
+  expect(sameViewport(categories, numericWindow)).toBe(false);
+  expect(sameViewport(categories, {x: {firstId: 'a', lastId: 'c'}})).toBe(true);
+  expect(sameViewport(categories, {x: {firstId: 'a', lastId: 'b'}})).toBe(false);
+  expect(sameViewport(categories, {x: {firstId: 'b', lastId: 'c'}})).toBe(false);
+  expect(sameViewport(numericWindow, {})).toBe(false);
+  expect(sameViewport({}, numericWindow)).toBe(false);
+  expect(sameViewport({}, {})).toBe(true);
+});
+
+test('rejects invalid axis bounds and retains the last valid viewport when an input cannot be inspected', () => {
+  const current = owner({mode: 'internal', axes: 'x', initial: {x: [15, 45]}}, context());
+  const input = new Proxy({}, {ownKeys() { throw Error('Host input cannot be inspected'); }});
+  expect(requestViewport(current, input)).toMatchObject({status: 'invalid', diagnostic: {reason: 'BAD_VIEWPORT', path: 'viewport'}});
+  expect(current.value).toEqual({x: [15, 45]});
+  expect(numericViewportAxis('linear', [1] as unknown as readonly [number, number])).toMatchObject({
+    status: 'invalid', diagnostic: {path: 'viewport.bounds'},
+  });
+  expect(numericViewportAxis('time', [0, 8.64e15 + 1])).toMatchObject({
+    status: 'invalid', diagnostic: {reason: 'BAD_VIEWPORT_BOUNDS'},
+  });
 });

@@ -10,6 +10,47 @@ function spec(): PlanBulletSpec {
 }
 function frame(result: PlanBulletResult) {if (result.status === 'invalid') throw new Error(JSON.stringify(result.diagnostic)); return result.frame;}
 
+describe('bullet reference and identity validation', () => {
+  it('rejects duplicate cells, duplicate bands and unknown axes at the source field', () => {
+    const baseline = spec(), series = baseline.series[0]!, first = series.data[0]!, band = baseline.bands![0]!;
+    const cases = [
+      [{series: [{...series, data: [first, {...first, x: 'two'}]}]}, 'DUPLICATE_ID', 'spec.series[0].data[1].id'],
+      [{series: [{...series, data: [first, {...first, id: 'other'}]}]}, 'DUPLICATE_CATEGORY', 'spec.series[0].data[1].x'],
+      [{series: [{...series, data: [{...first, x: 'missing'}]}]}, 'UNKNOWN_CATEGORY', 'spec.series[0].data[0].x'],
+      [{bands: [band, {...band, from: 5, to: 12}]}, 'DUPLICATE_ID', 'spec.bands[1].id'],
+      [{axes: {...baseline.axes, x: {...baseline.axes.x, values: [baseline.axes.x.values[0]!, baseline.axes.x.values[0]!]}}},
+        'DUPLICATE_ID', 'spec.axes.x.values[1].id'],
+      [{axes: {...baseline.axes, y: {...baseline.axes.y, type: 'time'}}}, 'NUMERIC_VALUE_AXIS_ONLY', 'spec.axes.y.type'],
+    ] as const;
+    for (const [patch, reason, path] of cases) expect(planBullet({...baseline, ...patch} as PlanBulletSpec, size)).toMatchObject({
+      status: 'invalid', diagnostic: {reason, path},
+    });
+  });
+
+  it('keeps reference visibility and measured zero separate in a vertical bullet', () => {
+    const original = spec(), series = original.series[0]!;
+    const plan = frame(planBullet({...original, orientation: 'vertical', pointPadding: .2, series: [
+      {...series, data: [{...series.data[0]!, y: 0}, series.data[1]!]},
+    ]}, {...size, references: [
+      {id: 'category', axis: 'x', value: 'one'}, {id: 'limit', axis: 'y', value: 30},
+    ]}));
+    expect(plan.observations.find(point => point.id.pointId === 'p1')?.value).toBe(0);
+    expect(plan.series[0]?.circles?.map(circle => circle.pointId)).toEqual(['p1']);
+    expect(plan.references).toMatchObject([{id: 'category', status: 'visible'}, {id: 'limit', status: 'outside'}]);
+  });
+
+  it('fails unsupported retained option state before drawing', () => {
+    for (const [patch, reason, path] of [
+      [{hiddenSeriesIds: ['output', 'output']}, 'DUPLICATE_ID', 'options.hiddenSeriesIds[1]'],
+      [{viewport: {axes: 'y', value: {y: [10,-2]}}}, 'UNSUPPORTED_VIEWPORT', 'options.viewport'],
+      [{references: [{id: 'r', axis: 'x', value: 'missing'}]}, 'UNKNOWN_CATEGORY', 'options.references[0].value'],
+      [{references: [{id: 'r', axis: 'y', value: 0}, {id: 'r', axis: 'y', value: 2}]}, 'DUPLICATE_ID', 'options.references[1].id'],
+    ] as const) expect(planBullet(spec(), {...size, ...patch})).toMatchObject({
+      status: 'invalid', diagnostic: {reason, path},
+    });
+  });
+});
+
 describe('bullet values, independent targets and decorative bands', () => {
   it.each([
     ['horizontal', false], ['horizontal', true], ['vertical', false], ['vertical', true],

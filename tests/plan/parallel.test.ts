@@ -5,6 +5,37 @@ const size={width:390,height:300};
 const source:PlanParallelSpec={family:'parallel',title:'Independent vehicle measurements',axes:[{id:'mass',label:'Mass',type:'linear',unit:'kg',domain:[1000,2000]},{id:'time',label:'Acceleration',type:'linear',unit:'s',domain:[5,15],reversed:true},{id:'temperature',label:'Temperature',type:'linear',unit:'°C',domain:[-10,30]}],series:[{id:'a',name:'Vehicle A',data:[{id:'mass-a',axisId:'mass',value:1250},{id:'time-a',axisId:'time',value:7.5},{id:'temp-a',axisId:'temperature',value:0}]},{id:'b',name:'Vehicle B',data:[{id:'mass-b',axisId:'mass',value:2000},{id:'time-b',axisId:'time',value:15},{id:'temp-b',axisId:'temperature',value:30}]}]};
 function frame(spec=source,options:PlanOptions=size){const r=planChart(spec,options);if(r.status==='invalid')throw Error(JSON.stringify(r.diagnostic));return r.frame;}
 const invalid=(spec:unknown,options:unknown=size)=>expect(planChart(spec as PlanSpec,options as PlanOptions).status).toBe('invalid');
+
+test('validates parallel axes, transport metadata and source budgets at the original owner', () => {
+  const axis = source.axes[0]!;
+  const next = source.axes[1]!;
+  const reject = (spec: unknown, reason: string, path: string) => {
+    expect(planChart(spec as PlanSpec, size)).toMatchObject({status: 'invalid', diagnostic: {reason, path}});
+  };
+  for (const invalidAxis of [
+    null, {...axis, id: ''}, {...axis, type: 'time'},
+    {...axis, label: 'a'.repeat(201)}, {...axis, unit: 'm'.repeat(65)},
+    {...axis, reversed: 'false'}, {...axis, nice: 1}, {...axis, grid: true},
+  ]) reject({...source, axes: [invalidAxis, next]}, 'BAD_PARALLEL_AXIS', 'axes.0');
+  for (const ticks of [null, [], {spacing: 2}]) {
+    reject({...source, axes: [{...axis, ticks}, ...source.axes.slice(1)]}, 'BAD_PARALLEL_TICKS', 'axes.0.ticks');
+  }
+  reject({...source, title: 'a'.repeat(201)}, 'BAD_DESCRIPTION', 'title');
+  reject({...source, description: 'a'.repeat(1_001)}, 'BAD_DESCRIPTION', 'title');
+  reject({...source, series: Array.from({length: 17}, (_, i) => ({...source.series[0], id: String(i)}))}, 'PARALLEL_SERIES_LIMIT', 'series');
+  reject({...source, series: source.series.map(s => ({...s, markers: 'on'}))}, 'BAD_PARALLEL_SERIES', 'series');
+});
+
+test('returns precise diagnostics for invalid original domains and ticks', () => {
+  const axis = source.axes[0]!;
+  const alter = (patch: Record<string, unknown>) => ({...source, axes: [{...axis, ...patch}, ...source.axes.slice(1)]}) as PlanSpec;
+  expect(planChart(alter({domain: [2000, 1000]}), size)).toMatchObject({status: 'invalid', diagnostic: {code: 'INVALID_DOMAIN'}});
+  expect(planChart(alter({ticks: {targetCount: 50}}), size)).toMatchObject({status: 'invalid', diagnostic: {reason: 'BAD_TICK_TARGET'}});
+  expect(planChart({...source, description: 'Original metric scales'}, size)).toMatchObject({
+    status: 'ok', frame: {description: 'Original metric scales'},
+  });
+});
+
 test('each dimension owns its own scale, unit, source identity and complete original value',()=>{
   const f=frame();expect(f.family).toBe('parallel');expect(f.unit).toBe('');expect(f.parallel?.coordinates).toBe('cartesian');expect(f.parallel?.axes.map(a=>a.domain)).toEqual([[1000,2000],[5,15],[-10,30]]);expect(f.observations.map(p=>p.value)).toEqual([1250,7.5,0,2000,15,30]);expect(f.observations[0]?.parallel).toEqual({axisId:'mass',axisLabel:'Mass',unit:'kg'});expect(f.observations[1]?.parallel?.unit).toBe('s');expect(f.observations[2]?.parallel?.unit).toBe('°C');expect(f.observations[0]?.y).toBeCloseTo(f.observations[2]!.y);expect(f.observations[0]?.y).toBeGreaterThan(f.observations[1]!.y);
   expect(f.observations[0]?.group?.key).not.toBe(f.observations[1]?.group?.key);expect(f.observations[0]?.group?.key).toBe(f.observations[3]?.group?.key);

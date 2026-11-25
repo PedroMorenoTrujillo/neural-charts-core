@@ -28,4 +28,19 @@ check('visibility does not change the denominator; incomplete/negative/ambiguous
   assert.equal(planChart(spec,{...options,viewport:{axes:'y'}}).status,'invalid');
   assert.equal(planChart(spec,{...options,stacking:'sum'}).status,'invalid');
 });
+check('retains description and legend while all original/derived series are hidden', () => {
+  const result = planChart({...spec,description:'Original causes'}, {...options,hiddenSeriesIds:['values','cumulative']});
+  assert.equal(result.status, 'empty');
+  assert.equal(result.frame.description, 'Original causes');
+  assert.deepEqual(result.frame.observations, []);
+  assert.deepEqual(result.frame.legend.map(series => [series.id,series.visible]), [['values',false],['cumulative',false]]);
+});
+check('diagnoses an absent Pareto population and an unknown legend identity', () => {
+  const empty = planChart({...spec,data:[]},options);
+  assert.equal(empty.status,'invalid');
+  assert.equal(empty.diagnostic.reason,'PARETO_CATEGORY_LIMIT');
+  const unknown = planChart(spec,{...options,hiddenSeriesIds:['unknown']});
+  assert.equal(unknown.status,'invalid');
+  assert.equal(unknown.diagnostic.reason,'UNKNOWN_SERIES');
+});
 writeFileSync(new URL('../../work/reports/core-plan-pareto-current.json',import.meta.url),JSON.stringify({status:'passed',checks},null,2)+'\n');console.log(`PASS ${checks.length} Pareto calculation checks`);

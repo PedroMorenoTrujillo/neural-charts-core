@@ -18,6 +18,34 @@ it('navigates siblings, parent/child, level endpoints and chart endpoints withou
   const a1 = navigateTree(p, team, 'ArrowRight', false)!; expect(a1.record.node.id).toBe('a1'); expect(navigateTree(p, a1, 'ArrowDown', false)!.record.node.id).toBe('a2'); expect(navigateTree(p, a1, 'End', false)!.record.node.id).toBe('a2'); expect(navigateTree(p, a1, 'ArrowLeft', false)!.record.node.id).toBe('team-a');
   expect(navigateTree(p, a1, 'Home', true)!.record.node.id).toBe('root'); expect(navigateTree(p, root, 'End', true)!.record.node.id).toBe('bm'); expect(navigateTree(p, root, 'ArrowUp', false)).toBe(root);
 });
+
+it('distinguishes terminal keyboard targets from irrelevant keys at hierarchy edges', () => {
+  const p = project();
+  const root = p.byId.get('root')!, child = p.byId.get('a2')!;
+  expect(navigateTree(p, root, 'ArrowLeft', false)).toBe(root);
+  expect(navigateTree(p, child, 'ArrowRight', false)).toBe(child);
+  expect(navigateTree(p, child, 'ArrowDown', false)).toBe(child);
+  expect(navigateTree(p, child, 'Home', false)).toBe(p.byId.get('a1'));
+  expect(navigateTree(p, child, 'Tab', false)).toBeNull();
+  expect(reconcileTree(p, null, -100)).toBe(root);
+});
+
+it('exposes unavailable geometry without moving logical focus in collapsed and malformed charts', () => {
+  const input = validateHierarchy(raw);
+  if (input.status === 'invalid') throw Error(JSON.stringify(input.diagnostic));
+  for (const [bad, size] of [[{...plot, width: -1}, 12], [{...plot, height: -1}, 12], [plot, 0]] as const) {
+    expect(projectTreemap(input.value, bad, size, false)).toMatchObject({
+      status: 'invalid', diagnostic: {reason: 'BAD_TREEMAP_BOUNDS', path: 'layout'},
+    });
+  }
+  const tiny = project(raw, {...plot, width: 0});
+  expect(tiny.byId.get('a1')?.rect).toBeNull();
+  expect(tiny.byId.get('a1')?.reason).toBe('insufficient-space');
+  expect(pickTree(tiny, plot.x, plot.y)).toBeNull();
+  expect(reconcileTree(tiny, 'a1', 0)).toBe(tiny.byId.get('a1'));
+  const proper = project(raw, plot);
+  expect(pickTree(proper, plot.x + plot.width, plot.y + plot.height)).toBe(proper.byId.get('root'));
+});
 it('restores logical identity after reconstruction and recovers a deleted node by canonical order', () => {
   const before = project(), old = before.byId.get('a2')!, clone = structuredClone(raw); clone.children.reverse(); const after = project(clone);
   expect(reconcileTree(after, old.record.node.id, old.order)!.record.node.id).toBe('a2'); expect(after.byId.get('a2')!.rect).toEqual(old.rect); expect(after.byId.get('a2')).not.toBe(old);

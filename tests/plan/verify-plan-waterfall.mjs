@@ -11,4 +11,15 @@ check('consecutive subtotals use their own checkpoints and totals never reset th
 check('zero changes remain navigable; original input is untouched',()=>{const zero={...spec,series:[{...spec.series[0],data:data.map(p=>p.type==='delta'?{...p,value:0}:p)}]},before=JSON.stringify(zero),f=ready(zero);assert(f.observations.every(p=>p.value===0));assert.equal(JSON.stringify(zero),before);});
 check('missing, nonfinite, overflow, duplicate and ambiguous totals are rejected',()=>{for(const point of [{...data[0],value:null},{...data[0],value:Infinity},{id:'open',x:'open',type:'total',value:100}])assert.equal(planChart({...spec,series:[{...spec.series[0],data:[point,...data.slice(1)]}]},size).status,'invalid');assert.equal(planChart({...spec,startValue:Number.MAX_VALUE,series:[{...spec.series[0],data:data.map(p=>p.type==='delta'?{...p,value:Number.MAX_VALUE}:p)}]},size).status,'invalid');assert.equal(planChart({...spec,series:[{...spec.series[0],data:[data[0],data[0],...data.slice(2)]}]},size).status,'invalid');});
 check('visibility and Y references use the same flow scale',()=>{const f=ready(spec,{references:[{id:'guide',axis:'y',value:50}]});assert.equal(f.references[0].line.y1,f.observations.at(-1).y);assert.equal(planChart(spec,{...size,hiddenSeriesIds:['flow']}).status,'empty');assert.equal(planChart(spec,{...size,stacking:'sum'}).status,'invalid');assert.equal(planChart(spec,{...size,references:[{id:'bad',axis:'x',value:'open'}]}).status,'invalid');});
+check('retains category labels and an empty frame when the explicit reversed domain encloses no cash flow',()=>{
+  const result=planChart({...spec,axes:{...spec.axes,y:{type:'linear',domain:[150,190],nice:false,reversed:true}}},size);
+  assert.equal(result.status,'empty',JSON.stringify(result));
+  const f=result.frame;
+  assert.deepEqual(f.observations,[]);
+  assert.deepEqual(f.series[0].bars,[]);
+  assert.deepEqual(f.series[0].commands,[]);
+  assert.deepEqual(f.labels.map(label=>label.label),data.map(point=>point.x));
+  assert.equal(f.grid[0].y,14);
+  assert.equal(f.grid.at(-1).y,286);
+});
 writeFileSync('work/reports/core-plan-waterfall-current.json',JSON.stringify({date:new Date().toISOString(),status:'passed',checks,newOwner:true,deviceAcceptance:false},null,2));console.log('PASS '+checks.length+' waterfall contract checks.');

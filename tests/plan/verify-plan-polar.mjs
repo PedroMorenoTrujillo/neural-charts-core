@@ -7,6 +7,27 @@ const radar={family:'radar',title:'Capabilities',axes:{x:{type:'category',values
 const options={width:320,height:320};
 const tests=[];
 function check(name,run){run();tests.push(name);}
+check('a clipped radar radius keeps other source values and original spoke identities',()=>{
+  const values=categories.map(({id})=>({id}));
+  const source={...radar,description:'Local scale',axes:{x:{type:'category',values},y:{type:'linear',domain:[0,5],nice:false,ticks:{targetCount:4},title:'Units'}}};
+  const result=planChart(source,options);
+  assert.equal(result.status,'ok',JSON.stringify(result));
+  assert.equal(result.frame.unit,'Units');
+  assert.deepEqual(result.frame.polarGrid.spokes.map(s=>s.label),['a','b','c','d']);
+  assert.deepEqual(result.frame.observations.map(o=>[o.id.pointId,o.value]),[['p0',2],['p1',4]]);
+  assert.equal(result.frame.series[0].areaCommands,undefined);
+});
+check('polar and radar helpers enforce bounded categories and radius domains',()=>{
+  for(const [spec,reason,path] of [
+    [{family:'polar',title:'No data',data:[]},'POLAR_CATEGORY_LIMIT','data'],
+    [{family:'polar',title:'Bad radius',domain:[0,Infinity],data:[{id:'a',label:'A',value:1}]},'BAD_JSON','spec'],
+    [{family:'polar',title:'Empty radius',domain:[0,0],data:[{id:'a',label:'A',value:1}]},'RADIAL_DOMAIN_STARTS_AT_ZERO','domain'],
+  ]){
+    const result=planChart(spec,options);
+    assert.equal(result.status,'invalid',JSON.stringify(result));
+    assert.deepEqual([result.diagnostic.reason,result.diagnostic.path],[reason,path]);
+  }
+});
 check('radar is projected on radial axes with original values and closed polygon',()=>{
   const p=planChart(radar,options);assert.equal(p.status,'ok');
   const f=p.frame,g=f.polarGrid;assert.equal(g.spokes.length,4);assert.equal(f.series[0].commands.at(-1).type,'Z');

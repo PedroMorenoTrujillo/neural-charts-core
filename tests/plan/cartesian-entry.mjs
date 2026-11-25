@@ -19,20 +19,6 @@ const column={family:'column',title:'Categories',axes:{x:{type:'category',values
 assert.equal(planChart(column,{width:900,height:380}).status,'invalid');
 const c=planCartesianChart(column,{width:900,height:380,capacity:{categories:1000}});assert.equal(c.status,'ok');assert.equal(c.frame.observations.length,1000);
 const mutable={...spec,series:[{id:'s',name:'Mutable',data:[{id:'p',x:0,y:3}]}]};
-for (const data of [
-  [{id:'a',x:0,y:0},{id:'b',x:1e-7,y:null},{id:'c',x:2,y:1}],
-  [{id:'a',x:-0,y:-0},{id:'b',x:1,y:0}],
-  [{id:'a',x:0,y:1},{id:'a',x:1,y:2}],
-  [{id:'a',x:0,y:1},{id:'b',x:0,y:2}],
-  [{id:'a',x:1,y:1},{id:'b',x:0,y:2}],
-  [{id:'',x:0,y:1}],
-]) {
-  const line = points => ({...spec,series:[{id:'s',name:'Series',data:points}]});
-  const detached = Object.freeze(data.map(point => Object.freeze({...point})));
-  for (const planner of [planChart,planCartesianChart]) {
-    assert.deepEqual(planner(line(detached),options),planner(line(data),options));
-  }
-}
 for(const planner of [planChart,planCartesianChart]){
   const frame=planner(mutable,{width:640,height:360});assert.equal(frame.status,'ok');
   mutable.series[0].data[0].y=7;

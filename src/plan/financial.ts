@@ -1,6 +1,6 @@
 import { invalidPlan } from './diagnostics.js';
 import type {PlanFinancialSpec,PlanFinancialPoint,PlanFinancialSeries,PlanFinancialParameters,PlanFinancialValue} from '../public/financial-plan-types.js';
-import type {PlanOptions,PlanResult,PlanFrame,PlanSeries,PlanObservation,PlanCommand,PlanBar,PlanCircle,PlanLineSpec} from '../public/plan-types.js';
+import type {PlanOptions,PlanResult,PlanFrame,PlanSeries,PlanObservation,PlanCommand,PlanBar,PlanCircle,PlanLineSpec,PlanAnnotation} from '../public/plan-types.js';
 import {financialFamilies,financialParameterKeys} from '../public/financial-plan-types.js';
 import {planCartesianChart} from './cartesian.js';
 import {ownPlanInput,freezePlan} from './input.js';
@@ -119,6 +119,8 @@ export function planFinancialChart(input:PlanFinancialSpec,configuration:PlanOpt
     const plot=base.viewport.plot!,xd=base.viewport.displayed.x!,yd=base.viewport.displayed.y!,xScale=createLinearScale(xd,[plot.x,plot.x+plot.width],false),yScale=createLinearScale(yd,base.viewport.reversed.y?[plot.y,plot.y+plot.height]:[plot.y+plot.height,plot.y],false);
     if(xScale.status==='invalid')return xScale;if(yScale.status==='invalid')return yScale;
     const x=(v:number)=>xScale.value.map(v),y=(v:number)=>yScale.value.map(v),series:PlanSeries[]=[],observations:PlanObservation[]=[];
+    const flagChart = spec.family === 'flags';
+    const annotations: PlanAnnotation[] = [];
     let spacing=24;for(let i=1;i<sorted.length;i++)spacing=Math.min(spacing,Math.abs(x(sorted[i]!)!-x(sorted[i-1]!)!));const slotWidth=Math.max(1,Math.min(18,spacing*.7)),width=grouped||computed.some(row=>row.calculation?.columns?.length)?slotWidth/Math.max(1,computed.length)*.85:slotWidth;
     for(const [rank,row] of computed.entries()){
       const color=legend.find(s=>s.id===row.source.id)!.color,commands:PlanCommand[]=[],bars:PlanBar[]=[],circles:PlanCircle[]=[],parts:NonNullable<PlanSeries['parts']>[number][]=[];
@@ -155,17 +157,24 @@ export function planFinancialChart(input:PlanFinancialSpec,configuration:PlanOpt
       for(const [i,p] of row.points.entries()){
         const value=row.calculation?row.calculation.components[row.calculation.primary]![i]:p.close;if(value===null||value===undefined)continue;
         const center=x(ordinal?i:p.x),px=center===null?null:center+(grouped?(rank-(computed.length-1)/2)*slotWidth/Math.max(1,computed.length):0),py=y(value);if(px===null||py===null)continue;
+        const inPlot = px >= plot.x && px <= plot.x + plot.width && py >= plot.y && py <= plot.y + plot.height;
+        if (flagChart && !inPlot) continue;
         if(!row.calculation){const high=y(p.high!),low=y(p.low!),opening=y(p.open!);if(high===null||low===null||opening===null)continue;
           if(spec.family==='ohlc'||spec.family==='hlc') {commands.push({type:'M',x:px,y:high},{type:'L',x:px,y:low});if(spec.family==='ohlc')commands.push({type:'M',x:px-width/2,y:opening},{type:'L',x:px,y:opening});commands.push({type:'M',x:px,y:py},{type:'L',x:px+width/2,y:py});}
-          else if(spec.family==='flags'){const flagWidth=Math.max(18,Math.min(64,(p.title?.length??1)*8+12));commands.push({type:'M',x:px,y:py},{type:'L',x:px,y:py-24});bars.push({pointId:p.id,x:px,y:py-38,width:flagWidth,height:16});}
+          else if (flagChart) {
+            const flagWidth = Math.max(18, Math.min(64, (p.title?.length ?? 1) * 8 + 12));
+            commands.push({type: 'M', x: px, y: py}, {type: 'L', x: px, y: py - 24});
+            bars.push({pointId: p.id, x: px, y: py - 38, width: flagWidth, height: 16});
+            annotations.push({x: px + 10, y: py - 26, text: p.title ?? '•', role: 'label'});
+          }
           else if(spec.family==='pointandfigure'){const radius=Math.max(2,width*.3);for(const level of p.symbols??[p.close!]){const yy=y(level);if(yy===null)continue;if(p.close!>=p.open!)commands.push({type:'M',x:px-radius,y:yy-radius},{type:'L',x:px+radius,y:yy+radius},{type:'M',x:px+radius,y:yy-radius},{type:'L',x:px-radius,y:yy+radius});else commands.push({type:'M',x:px+radius,y:yy},{type:'A',radius,largeArc:1,sweep:1,x:px-radius,y:yy},{type:'A',radius,largeArc:1,sweep:1,x:px+radius,y:yy});}}
           else {commands.push({type:'M',x:px,y:high},{type:'L',x:px,y:low});bars.push({pointId:p.id,x:px-width/2,y:Math.min(opening,py),width,height:Math.max(1,Math.abs(opening-py)),direction:p.close!>=p.open!?'rising':'falling',...(spec.family==='hollowcandlestick'&&p.close!>=p.open!?{hollow:true}:{})});}
         }
-        if(px>=plot.x&&px<=plot.x+plot.width&&py>=plot.y&&py<=plot.y+plot.height){const raw=p.original??originals.get(p.id)??p,components=row.calculation?Object.fromEntries(Object.entries(row.calculation.components).map(([key,values])=>{const shifted=shiftedValues.get(key);return [key,(shifted?shifted.get(p.x):values[i])??null];})):undefined,financial:PlanFinancialValue={open:raw.open,high:raw.high,low:raw.low,close:raw.close,...(raw.volume!==undefined?{volume:raw.volume}:{}),...(components?{components}:{}),...(ordinal?{originalId:raw.id}:{})};observations.push({id:{seriesId:row.source.id,pointId:p.id},seriesName:row.source.name,label:p.title??(spec.axes.x.type==='time'?new Date(p.x).toISOString():String(p.x)),value,x:px,y:py,color,xValue:p.x,group:{key:JSON.stringify(['financial',p.x]),label:String(p.x),coordinate:px},financial});}
+        if(inPlot){const raw=p.original??originals.get(p.id)??p,components=row.calculation?Object.fromEntries(Object.entries(row.calculation.components).map(([key,values])=>{const shifted=shiftedValues.get(key);return [key,(shifted?shifted.get(p.x):values[i])??null];})):undefined,financial:PlanFinancialValue={open:raw.open,high:raw.high,low:raw.low,close:raw.close,...(raw.volume!==undefined?{volume:raw.volume}:{}),...(components?{components}:{}),...(ordinal?{originalId:raw.id}:{})};observations.push({id:{seriesId:row.source.id,pointId:p.id},seriesName:row.source.name,label:p.title??(spec.axes.x.type==='time'?new Date(p.x).toISOString():String(p.x)),value,x:px,y:py,color,xValue:p.x,group:{key:JSON.stringify(['financial',p.x]),label:String(p.x),coordinate:px},financial});}
       }
       series.push({id:row.source.id,name:row.source.name,color,...(commands.length?{commands}:{}),...(bars.length?{bars}:{}),...(circles.length?{circles}:{}),...(parts.length?{parts}:{} )});void rank;
     }
-    const frame:PlanFrame={...base,family:spec.family,legend,series,observations,financial:{layout:ordinal?'ordinal':rawFamilies.has(spec.family)?'price':'indicator'},...(spec.family==='flags'?{annotations:computed.flatMap(row=>row.points.flatMap(p=>p.close===null?[]:[{x:x(p.x)!+10,y:y(p.close)!-26,text:p.title??'•',role:'label' as const}]))}:{})};
+    const frame:PlanFrame={...base,family:spec.family,legend,series,observations,financial:{layout:ordinal?'ordinal':rawFamilies.has(spec.family)?'price':'indicator'},...(flagChart?{annotations}:{})};
     return freezePlan({status:observations.length?'ok':'empty',frame});
   }catch(error){return invalidPlan(error instanceof Error?error.message:'BAD_FINANCIAL_SPEC');}
 }

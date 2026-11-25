@@ -20,6 +20,22 @@ test('UTC trace durations and source endpoints remain unmodified under X viewpor
 test('empty traces remain explicitly empty and never create an artificial call',()=>{
   const r=planChart({...source,data:[]},size);expect(r.status).toBe('empty');if(r.status==='invalid')throw Error('Unexpected invalid');expect(r.frame.observations).toEqual([]);expect(r.frame.flame).toEqual({maxDepth:0,nodeCount:0,rootCount:0});
 });
+test('reports the original span when a reverse-ordered trace exceeds the ancestor budget',()=>{
+  const data=Array.from({length:34},(_,i)=>({id:String(i),label:String(i),start:0,end:1,...(i?{parentId:String(i-1)}:{})})).reverse();
+  expect(planChart({...source,data},size)).toMatchObject({
+    status:'invalid',diagnostic:{reason:'FLAME_DEPTH_LIMIT',path:'data[0]'},
+  });
+});
+test('retains the source description and forwards temporal diagnostics without drawing a flame',()=>{
+  expect(frame({...source,description:'Profiling session'}).description).toBe('Profiling session');
+  expect(planChart({...source,description:123} as unknown as PlanFlameSpec,size)).toMatchObject({
+    status:'invalid',diagnostic:{reason:'BAD_FLAME_SOURCE',path:'spec'},
+  });
+  const spec:PlanFlameSpec={...source,axes:{x:{type:'time'}},data:[{id:'half',label:'Half-millisecond',start:0,end:0.5}]};
+  expect(planChart(spec,size)).toMatchObject({
+    status:'invalid',diagnostic:{reason:'BAD_TIMESTAMP',path:'spec.series[0].data[0].end'},
+  });
+});
 test('2048 spans have bounded deterministic geometry at phone and tablet sizes',()=>{
   const spec={...source,data:Array.from({length:2048},(_,i)=>({id:String(i),label:'Function '+i,start:i*2,end:i*2+1}))};for(const width of [64,320,768]){const f=frame(spec,{width,height:300});expect(f.observations).toHaveLength(2048);expect(f).toEqual(frame(spec,{width,height:300}));expect(Object.isFrozen(f.observations[0]?.flame)).toBe(true);expect(f.observations.every(p=>Number.isFinite(p.x)&&Number.isFinite(p.y)&&p.x>=0&&p.x<=width)).toBe(true);}
 });

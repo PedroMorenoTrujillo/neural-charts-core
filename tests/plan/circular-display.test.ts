@@ -1,9 +1,79 @@
 import {describe,it,expect} from 'vitest';
 import {planChart} from '../../src/plan.js';
+import {planCircularDisplay} from '../../src/plan/circular-display.js';
 import type {PlanPieSpec,PlanDonutSpec,PlanGaugeSpec,PlanOptions,PlanFrame} from '../../src/plan.js';
 const pie={family:'pie',title:'Original shares',data:[{id:'a',label:'A',value:1},{id:'b',label:'B',value:3}]} as const satisfies PlanPieSpec;
 const gauge={family:'gauge',title:'Original measurement',value:72,domain:[0,100],unit:'%',bands:[{id:'safe',from:0,to:80,color:'#638A35'}],target:{value:80,label:'Target'}} as const satisfies PlanGaugeSpec;
 function frame(spec:PlanPieSpec|PlanDonutSpec|PlanGaugeSpec,options:Partial<PlanOptions>={}):PlanFrame{const r=planChart(spec,{width:390,height:320,...options});if(r.status==='invalid')throw Error(JSON.stringify(r));return r.frame;}
+
+describe('native circular envelope variants', () => {
+  it('applies the same 16-slice limit to default and explicit circular plans',()=>{
+    const data=Array.from({length:17},(_,i)=>({id:String(i),label:String(i),value:1}));
+    const size={width:360,height:360};
+    for(const options of [size,{...size,circular:{}}]){
+      expect(planChart({...pie,data},options)).toMatchObject({status:'invalid',diagnostic:{reason:'SLICE_LIMIT',path:'data'}});
+    }
+  });
+
+  it('retains unitless measurements and an underflow target without projecting it into the plot', () => {
+    const standalone: PlanGaugeSpec = {family: 'gauge', title: 'Pressure', description: 'Current pressure', domain: [0, 100], value: -5, target: {value: -1}};
+    const result = planCircularDisplay(standalone, {width: 320, height: 320});
+    if (result.status === 'invalid') throw Error(JSON.stringify(result.diagnostic));
+    const f = result.frame;
+    expect(f).toMatchObject({description: 'Current pressure', unit: '', circular: {style: 'solid-gauge', valueState: 'under'}});
+    expect(f.observations[0]).toMatchObject({value: -5, seriesName: ''});
+    expect(f.annotations?.map(annotation => annotation.text)).toEqual(['-5', 'Target -1']);
+    expect(f.series.map(series => series.id)).toEqual(['track', 'reading']);
+    expect(f.series[1]?.commands).toEqual([]);
+  });
+
+  it('retains narrow radial data independently of ink and validates circular data ownership', () => {
+    const narrow = planCircularDisplay(pie, {width: 36, height: 36, circular: {endAngle: 90}});
+    if (narrow.status === 'invalid') throw Error(JSON.stringify(narrow.diagnostic));
+    expect(narrow.frame.observations.map(point => [point.value, point.hit])).toEqual([[1, undefined], [3, undefined]]);
+    expect(narrow.frame.series.every(series => series.commands?.length === 0)).toBe(true);
+    const many = Array.from({length: 17}, (_, i) => ({id: String(i), label: String(i), value: 1}));
+    const size = {width: 360, height: 360, circular: {}};
+    expect(planCircularDisplay({...pie, data: many}, size)).toMatchObject({status: 'invalid', diagnostic: {reason: 'SLICE_LIMIT', path: 'data'}});
+    expect(planCircularDisplay({...gauge, domain: [10, 10]}, size)).toMatchObject({status: 'invalid', diagnostic: {path: 'domain'}});
+  });
+
+  it('keeps known overflow and a target outside the measured domain in source units', () => {
+    const over = frame({...gauge, preset: 'ring', value: 125, target: {value: 135, label: 'Future target'}},
+      {circular: {gaugeStyle: 'needle', tickCount: 4}});
+    expect(over.circular).toMatchObject({style: 'needle-gauge', valueState: 'over', domain: [0, 100]});
+    if (over.circular?.style !== 'needle-gauge') throw Error('Expected a needle gauge');
+    expect(over.circular.ticks.filter(tick => tick.value === 0)).toHaveLength(1);
+    expect(over.circular.ticks.some(tick => tick.value === 100)).toBe(false);
+    expect(over.observations.map(point => point.value)).toEqual([125]);
+    expect(over.series.some(series => series.id === 'target')).toBe(false);
+    expect(over.annotations?.some(annotation => annotation.text.includes('135'))).toBe(true);
+  });
+
+  it('keeps an untitled band and a null reading visible only as track context', () => {
+    const f = frame({...gauge, value: null, target: {value: 50}, bands: [{id: 'fallback', from: 10, to: 40, color: '#aabbcc'}]},
+      {circular: {gaugeStyle: 'needle'}});
+    expect(f.circular).toMatchObject({style: 'needle-gauge', valueState: 'missing'});
+    expect(f.observations).toEqual([]);
+    expect(f.series.find(series => series.id === 'band:fallback')?.name).toBe(gauge.title);
+    expect(f.series.find(series => series.id === 'target')?.name).toBe('Target');
+    expect(f.series.some(series => series.id === 'reading')).toBe(false);
+  });
+
+  it('reports an unsupported gauge style and invalid radial data with their original field', () => {
+    const size = {width: 420, height: 360};
+    expect(planChart(gauge, {...size, circular: {gaugeStyle: 'pointer'}} as unknown as PlanOptions)).toMatchObject({
+      status: 'invalid', diagnostic: {reason: 'BAD_GAUGE_STYLE', path: 'options.circular.gaugeStyle'},
+    });
+    expect(planChart(pie, {...size, hiddenSeriesIds: ['missing']})).toMatchObject({
+      status: 'invalid', diagnostic: {reason: 'UNKNOWN_SERIES', path: 'options.hiddenSeriesIds'},
+    });
+    expect(planChart({...pie, data: [{id: 'a', label: 'A', value: -1}]}, size)).toMatchObject({
+      status: 'invalid', diagnostic: {path: 'data[0].value'},
+    });
+  });
+});
+
 function finiteDrawing(f:PlanFrame){for(const s of f.series)for(const c of [...s.commands??[],...s.areaCommands??[]])for(const value of Object.values(c))if(typeof value==='number')expect(Number.isFinite(value)).toBe(true);for(const p of f.observations)expect([p.x,p.y,p.value].every(Number.isFinite)).toBe(true);}
 describe('bounded circular display without changing source values',()=>{
  it.each(['pie','donut'] as const)('%s maps the supplied sweep and keeps original IDs, quantities and percentages',family=>{

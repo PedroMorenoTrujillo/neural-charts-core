@@ -14,6 +14,23 @@ function project(x: unknown, points: readonly (readonly [string | number, number
   return p.value;
 }
 function path(p: ReturnType<typeof project>): string { const r = serializePath(p.series[0]!.commands); if (r.status !== 'ok') throw Error('path'); return r.value; }
+
+it('returns a typed projection fault when chart domains and physical axis extents cannot represent data', () => {
+  const input = validateLine({family: 'line', title: 'Measured', axes: {x: {type: 'linear'}, y},
+    series: [{id: 's', name: 'S', data: [{id: 'a', x: 1, y: 1}]}]});
+  if (input.status !== 'ok') throw Error(input.diagnostic.reason);
+  const source = normalizeLine(input.value), state = {hiddenSeriesIds: []}, plot = {x: 0, y: 0, width: 100, height: 100};
+  expect(projectLine(source, state, plot, null, [0,10])).toMatchObject({
+    status: 'invalid', diagnostic: {reason: 'UNREPRESENTABLE_GEOMETRY', path: 'axes.x.domain'},
+  });
+  expect(projectLine(source, state, plot, [0,10], [5,0])).toMatchObject({status: 'invalid', diagnostic: {code: 'INVALID_DOMAIN'}});
+  expect(projectLine(source, state, plot, [5,0], [0,10])).toMatchObject({status: 'invalid', diagnostic: {code: 'INVALID_DOMAIN'}});
+  const numeric = projectLine(source, state, plot, [0,10], [0,10]);
+  if (numeric.status !== 'ok') throw Error(numeric.diagnostic.reason);
+  expect(numeric.value.mapX('a')).toBeNull();
+  const category = project({type: 'category', values: [{id: 'a'}]}, [['a',1]]);
+  expect(category.mapX(1)).toBeNull();
+});
 it('Category3: .5 padding gives centers 20,60,100 and exact Y 90,70,80', () => {
   const p = project({ type: 'category', values: [{ id: 'a' }, { id: 'b' }, { id: 'c' }] }, [['a', 1], ['b', 3], ['c', 2]], {}, 120);
   expect(p.series[0]!.commands).toEqual([{ type: 'M', x: 20, y: 90 }, { type: 'L', x: 60, y: 70 }, { type: 'L', x: 100, y: 80 }]); expect(path(p)).toBe('M 20 90 L 60 70 L 100 80'); expect(p.mapX('b')).toBe(60);

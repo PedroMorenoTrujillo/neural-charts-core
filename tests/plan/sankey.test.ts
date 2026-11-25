@@ -1,5 +1,6 @@
 import {describe,expect,it} from 'vitest';
 import {planChart,transformPlanViewport,type PlanFrame,type PlanOptions,type PlanSankeySpec} from '../../src/plan.js';
+import {planSankey} from '../../src/plan/sankey.js';
 
 const dimensions={width:390,height:300} satisfies PlanOptions;
 const source=():PlanSankeySpec=>({family:'sankey',title:'Energy flow',nodes:[
@@ -10,6 +11,27 @@ function frame(spec:PlanSankeySpec=source(),options:PlanOptions=dimensions):Plan
   if(result.status==='invalid')throw new Error(result.diagnostic.reason);return result.frame;
 }
 const invalid=(value:unknown,options:PlanOptions=dimensions)=>planChart(value as PlanSankeySpec,options);
+
+it('renders requested node width and padding without replacing original link weights', () => {
+  const base = source(), roots = frame(base);
+  const wider = frame({...base, nodeWidth: 32, nodePadding: 20});
+  expect(wider.observations.filter(point => point.sankey?.type === 'link').map(point => point.value)).toEqual([8,4,12]);
+  const bars = (value: PlanFrame) => value.series.flatMap(series => series.bars ?? []);
+  expect(bars(wider).find(marker => marker.pointId === 'grid')?.width)
+    .toBeGreaterThan(bars(roots).find(marker => marker.pointId === 'grid')!.width);
+});
+
+it('diagnoses duplicate group identity and out-of-range coordinates before flow layout', () => {
+  const base = source();
+  const groups = [{id: 'group', label: 'Group'}, {id: 'group', label: 'Repeated'}];
+  expect(planSankey({...base, groups}, dimensions)).toMatchObject({
+    status: 'invalid', diagnostic: {reason: 'DUPLICATE_GROUP_ID', path: 'groups[1].id'},
+  });
+  expect(planSankey(base, {...dimensions, viewport: {axes: 'xy', value: {x: [0,2]}}})).toMatchObject({
+    status: 'invalid', diagnostic: {reason: 'BAD_VIEWPORT_WINDOW', path: 'viewport.value.x'},
+  });
+});
+
 type Vertex=Readonly<{x:number;y:number}>;
 function assertSimplePolygon(vertices:readonly Vertex[]):void{
   expect(vertices.length).toBeGreaterThanOrEqual(3);

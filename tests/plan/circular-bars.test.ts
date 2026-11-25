@@ -6,6 +6,54 @@ const wind:PlanWindRoseSpec={family:'windrose',title:'Frequency',axes:{x:{type:'
 const radial:PlanRadialBarSpec={family:'radialbar',title:'Progress',unit:'%',domain:[0,100],data:[{id:'a',label:'First',value:100},{id:'b',label:'Second',value:50},{id:'zero',label:'Zero',value:0},{id:'unknown',label:'Unknown',value:null}]};
 function frame(spec:PlanSpec,options:PlanOptions=size):PlanFrame{const r=planChart(spec,options);if(r.status==='invalid')throw Error(JSON.stringify(r.diagnostic));return r.frame;}
 const invalid=(spec:unknown,options:unknown=size)=>expect(planChart(spec as PlanSpec,options as PlanOptions).status).toBe('invalid');
+
+test('retains the maximum supported wind-rose grid without losing source identity',()=>{
+  const values=Array.from({length:32},(_,i)=>({id:'direction-'+i}));
+  const series=Array.from({length:16},(_,i)=>({id:'source-'+i,name:'Source '+i,data:values.map(({id})=>({id,x:id,y:1}))}));
+  const result=frame({...wind,axes:{...wind.axes,x:{type:'category',values}},series});
+  expect(result.observations).toHaveLength(512);
+  expect(new Set(result.observations.map(o=>JSON.stringify(o.id))).size).toBe(512);
+});
+
+test('draws large radial arcs in both directions and enforces percentage-domain units',()=>{
+  const chart=frame({...radial,data:[{id:'above-half',label:'Three quarters',value:75}]});
+  const arcs=chart.series[0]?.commands?.filter(command=>command.type==='A');
+  expect(arcs?.map(command=>[command.largeArc,command.sweep])).toEqual([[1,1],[1,0]]);
+  expect(chart.observations[0]).toMatchObject({value:75,id:{pointId:'above-half'}});
+  const percent={...wind,stacking:'percent' as const,axes:{...wind.axes,y:{...wind.axes.y,domain:[0,100] as const}}};
+  expect(frame(percent).observations.map(point=>point.value)).toEqual([2,4,6,4]);
+  expect(planChart({...percent,axes:{...percent.axes,y:{...percent.axes.y,domain:[0,120]}}},size)).toMatchObject({
+    status:'invalid',diagnostic:{reason:'RADIAL_DOMAIN_EXCLUDES_STACK',path:'axes.y.domain'},
+  });
+});
+
+test('keeps radial titles and units with automatic scale on empty measurements',()=>{
+  const empty=frame({family:'radialbar',title:'Progress',description:'Original records',data:[{id:'unreported',label:'Unreported',value:null}]});
+  expect(empty).toMatchObject({description:'Original records',unit:'',observations:[]});
+  expect(empty.legend).toMatchObject([{id:'unreported',name:'Unreported',visible:true}]);
+  const neutral=frame({...wind,description:'Unmeasured frequency',axes:{...wind.axes,y:{type:'linear'}},
+    series:wind.series.map(s=>({...s,data:s.data.map(p=>({...p,y:0}))}))});
+  expect(neutral).toMatchObject({description:'Unmeasured frequency',unit:''});
+  expect(neutral.observations.map(p=>p.value)).toEqual([0,0,0,0]);
+});
+
+test('diagnoses category, frequency and observation budgets at the original radial input', () => {
+  const assertInvalid = (spec: unknown, reason: string, path: string) => {
+    expect(planChart(spec as PlanSpec, size)).toMatchObject({status: 'invalid', diagnostic: {reason, path}});
+  };
+  const manySeries = Array.from({length: 17}, (_, i) => ({...wind.series[0], id: String(i)}));
+  assertInvalid({...wind, series: manySeries}, 'WIND_ROSE_SERIES_LIMIT', 'series');
+  assertInvalid({...wind, axes: {...wind.axes, x: {...wind.axes.x, values: [{id: 'n'}]}},
+    series: wind.series.map(series => ({...series, data: series.data.slice(0, 1)}))}, 'WIND_ROSE_CATEGORY_LIMIT', 'axes.x');
+  assertInvalid({...wind, axes: {...wind.axes, y: {...wind.axes.y, reversed: true}}}, 'UNKNOWN_RADIAL_AXIS_OPTION', 'axes');
+  assertInvalid({...wind, series: wind.series.map(series => ({...series, markers: 'on'}))}, 'BAD_WIND_ROSE_SERIES', 'series');
+  assertInvalid({...wind, series: wind.series.map(series => ({...series,
+    data: series.data.map(point => ({...point, y: Number.MAX_VALUE})),
+  }))}, 'UNREPRESENTABLE_STACK', 'series');
+  assertInvalid({...radial, data: Array.from({length: 17}, (_, i) => ({id: String(i), label: String(i), value: 5}))},
+    'RADIAL_BAR_INPUT_LIMIT', 'data');
+});
+
 test('wind rose keeps every original value and identity in real adjacent annular stacks',()=>{
   const f=frame(wind),north=f.observations.filter(p=>p.label==='North');expect(f.family).toBe('windrose');expect(north.map(p=>[p.id.pointId,p.value])).toEqual([['slow-n',2],['fast-n',6]]);
   const [a,b]=north;if(a?.hit?.type!=='sector'||b?.hit?.type!=='sector')throw Error('Missing sectors');expect(a.hit.innerRadius).toBe(0);expect(a.hit.radius).toBeCloseTo(b.hit.innerRadius);expect(b.hit.radius/a.hit.radius).toBeCloseTo(4);expect(a.hit.start).toBe(b.hit.start);expect(a.hit.end).toBe(b.hit.end);expect(a.percentage).toBe(25);expect(b.percentage).toBe(75);expect(f.polarGrid?.spokes.map(p=>p.label)).toEqual(['North','South']);

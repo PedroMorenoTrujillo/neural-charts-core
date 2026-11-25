@@ -57,3 +57,39 @@ test('roundoff at an in-domain boundary is bounded per axis and tiny layouts sus
   expect(value(projectScatter(data, visible, { ...base, mapX: () => edge + Math.abs(edge) * Number.EPSILON })).targets[0]!.x).toBe(edge);
   expect(value(projectScatter(data, visible, { ...base, tooSmall: true })).targets).toEqual([]); expect(value(projectScatter(data, visible, { ...base, plot: { ...plot, width: 0 } })).targets).toEqual([]);
 });
+
+test('keyboard Home and End distinguish the local series from the entire visible set', () => {
+  const raw = fixture([
+    {id: 'early', name: 'Early', data: [{id: 'e1', x: -8, y: 2}, {id: 'e2', x: 8, y: 1}]},
+    {id: 'middle', name: 'Middle', data: [{id: 'm1', x: 4, y: 4}, {id: 'm2', x: -3, y: 3}]},
+    {id: 'late', name: 'Late', data: [{id: 'l1', x: 6, y: -1}]},
+  ]);
+  const data = value(normalizeScatter(raw));
+  const projected = value(projectScatter(data, visible, mapper()));
+  const active = projected.series[1]!.targets[0]!;
+  expect(navigateScatter(projected, null, 'End')?.point.id).toBe('l1');
+  expect(navigateScatter(projected, active, 'Home')?.point.id).toBe('m1');
+  expect(navigateScatter(projected, active, 'End')?.point.id).toBe('m2');
+  expect(navigateScatter(projected, active, 'Home', true)?.point.id).toBe('e1');
+  expect(navigateScatter(projected, active, 'End', true)?.point.id).toBe('l1');
+  expect(navigateScatter(projected, active, 'ArrowLeft')).toBe(active);
+  expect(navigateScatter(projected, active, 'ArrowRight')?.point.id).toBe('m2');
+  expect(navigateScatter(projected, active, 'ArrowUp')?.point.id).toBe('e2');
+  expect(navigateScatter(projected, active, 'ArrowDown')?.point.id).toBe('l1');
+});
+
+test('rejects an invalid projected marker size and validates only the represented plot bounds', () => {
+  for (const size of [0, 26, NaN]) {
+    const series = {id: 'a', name: 'A', marker: {size}, data: [{id: 'origin', x: 0, y: 0}]};
+    const data = value(normalizeScatter(fixture([series])));
+    expect(projectScatter(data, visible, mapper())).toMatchObject({
+      status: 'invalid', diagnostic: {reason: 'BAD_MARKER_SIZE', path: 'series[0].marker.size'},
+    });
+  }
+  const series = {id: 'a', name: 'A', marker: {size: 24}, data: [{id: 'origin', x: 0, y: 0}]};
+  const data = value(normalizeScatter(fixture([series])));
+  expect(value(projectScatter(data, visible, mapper())).targets[0]?.radius).toBe(12);
+  expect(projectScatter(data, visible, {...mapper(), plot: {...plot, height: -1}})).toMatchObject({
+    status: 'invalid', diagnostic: {reason: 'BAD_BOUNDS', path: 'scatter.plot'},
+  });
+});

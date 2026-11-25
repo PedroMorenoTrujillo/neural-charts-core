@@ -16,6 +16,19 @@ function segments(commands){const lines=[];for(let i=0;i<commands.length;i+=2){a
 function horizontalAt(commands,ordinate){return segments(commands).filter(([a,b])=>Math.abs(a.y-ordinate)<1e-8&&Math.abs(b.y-ordinate)<1e-8);}
 function deepFrozen(value){if(value&&typeof value==='object'){assert.ok(Object.isFrozen(value));for(const child of Object.values(value))deepFrozen(child);}}
 
+check('statistical glyphs honor caller-defined maximum widths and cap fractions',()=>{
+  const f=frame({...source,groupGap:.24,barGap:.3,maxBarWidth:12,whiskerWidth:.25});
+  const series=f.series[0],first=series.bars.find(bar=>bar.pointId==='first');
+  assert.equal(first.width,12);
+  for(const value of [1,14]){
+    const [cap]=horizontalAt(series.commands,y(value));
+    close(cap[1].x-cap[0].x,3);
+  }
+  const uncertain=frame({...error,maxBarWidth:10,capWidth:.4});
+  const [cap]=horizontalAt(uncertain.series[0].commands,y(2));
+  close(cap[1].x-cap[0].x,4);
+});
+
 check('boxplot transports all five observed values and fills only the actual interquartile box',()=>{
   const f=frame(),o=f.observations[0],bar=f.series[0].bars[0];assert.equal(f.family,'boxplot');assert.equal(f.observations.length,2);assert.deepEqual(o.id,{seriesId:'sample',pointId:'first'});
   assert.deepEqual([o.minimumValue,o.q1Value,o.medianValue,o.q3Value,o.maximumValue],[1,4,7,10,14]);assert.equal(o.value,7);assert.equal(o.lowValue,1);assert.equal(o.highValue,14);

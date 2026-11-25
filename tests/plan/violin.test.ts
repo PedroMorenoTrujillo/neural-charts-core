@@ -5,6 +5,45 @@ const size={width:390,height:300};
 const source:PlanViolinSpec={family:'violin',title:'Measured distributions',axes:{y:{type:'linear',unit:'ms'}},groups:[{id:'a',label:'A',samples:[-2,0,2,4,6].map((value,i)=>({id:'a'+i,value}))},{id:'b',label:'B',samples:[0,1,1,2,3,9].map((value,i)=>({id:'b'+i,value}))}]};
 function frame(spec=source,options:PlanOptions=size){const r=planChart(spec,options);if(r.status==='invalid')throw Error(JSON.stringify(r.diagnostic));return r.frame;}
 const invalid=(spec:unknown,options:unknown=size)=>expect(planChart(spec as PlanSpec,options as PlanOptions).status).toBe('invalid');
+
+test('fails invalid density metadata and unrepresentable precision before exposing synthetic observations', () => {
+  const sample = (value: number) => ({id: 'single', label: 'Single', samples: [{id: 'measured', value}]});
+  const reject = (spec: unknown, reason: string, path: string) => {
+    expect(planChart(spec as PlanSpec, size)).toMatchObject({status: 'invalid', diagnostic: {reason, path}});
+  };
+  reject({...source, description: 'a'.repeat(1_001)}, 'BAD_VIOLIN_SOURCE', 'spec');
+  reject({...source, groups: [{...source.groups[0], color: '#abc'}]}, 'BAD_VIOLIN_GROUP', 'groups[0]');
+  reject({...source, groups: [sample(Number.MAX_VALUE)], bandwidth: 1e308}, 'UNREPRESENTABLE_VIOLIN_SUPPORT', 'groups[0]');
+  reject({...source, groups: [sample(1e300)], bandwidth: 1e285}, 'VIOLIN_DENSITY_PRECISION', 'groups[0]');
+  const group = {id: 'close', label: 'Close', samples: [{id: 'a', value: 0}, {id: 'b', value: Number.MIN_VALUE}]};
+  reject({...source, groups: [group]}, 'VIOLIN_DENSITY_PRECISION', 'groups[0]');
+  const extremes = {id: 'extremes', label: 'Extremes', samples: [{id: 'a', value: -Number.MAX_VALUE}, {id: 'b', value: Number.MAX_VALUE}]};
+  expect(planChart({...source, groups: [extremes]}, size).status).toBe('invalid');
+  reject({...source, axes: {y: {type: 'linear', domain: [0, 1]}}, bandwidth: 2}, 'VIOLIN_DOMAIN_CROPS_SUPPORT', 'axes.y.domain');
+});
+
+test('exposes zero represented density when every described group has unknown samples', () => {
+  const groups = [{id: 'unknown', label: 'Missing sites', samples: [{id: 'a', value: null}]}];
+  const result = planChart({...source, groups}, size);
+  expect(result).toMatchObject({
+    status: 'empty',
+    frame: {observations: [], legend: [expect.objectContaining({id: 'unknown', visible: true})],
+      violin: {groups: [expect.objectContaining({id: 'unknown', density: [], sampleCount: 0, missingCount: 1})]}},
+  });
+});
+
+test('rejects a sampling grid that misses both narrow kernels and retains unitless summaries', () => {
+  const groups=[{id:'spread',label:'Sparse',samples:[{id:'a',value:0},{id:'b',value:100}]}];
+  expect(planChart({...source,groups,bandwidth:.1,resolution:32},size)).toMatchObject({
+    status:'invalid',diagnostic:{reason:'VIOLIN_DENSITY_PRECISION',path:'groups[0]'},
+  });
+  const unitless:PlanViolinSpec={family:'violin',title:'Distribution',groups};
+  expect(frame(unitless)).toMatchObject({unit:'',observations:[{value:50}]});
+  expect(planChart({...source,axes:{y:{type:'linear',nice:'yes'}}} as unknown as PlanSpec,size)).toMatchObject({
+    status:'invalid',diagnostic:{path:'axes'},
+  });
+});
+
 test('summaries distinguish original samples from derived density and preserve signed values',()=>{
   const f=frame();expect(f.family).toBe('violin');expect(f.unit).toBe('ms');expect(f.observations.map(p=>p.value)).toEqual([2,1.5]);expect(f.observations[0]?.violin).toMatchObject({derived:true,sampleCount:5,missingCount:0,minimum:-2,q1:0,median:2,q3:4,maximum:6,mean:2});expect(f.observations.every(p=>p.id.pointId==='summary'&&p.hit?.type==='polygon')).toBe(true);expect(f.series.every(s=>s.areaCommands?.length&&s.circles?.length===1)).toBe(true);expect(f.violin?.kernel).toBe('epanechnikov');
 });

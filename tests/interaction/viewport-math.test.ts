@@ -43,3 +43,22 @@ test('category windows use IDs and preserve logical ordering across duplicate la
   const narrow = { firstId: 'january-b', lastId: 'february' }; expect(value(panCategory(narrow, ids, ranks, 1))).toEqual({ firstId: 'march', lastId: 'april' }); expect(value(panCategory(narrow, ids, ranks, -100))).toEqual({ firstId: 'january-a', lastId: 'january-b' });
   expect(panCategory({ firstId: 'missing', lastId: 'may' }, ids, ranks, 1).status).toBe('invalid'); expect(zoomCategory(current, ids, ranks, 0).status).toBe('invalid');
 });
+
+test('rejects stale rank snapshots and unsupported category gesture values', () => {
+  const ids = ['a','b','c','d'];
+  const ranks = new Map(ids.map((id, rank) => [id, rank]));
+  const chosen = {firstId: 'b', lastId: 'c'};
+  for (const context of [
+    new Map([['b', -1], ['c', 2]]),
+    new Map([['b', 1], ['c', 4]]),
+    new Map([['b', 0], ['c', 2]]),
+    new Map([['b', 1], ['c', 3]]),
+  ]) {
+    expect(zoomCategory(chosen, ids, context, 2)).toMatchObject({status: 'invalid', diagnostic: {reason: 'BAD_CATEGORY_WINDOW'}});
+    expect(panCategory(chosen, ids, context, .25)).toMatchObject({status: 'invalid', diagnostic: {reason: 'BAD_CATEGORY_WINDOW'}});
+  }
+  expect(panCategory(chosen, ids, ranks, Infinity)).toMatchObject({status: 'invalid', diagnostic: {reason: 'BAD_PAN'}});
+  for (const [factor, anchor] of [[0,.5], [NaN,.5], [2,-.5], [2,1.1], [2,Infinity]] as const) {
+    expect(zoomCategory(chosen, ids, ranks, factor, anchor)).toMatchObject({status: 'invalid', diagnostic: {reason: 'BAD_ZOOM'}});
+  }
+});

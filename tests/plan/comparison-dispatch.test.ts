@@ -2,6 +2,23 @@ import {expect, it} from 'vitest';
 import {planChart, transformPlanViewport} from '../../src/plan.js';
 import type {PlanBulletSpec, PlanVariwideSpec} from '../../src/plan.js';
 
+it('owns the numeric comparison viewport across an omitted and explicit auto window', () => {
+  const size = {width: 360, height: 280};
+  const axes = {x: {type: 'category', values: [{id: 'a', label: 'A'}]}, y: {type: 'linear', domain: [0,20]}} as const;
+  const data: PlanVariwideSpec = {family: 'variwide', title: 'Measured by capacity', axes,
+    series: [{id: 's', name: 'S', data: [{id: 'a', x: 'a', y: 8, z: 10}]}]};
+  const automatic = planChart(data, {...size, viewport: {axes: 'y'}});
+  const explicit = planChart(data, {...size, viewport: {axes: 'y', value: {}}});
+  expect(automatic.status).toBe('ok');
+  expect(explicit).toEqual(automatic);
+  expect(planChart(data, {...size, viewport: {axes: 'y', value: {y: [10,5]}}})).toMatchObject({
+    status: 'invalid', diagnostic: {reason: 'BAD_VIEWPORT', path: 'options.viewport.value.y'},
+  });
+  expect(planChart(data, {...size, viewport: {axes: 'y', value: {y: [10,30]}}})).toMatchObject({
+    status: 'invalid', diagnostic: {reason: 'BAD_VIEWPORT_WINDOW', path: 'viewport.value.y'},
+  });
+});
+
 it('plans Bullet and Variwide through the intended public API', () => {
   const axes = {x: {type: 'category' as const, values: [{id: 'a', label: 'A'}]}, y: {type: 'linear' as const}};
   const bullet: PlanBulletSpec = {family: 'bullet', title: 'Measured vs target', axes, series: [{id: 's', name: 'S', data: [{id: 'a', x: 'a', y: 8, target: 10}]}]};

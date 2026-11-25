@@ -107,6 +107,25 @@ describe('variwide source and geometry', () => {
     expect(result.variwideLayout.incomplete).toBe(true);
   });
 
+  it('owns padded bars and separates absent and out-of-view reference marks', () => {
+    const initial = spec(), axes = {...initial.axes, x: {...initial.axes.x, values: [...initial.axes.x.values, {id: 'empty', label: 'Empty'}]}};
+    const padded = frame(planVariwide({...initial, axes, pointPadding: 0.25}, {...size,
+      references: [{id: 'empty-mark', axis: 'x', value: 'empty'}, {id: 'out-of-range', axis: 'y', value: 50}],
+    }));
+    expect(padded.series[0]!.bars?.[0]?.width).toBeCloseTo(
+      (padded.categoryBands[0]!.right! - padded.categoryBands[0]!.left!) * 0.75, 10);
+    expect(padded.references?.map(item => [item.id, item.status])).toEqual([['empty-mark', 'unavailable'], ['out-of-range', 'outside']]);
+  });
+
+  it('enforces independent identities for weighted points and category slots', () => {
+    const source = spec(), series = source.series[0]!;
+    const [first, second] = series.data;
+    const duplicate: PlanVariwideSpec = {...source, series: [{...series, data: [first!, {...second!, id: first!.id}]}]};
+    const foreign: PlanVariwideSpec = {...source, series: [{...series, data: [{...first!, x: 'foreign'}]}]};
+    expect(planVariwide(duplicate, size)).toMatchObject({status: 'invalid', diagnostic: {reason: 'DUPLICATE_ID', path: 'spec.series[0].data[1].id'}});
+    expect(planVariwide(foreign, size)).toMatchObject({status: 'invalid', diagnostic: {reason: 'UNKNOWN_CATEGORY', path: 'spec.series[0].data[0].x'}});
+  });
+
   it('rejects unsupported X zoom, stacking, duplicate categories and invalid source before hiding', () => {
     expect(planVariwide(spec(), {...size, viewport: {axes: 'x'}})).toMatchObject({status: 'invalid', diagnostic: {reason: 'NUMERIC_Y_VIEWPORT_ONLY'}});
     expect(planVariwide(spec(), {...size, stacking: 'sum'})).toMatchObject({status: 'invalid'});

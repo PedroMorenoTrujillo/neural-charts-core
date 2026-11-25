@@ -2,12 +2,24 @@ import {expect,test} from 'vitest';
 import {planChart} from '../../src/plan.js';
 import type {PlanVennSpec} from '../../src/plan.js';
 import {vennMembership} from '../../src/plan/venn-math.js';
+import {planVenn} from '../../src/plan/venn.js';
 const size={width:390,height:300};
 function source(values:readonly(number|null)[]=[100,80,35]):PlanVennSpec{
   const sets=values.length===7?[{id:'a',label:'A'},{id:'b',label:'B'},{id:'c',label:'C'}]:[{id:'a',label:'A'},{id:'b',label:'B'}];
   return {family:'venn',title:'Measured sets',sets,data:values.map((value,index)=>({id:'measure-'+(index+1),sets:sets.filter((_,i)=>((index+1)&(1<<i))!==0).map(s=>s.id),value}))};
 }
 function frame(spec=source(),options=size){const result=planChart(spec,options);if(result.status==='invalid')throw Error(JSON.stringify(result.diagnostic));return result.frame;}
+
+test('reports repeated set identity, repeated memberships and hidden identity in their original slots', () => {
+  const spec = source();
+  for (const [input, options, reason, path] of [
+    [{...spec, sets: [spec.sets[0]!, spec.sets[0]!]}, size, 'DUPLICATE_ID', 'spec.sets[1].id'],
+    [{...spec, data: [spec.data[0]!, {...spec.data[1]!, id: spec.data[0]!.id}]}, size, 'DUPLICATE_ID', 'spec.data[1].id'],
+    [{...spec, data: [...spec.data, {...spec.data[2]!, id: 'second-overlap'}]}, size, 'DUPLICATE_MEMBERSHIP', 'spec.data[3].sets'],
+    [spec, {...size, hiddenSeriesIds: ['a','a']}, 'DUPLICATE_ID', 'options.hiddenSeriesIds'],
+    [spec, {...size, hiddenSeriesIds: ['missing']}, 'UNKNOWN_SET_ID', 'options.hiddenSeriesIds[0]'],
+  ] as const) expect(planVenn(input, options)).toMatchObject({status: 'invalid', diagnostic: {reason, path}});
+});
 test('public dispatch preserves inclusive source values, identities, circles and exact two-set overlap',()=>{
   const spec=source(),f=frame(spec),layout=f.vennLayout!;
   expect(f.family).toBe('venn');expect(layout.status).toBe('exact');expect(layout.maxErrorRatio).toBeLessThan(1e-10);

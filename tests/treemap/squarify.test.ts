@@ -10,6 +10,32 @@ it('matches the independent two-equal golden and keeps zero weights semantic onl
   const data = layout([4, 0]); expect(data.tiles.map(tile => tile.rect)).toEqual([box]); expect(data.unrepresented).toEqual([{ index: 1, reason: 'zero' }]);
   for (const tile of layout([1, 1, 1, 1]).tiles) expect(tile.rect.width * tile.rect.height).toBeCloseTo(2500, 8);
 });
+
+it('distinguishes all-zero weights from underflow and coordinate-resolution limits', () => {
+  const zeros = layout([0,0]);
+  expect(zeros.tiles).toEqual([]);
+  expect(zeros.unrepresented).toEqual([{index: 0, reason: 'zero'}, {index: 1, reason: 'zero'}]);
+  const underflow = layout([4,1], {x: 0, y: 0, width: 1e-190, height: 1e-190});
+  expect(underflow.tiles).toEqual([]);
+  expect(underflow.unrepresented).toEqual([{index: 0, reason: 'underflow'}, {index: 1, reason: 'underflow'}]);
+  const outOfResolution = layout([4,1], {x: 1e308, y: 0, width: 100, height: 100});
+  expect(outOfResolution.tiles).toEqual([]);
+  expect(outOfResolution.unrepresented).toEqual([
+    {index: 0, reason: 'coordinate-resolution'}, {index: 1, reason: 'coordinate-resolution'},
+  ]);
+  expect(findTile(outOfResolution, 1e308, 50)).toBeNull();
+  expect(layout([]).candidateChecks).toBe(0);
+});
+
+it('reports invalid tiling weights and a finite-coordinate area overflow before assigning neighbors', () => {
+  const leaf = {id: 'valid', index: 0, weight: 1};
+  for (const other of [{...leaf, index: 1}, {...leaf, id: 'different'}, {id: 'negative', index: 1, weight: -1}, {id: 'infinite', index: 1, weight: Infinity}]) {
+    expect(squarify([leaf, other], box)).toMatchObject({status: 'invalid', diagnostic: {reason: 'BAD_TREEMAP_WEIGHT', path: 'layout.weights'}});
+  }
+  expect(squarify([leaf], {x: 0, y: 0, width: 1e200, height: 1e200})).toMatchObject({
+    status: 'invalid', diagnostic: {reason: 'TREEMAP_RANGE_OVERFLOW', path: 'layout'},
+  });
+});
 it('is deterministic under input reorder and uniform weight scaling without mutation', () => {
   const input = Object.freeze([8, 7, 7, 4, 2, 1].map((weight, index) => Object.freeze({ id: 'id' + index, index, weight }))), original = JSON.stringify(input);
   const a = squarify(input, box), b = squarify([...input].reverse(), box), c = squarify(input.map(node => ({ ...node, weight: node.weight * 1e100 })), box); expect(a.status).toBe('ok'); expect(b).toEqual(a); expect(JSON.stringify(input)).toBe(original);
