@@ -3,6 +3,24 @@ import { validateRadial, validateRadialOptions } from '../../src/radial/validate
 import type { ChartResult } from '../../src/public/chart-types.js';
 function value<T>(result: ChartResult<T>): T { if (result.status !== 'ok') throw Error(JSON.stringify(result.diagnostic)); return result.value; }
 function fixture(family: 'pie' | 'donut' = 'pie') { return { family, title: 'Contribution', data: [{ id: 'a', label: 'January', value: 2 }, { id: 'b', label: 'January', value: 0 }, { id: 'c', label: 'Other', value: null }] }; }
+test('preserves explicit radial motion and pending status without making up a message', () => {
+  for(const [type,message] of [['loading',undefined],['empty','No responses yet']] as const){
+    const status=message===undefined?{type}:{type,message};
+    const parsed=value(validateRadial({...fixture(),status,motion:'subtle'},'pie'));
+    expect(parsed.status).toEqual(status);
+    expect(parsed.motion).toBe('subtle');
+    expect(Object.isFrozen(parsed.status)).toBe(true);
+  }
+});
+test('reports unavailable radial sources and mount options without partial canonical data', () => {
+  const inaccessible=(target: object)=>new Proxy(target,{ownKeys(){throw Error('Unavailable');}});
+  expect(validateRadial(inaccessible(fixture()),'pie')).toMatchObject({
+    status:'invalid',diagnostic:{reason:'BAD_SPEC',path:'spec'},
+  });
+  expect(validateRadialOptions(inaccessible({instanceId:'radial'}),new Set())).toMatchObject({
+    status:'invalid',diagnostic:{reason:'BAD_OPTIONS',path:'options'},
+  });
+});
 test('radial parser freezes structural copies and preserves opaque datum identity', () => {
   const datum = Object.freeze({ sku: 'original' }), input = { ...fixture(), data: [Object.freeze({ id: 'a', label: 'January', value: 2, datum, color: '#ABC' })] };
   Object.freeze(input.data); Object.freeze(input);

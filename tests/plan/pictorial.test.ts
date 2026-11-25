@@ -83,6 +83,39 @@ test('strict shape/options reject ignored or contradictory keys',()=>{
   invalid({...spec(),pictorial:null});
 });
 
+test('rejects equal IDs, foreign category IDs and malformed mesh transport before allocating glyphs', () => {
+  const chart = spec();
+  const row = chart.series[0]!;
+  const category = chart.axes.x.values[0]!;
+  const point = row.data[0]!;
+  const mesh = {id: 'tile', aspectRatio: 1, vertices: [{x: 0,y: 0},{x: 1,y: 0},{x: 1,y: 1},{x: 0,y: 1}], triangles: [[0,1,2],[0,2,3]]};
+  const cases = [
+    [{...chart, axes: {...chart.axes, x: {...chart.axes.x, values: [category, category]}}}, 'DUPLICATE_ID', 'spec.axes.x.values[1].id'],
+    [{...chart, series: [row, row]}, 'DUPLICATE_ID', 'spec.series[1].id'],
+    [{...chart, series: [{...row, data: [point, point]}]}, 'DUPLICATE_ID', 'spec.series[0].data[1].id'],
+    [{...chart, series: [{...row, data: [point, {...point, id: 'other'}]}]}, 'DUPLICATE_CATEGORY', 'spec.series[0].data[1].x'],
+    [{...chart, series: [{...row, data: [{...point, x: 'missing'}]}]}, 'UNKNOWN_CATEGORY', 'spec.series[0].data[0].x'],
+    [{...chart, pictorial: {background: 'true'}}, 'BAD_SPEC', 'spec.pictorial.background'],
+    [{...chart, pictorial: {shape: {type: 'mesh', mesh: {...mesh, triangles: [[0,1]]}}}},
+      'BAD_SPEC', 'spec.pictorial.shape.mesh.triangles[0]'],
+  ] as const;
+  for (const [source, reason, path] of cases) {
+    const result = planPictorial(source as unknown as PlanPictorialSpec, size);
+    if (result.status !== 'invalid') throw Error('Expected invalid pictorial input.');
+    assert.equal(result.diagnostic.reason, reason);
+    assert.equal(result.diagnostic.path, path);
+  }
+});
+
+test('retains stack bounds, original colors and observations with transparent background and a custom gap', () => {
+  const source = spec();
+  const result = ok({...source, pictorial: {gap: 12, background: false},
+    series: source.series.map(series => ({...series, color: '#AABBCC'}))}, {...size, stacking: 'sum'}).frame;
+  assert.deepEqual(result.observations.map(point => point.value), [60, 40, 30, 20]);
+  assert.ok(result.legend.every(series => series.color === '#aabbcc'));
+  assert.ok(result.pictorialGlyphs.every(glyph => glyph.backgroundCommands.length === 0));
+});
+
 test('input accessors never execute; source/option objects and returned output are independently owned',()=>{
   let calls=0;const source=spec();Object.defineProperty(source,'pictorial',{enumerable:true,get(){calls++;return{};}});invalid(source);assert.equal(calls,0);
   const options={...size};Object.defineProperty(options,'stacking',{enumerable:true,get(){calls++;return'sum';}});invalid(spec(),options);assert.equal(calls,0);

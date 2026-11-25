@@ -30,3 +30,24 @@ it('coordinates independent dual-axis stacks in distinct category subslots',()=>
   expect(a.x).toBe(a2.x);expect(b.x).toBe(b2.x);expect(a.x+a.width).toBeLessThan(b.x);expect(a.y).toBeCloseTo(a2.y+a2.height,10);expect(b.y).toBeCloseTo(b2.y+b2.height,10);
   expect(f.mixedAxes?.mode).toBe('dual-y');expect(f.observations.find(o=>o.id.pointId==='b0')?.valueAxis).toBe('secondary');expect(f.observations.find(o=>o.id.pointId==='b0')?.x).toBeCloseTo(b.x+b.width/2);expect(f.annotations?.length).toBeGreaterThan(0);
 });
+
+it('keeps independent percent denominators and rejects incomplete visible categories', () => {
+  const axes: PlanMixedSpec['axes'] = {...source.axes, secondaryY: {type: 'linear'}};
+  const columns = [
+    {id: 'a', name: 'A', type: 'column', data: points('a', [10, 20, null, 10])},
+    {id: 'b', name: 'B', type: 'column', data: points('b', [30, 20, 15, 10])},
+    {id: 'c', name: 'C', type: 'column', yAxis: 'secondary', data: points('c', [40, 5, 30, 10])},
+    {id: 'd', name: 'D', type: 'column', yAxis: 'secondary', data: points('d', [10, 20, 15, 10])},
+  ] as const;
+  const chart: PlanMixedSpec = {...source, axes, series: columns};
+  const size = {width: 600, height: 300};
+  expect(planChart(chart, {...size, stacking: 'percent'})).toMatchObject({
+    status: 'invalid', diagnostic: {reason: 'INCOMPLETE_PERCENT_CATEGORY'},
+  });
+  const current = frame(chart, 'percent', {viewport: {axes: 'x', value: {x: {firstId: 'a', lastId: 'b'}}}});
+  const firstCategory = JSON.stringify(['category', 'a']);
+  expect(current.observations.filter(item => item.group?.key === firstCategory).map(item => [item.id.pointId, item.valueAxis, item.value, item.percentage])).toEqual([
+    ['a0', 'primary', 10, 25], ['b0', 'primary', 30, 75], ['c0', 'secondary', 40, 80], ['d0', 'secondary', 10, 20],
+  ]);
+  expect(bar(current, 'a', 'a0').x + bar(current, 'a', 'a0').width).toBeLessThan(bar(current, 'c', 'c0').x);
+});

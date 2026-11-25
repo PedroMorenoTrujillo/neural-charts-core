@@ -1,10 +1,61 @@
 import {describe,expect,it} from 'vitest';
 import {planChart} from '../../src/plan.js';
+import {planGroupedStacks} from '../../src/plan/grouped-stacks.js';
 import type {PlanColumnSpec,PlanOptions,PlanFrame} from '../../src/plan.js';
 const spec:PlanColumnSpec={family:'column',title:'Original grouped stacks',axes:{x:{type:'category',values:[{id:'a',label:'A'},{id:'b',label:'B'}]},y:{type:'linear',domain:[0,100],nice:false}},series:[{id:'s1',name:'One',data:[{id:'a',x:'a',y:10},{id:'b',x:'b',y:20}]},{id:'s2',name:'Two',data:[{id:'a',x:'a',y:20},{id:'b',x:'b',y:10}]},{id:'s3',name:'Three',data:[{id:'a',x:'a',y:40},{id:'b',x:'b',y:25}]},{id:'s4',name:'Four',data:[{id:'a',x:'a',y:5},{id:'b',x:'b',y:15}]}]};
 const groups=[{id:'east',label:'East',seriesIds:['s1','s2']},{id:'west',label:'West',seriesIds:['s3','s4']}] as const;
 function result(input:PlanColumnSpec=spec,extra:Partial<PlanOptions>={}){return planChart(input,{width:320,height:300,stacking:'sum',stackGroups:groups,...extra});}
 function frame(input:PlanColumnSpec=spec,extra:Partial<PlanOptions>={}):PlanFrame{const r=result(input,extra);if(r.status==='invalid')throw Error(JSON.stringify(r));return r.frame;}
+
+describe('grouped stack source and viewport limits', () => {
+  const options = {width: 320, height: 300, stacking: 'sum', stackGroups: groups} as const;
+  it('preserves the visible Y category and stock values in a scoped horizontal stack', () => {
+    const scoped = frame({...spec, orientation: 'horizontal'}, {viewport: {axes: 'x', value: {x: {firstId: 'b', lastId: 'b'}}}});
+    expect(scoped.yLabels?.map(label => [label.id, label.label])).toEqual([['b', 'B']]);
+    expect(scoped.observations.map(point => point.id.pointId)).toEqual(['b', 'b', 'b', 'b']);
+    expect(scoped.viewport?.value.x).toEqual({firstId: 'b', lastId: 'b'});
+    expect(scoped.grid).toEqual([]);
+  });
+
+  it('isolates invalid visibility, source axes and category limits before computing columns', () => {
+    expect(planGroupedStacks(spec, {...options, hiddenSeriesIds: ['not-a-series']})).toMatchObject({
+      status: 'invalid', diagnostic: {reason: 'UNKNOWN_SERIES', path: 'options.hiddenSeriesIds'},
+    });
+    const values = [...spec.axes.x.values, ...Array.from({length: 63}, (_, index) => ({id: 'c' + index}))];
+    expect(planGroupedStacks({...spec, axes: {...spec.axes, x: {...spec.axes.x, values}}}, options)).toMatchObject({
+      status: 'invalid', diagnostic: {reason: 'LABEL_LIMIT', path: 'axes.x.values'},
+    });
+    const bad = {...spec, axes: {...spec.axes, y: {...spec.axes.y, domain: [10, 0] as const}}};
+    expect(planGroupedStacks(bad, options)).toMatchObject({status: 'invalid', diagnostic: {reason: 'BAD_DOMAIN', path: 'axes.y.domain'}});
+    expect(planGroupedStacks(spec, {...options, viewport: {axes: 'x', value: {x: {firstId: 'b', lastId: 'a'}}}})).toMatchObject({
+      status: 'invalid', diagnostic: {reason: 'BAD_CATEGORY_WINDOW', path: 'viewport.value.x'},
+    });
+  });
+
+  it('rejects source overflow in a single group before recording a partial group plan', () => {
+    const oversized = {...spec, series: spec.series.map((series, seriesIndex) => ({
+      ...series, data: series.data.map((point, pointIndex) =>
+        seriesIndex < 2 && pointIndex === 0 ? {...point, y: Number.MAX_VALUE} : point),
+    }))};
+    expect(result(oversized)).toMatchObject({status: 'invalid', diagnostic: {reason: 'STACK_OVERFLOW', path: 'stack.categories.a'}});
+  });
+
+  it('leaves an unmeasured set empty and preserves a cropped unlabeled category identifier', () => {
+    const withoutMeasurements = {...spec, axes: {...spec.axes, y: {type: 'linear' as const}},
+      series: spec.series.map(series => ({...series, data: series.data.map(point => ({...point, y: null}))}))};
+    const empty = result(withoutMeasurements);
+    expect(empty).toMatchObject({status: 'empty', frame: {observations: []}});
+    if (empty.status === 'invalid') throw Error(JSON.stringify(empty.diagnostic));
+    expect(empty.frame.series.every(series => series.bars?.length === 0)).toBe(true);
+    expect(empty.frame.annotations).toEqual([]);
+    const bare = {...spec, orientation: 'horizontal' as const, axes: {...spec.axes,
+      x: {...spec.axes.x, values: [{id: 'a'}, {id: 'b'}]}}};
+    const cropped = frame(bare, {viewport: {axes: 'x', value: {x: {firstId: 'b', lastId: 'b'}}}});
+    expect(cropped.yLabels?.map(label => [label.id, label.label])).toEqual([['b', 'b']]);
+    expect(cropped.observations.map(point => point.label)).toEqual(['b', 'b', 'b', 'b']);
+  });
+});
+
 describe('one shared frame for grouped and stacked original columns',()=>{
   it('places two genuinely stacked groups side by side, retaining source identities and common category coordinates',()=>{
     const f=frame(),bars=f.series.map(s=>s.bars!.find(b=>b.pointId==='a')!);expect(bars[0]!.x).toBe(bars[1]!.x);expect(bars[2]!.x).toBe(bars[3]!.x);expect(bars[0]!.x+bars[0]!.width).toBeLessThan(bars[2]!.x);expect(bars[1]!.y+bars[1]!.height).toBeCloseTo(bars[0]!.y,10);expect(bars[3]!.y+bars[3]!.height).toBeCloseTo(bars[2]!.y,10);expect(f.observations.map(p=>p.value)).toEqual([10,20,20,10,40,25,5,15]);expect(new Set(f.observations.filter(p=>p.id.pointId==='a').map(p=>p.group?.coordinate)).size).toBe(1);expect(f.observations.every(p=>p.hit?.type==='polygon')).toBe(true);expect(f.stackGroups).toEqual({groups,placement:'grouped',stacking:'sum'});

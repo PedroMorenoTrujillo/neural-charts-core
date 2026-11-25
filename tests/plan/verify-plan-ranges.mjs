@@ -44,6 +44,33 @@ check('columnrange draws the actual low-to-high grouped interval with exact sour
   assert.ok(bar.x+bar.width<f.series[1].bars[0].x,'grouped intervals do not overlap');assert.equal(o.lowValue,2);assert.equal(o.highValue,6);assert.equal(typeof o.group.coordinate,'number');assert.equal(o.group.coordinate,f.observations[3].group.coordinate);
   const capped=frame({...source,family:'columnrange',maxBarWidth:8});assert.ok(capped.series[0].bars.every(b=>b.width<=8));
 });
+check('grouped range edges respect explicit spacing without inventing zero-width hit targets',()=>{
+  const data=source.series[0].data.slice(0,2).map((p,x)=>({...p,x}));
+  const series=['first','second'].map(id=>({id,name:id,data}));
+  const spec={...source,family:'columnrange',barGap:0,series,axes:{...source.axes,x:{type:'linear',domain:[0,1]}}};
+  const f=frame(spec);
+  assert.deepEqual(f.observations.map(o=>[o.id.seriesId,o.id.pointId]),[['first','second'],['second','first']]);
+  assert.equal(f.series[0].bars[0].x+f.series[0].bars[0].width,304);
+  assert.equal(f.series[1].bars[0].x,16);
+});
+check('ranges reject automatic domains that cannot encompass the original outer bars',()=>{
+  const cases=[
+    {type:'linear',extremes:[-1.5e308,1.5e308],reason:'UNREPRESENTABLE_GROUPED_DOMAIN',path:'axes.x'},
+    {type:'time',extremes:[0,1],reason:'OUTSIDE_DATE_RANGE',path:'domain'},
+  ];
+  for(const {type,extremes,reason,path} of cases){
+    const data=source.series[0].data.slice(0,2).map((p,i)=>({...p,x:extremes[i]}));
+    const result=planChart({...source,family:'columnrange',axes:{...source.axes,x:{type}},series:[{...source.series[0],data}]},options);
+    assert.equal(result.status,'invalid',JSON.stringify(result));
+    assert.deepEqual([result.diagnostic.reason,result.diagnostic.path],[reason,path]);
+  }
+});
+check('categorical ranges enforce their own presentation limit before projecting observations',()=>{
+  const values=Array.from({length:65},(_,i)=>({id:'slot'+i}));
+  const result=planChart({...source,axes:{...source.axes,x:{type:'category',values}},series:[{...source.series[0],data:[]}]},options);
+  assert.equal(result.status,'invalid');
+  assert.deepEqual([result.diagnostic.reason,result.diagnostic.path],['LABEL_LIMIT','axes.x.values']);
+});
 check('zero-length intervals stay semantic, draw no artificial area and keep exact endpoints',()=>{
   for(const family of ['arearange','areasplinerange','columnrange']){
     const f=frame({...source,family,series:[{...source.series[0],data:[{id:'equal',x:'a',low:5,high:5}]}]}),o=f.observations[0];assert.equal(o.lowValue,5);assert.equal(o.highValue,5);assert.equal(o.value,5);assert.equal(o.hit,undefined);

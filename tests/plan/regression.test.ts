@@ -1,8 +1,60 @@
 import {expect,test} from 'vitest';
 import {planChart,type PlanRegressionSpec,type PlanSpec} from '../../src/plan.js';
 import {describeRegression} from '../../src/plan/regression-statistics.js';
+import {planRegression} from '../../src/plan/regression.js';
 const source:PlanRegressionSpec={family:'regression',title:'Measured XY',axes:{x:{type:'linear'},y:{type:'linear',title:'ms'}},series:[{id:'measured',name:'Measured',data:[{id:'a',x:1,y:3},{id:'b',x:2,y:5},{id:'c',x:3,y:7}]}]};
 const size={width:320,height:300};
+
+test('reports unrepresentable fitted coefficients at the source series', () => {
+  const data=[{id:'p0',x:0,y:0},{id:'p1',x:Number.MIN_VALUE,y:1e308}];
+  expect(planRegression({...source,series:[{...source.series[0]!,data}]},size)).toMatchObject({
+    status:'invalid',diagnostic:{reason:'UNREPRESENTABLE_REGRESSION_MODEL',path:'series[0]'},
+  });
+});
+
+test('keeps the fitted model while omitting a line outside the explicit displayed Y range', () => {
+  const result=planRegression({...source,axes:{...source.axes,y:{type:'linear',domain:[9,12]}}},size);
+  if(result.status==='invalid')throw Error(JSON.stringify(result.diagnostic));
+  expect(result.frame.regression?.models).toMatchObject([{slope:2,intercept:1}]);
+  expect(result.frame.series.filter(series=>series.id.startsWith('ols:'))).toEqual([]);
+  expect(result.frame.observations).toEqual([]);
+});
+
+test('normalizes opposing finite X extremes without changing predictions or variance', () => {
+  const pairs = [{x: -1e308, y: -1e308}, {x: 0, y: 0}, {x: 1e308, y: 1e308}];
+  const fit = describeRegression('linear', pairs, 0);
+  if (fit.status !== 'ok' || fit.summary.status !== 'ready' || !fit.predict) throw Error(JSON.stringify(fit));
+  expect(fit.summary).toMatchObject({slope: 1, intercept: 0, rSquared: 1});
+  expect(fit.predict(5e307) / 5e307).toBeCloseTo(1, 14);
+  expect(fit.predict(-5e307) / -5e307).toBeCloseTo(1, 14);
+});
+
+test('preserves original plot and line identities with independent series metadata', () => {
+  const measured = source.series[0]!;
+  const input = {...source, description: 'Observed fit', series: [{...measured, color: '#AABBCC'}]};
+  const view = frame(input, {...size, viewport: {axes: 'xy', value: {x: [1,2], y: [3,5]}}});
+  expect(view.description).toBe(input.description);
+  expect(view.legend[0]).toMatchObject({id: measured.id, color: '#aabbcc', visible: true});
+  expect(view.observations.filter(point => point.regression?.type === 'sample').map(point => point.id.pointId)).toEqual(['a','b']);
+  expect(view.regression?.models[0]).toMatchObject({status: 'ready', slope: 2, intercept: 1});
+});
+
+test('rejects derived-chart source errors and unknown support identities at their own boundaries', () => {
+  expect(planRegression({...source, series: [...source.series, source.series[0]!]}, size)).toMatchObject({
+    status: 'invalid', diagnostic: {path: 'series[1].id'},
+  });
+  expect(planRegression(source, {...size, hiddenSeriesIds: ['not-a-fit']})).toMatchObject({
+    status: 'invalid', diagnostic: {reason: 'UNKNOWN_REGRESSION_SERIES', path: 'options.hiddenSeriesIds'},
+  });
+  const invalidReference = {...size, references: [{id: 'invalid', axis: 'y', value: 'not-a-number'}]};
+  expect(planRegression(source, invalidReference as unknown as Parameters<typeof planRegression>[1])).toMatchObject({
+    status: 'invalid', diagnostic: {path: 'options.references[0].value'},
+  });
+  const sizeOverflow = Array.from({length: 9}, (_, i) => ({...source.series[0]!, id: 'sample-' + i}));
+  expect(planRegression({...source, series: sizeOverflow}, size)).toMatchObject({status: 'invalid', diagnostic: {path: 'spec'}});
+  const malformed = {...source, series: [{...source.series[0]!, data: [{id: 'a'.repeat(97), x: 1, y: 2}]}]};
+  expect(planRegression(malformed, size)).toMatchObject({status: 'invalid', diagnostic: {reason: 'BAD_REGRESSION_SAMPLE'}});
+});
 function frame(spec=source,options:Parameters<typeof planChart>[1]=size){const r=planChart(spec,options);if(r.status==='invalid')throw Error(JSON.stringify(r));return r.frame;}
 test('real scatter and OLS share a frame while original values remain original',()=>{
   const f=frame();expect(f.family).toBe('regression');expect(f.regression?.method).toBe('ordinary-least-squares');const model=f.regression!.models[0]!;if(model.status!=='ready')throw Error('Expected a fit');expect(model.slope).toBeCloseTo(2,12);expect(model.intercept).toBeCloseTo(1,12);expect(model.rSquared).toBeCloseTo(1,12);expect(model.sampleCount).toBe(3);

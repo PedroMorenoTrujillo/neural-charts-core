@@ -22,6 +22,60 @@ function distanceToPolyline(p: SplineCoordinate, points: readonly SplineCoordina
   }
   return best;
 }
+
+describe('bounded spline geometry for clipped chart runs', () => {
+  const line: CubicSegment = { a: { x: 0, y: 0 }, b: { x: 1, y: 1 }, c: { x: 3, y: 3 }, d: { x: 4, y: 4 } };
+  const tests = [
+    [undefined, 'RESOURCE_LIMIT'],
+    [Array(100_001), 'RESOURCE_LIMIT'],
+  ] as const;
+  test.each(tests)('rejects inputs outside the supported coordinate collection (case %#)', (points, reason) => {
+    const coordinateList = points as unknown as readonly SplineCoordinate[];
+    expect(monotoneCubics(coordinateList)).toMatchObject({ status: 'invalid', diagnostic: { reason, path: 'spline.points' } });
+    expect(visibleSplineCommands(coordinateList, 0, 1)).toMatchObject({ status: 'invalid', diagnostic: { reason, path: 'spline.points' } });
+  });
+
+  test.each([
+    [undefined, 'RESOURCE_LIMIT', 'spline.segments'],
+    [Array(100_001), 'RESOURCE_LIMIT', 'spline.segments'],
+    [[null], 'NONFINITE', 'spline.segments[0]'],
+    [[{ ...line, b: { x: 1, y: Infinity } }], 'NONFINITE', 'spline.segments[0]'],
+    [[{ ...line, d: { x: -1, y: 4 } }], 'UNREPRESENTABLE_GEOMETRY', 'spline.segments[0]'],
+    [[{ ...line, a: { x: -1e308, y: -1e308 }, d: { x: 1e308, y: 1e308 } }], 'UNREPRESENTABLE_GEOMETRY', 'spline.segments[0]'],
+  ] as const)('reports geometry that cannot be represented (case %#)', (segments, reason, path) => {
+    expect(flattenCubics(segments as unknown as readonly CubicSegment[])).toMatchObject({
+      status: 'invalid', diagnostic: { reason, path },
+    });
+  });
+
+  test('subdivides control points outside the chord even when they lie on its line', () => {
+    const cubic = { a: { x: 0, y: 0 }, b: { x: -3, y: 0 }, c: { x: 7, y: 0 }, d: { x: 4, y: 0 } };
+    const points = vertices(value(flattenCubics([cubic])));
+    expect(Math.min(...points.map(point => point.x))).toBeLessThan(0);
+    expect(Math.max(...points.map(point => point.x))).toBeGreaterThan(4);
+    expect(points.every(point => point.y === 0)).toBe(true);
+    expect(points.at(-1)).toEqual(cubic.d);
+  });
+
+  test('approximates a closed cubic with distinct controls and a zero-length chord', () => {
+    const cubic = { a: { x: 0, y: 0 }, b: { x: 8, y: 0 }, c: { x: 0, y: 8 }, d: { x: 0, y: 0 } };
+    const points = vertices(value(flattenCubics([cubic])));
+    expect(points[0]).toEqual(points.at(-1));
+    expect(points).toContainEqual(at(cubic, .5));
+    expect(points.length).toBeGreaterThan(4);
+  });
+
+  test('fails a resource cap instead of emitting an incomplete visible stroke', () => {
+    expect(flattenCubics([line], 0.2, 1)).toMatchObject({
+      status: 'invalid', diagnostic: { reason: 'RESOURCE_LIMIT', path: 'spline.commands' },
+    });
+    const stroke = [line.a, line.d];
+    expect(visibleSplineCommands(stroke, 1, 2, 1)).toMatchObject({
+      status: 'invalid', diagnostic: { reason: 'RESOURCE_LIMIT', path: 'spline.commands' },
+    });
+    expect(visibleSplineCommands(stroke, 0, 4, 10, [9, 8]).status).toBe('invalid');
+  });
+});
 describe('monotone mathematical interpolation and frozen-path approximation', () => {
   test('passes through originals and produces a genuine curved interpolant', () => {
     const points = [{ x: 0, y: 0 }, { x: 10, y: 20 }, { x: 20, y: 0 }];

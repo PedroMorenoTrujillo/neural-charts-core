@@ -14,6 +14,76 @@ const frame = (result: PlanXRangeResult) => {
 };
 const unsafe = (input: unknown) => input as PlanXRangeSpec;
 
+describe('X-range original-unit ownership and temporal input limits', () => {
+  it('reverses physical row placement without changing completion or source color', () => {
+    const source = spec();
+    const [original] = source.series;
+    const [first, second] = original!.data;
+    const data = [{...first!, completed: 1}, {...second!, completed: 0}];
+    const own: PlanXRangeSpec = {...source, description: 'Measured work', series: [{...original!, color: '#123abc', data}]};
+    const a = frame(planXRange(own, options));
+    const b = frame(planXRange({...own, axes: {...own.axes, y: {...own.axes.y, reversed: true}}}, options));
+    expect(a.description).toBe('Measured work');
+    expect(a.series[0]?.color).toBe('#123abc');
+    expect(a.observations.map(o => [o.id.pointId, o.interval?.completed])).toEqual([['p', 1], ['q', 0]]);
+    expect(b.observations.map(o => [o.id.pointId, o.interval?.completed])).toEqual([['p', 1], ['q', 0]]);
+    expect(a.observations[0]!.y).toBeLessThan(a.observations[1]!.y);
+    expect(b.observations[0]!.y).toBeGreaterThan(b.observations[1]!.y);
+  });
+
+  it('enforces a combined point budget across individually valid interval series', () => {
+    const source = spec();
+    const data = Array.from({length: MAX_XRANGE_POINTS / 2 + 1}, (_, index) =>
+      ({id: 'point-' + index, rowId: 'a', start: index, end: index + .1}));
+    const series = [{id: 'first', name: 'First', data}, {id: 'second', name: 'Second', data}];
+    expect(planXRange({...source, series}, options)).toMatchObject({
+      status: 'invalid', diagnostic: {reason: 'RESOURCE_LIMIT', path: 'spec.series'},
+    });
+  });
+
+  it.each([
+    [{type: 'linear', reversed: 'true'}, 'BAD_SPEC', 'spec.axes.x.reversed'],
+    [{type: 'linear', domain: [40, 40]}, 'BAD_DOMAIN', 'spec.axes.x.domain'],
+    [{type: 'time', domain: [0.25, 86_400_000]}, 'BAD_TIMESTAMP', 'spec.axes.x.domain'],
+    [{type: 'time', domain: [0, 8.64e15 + 1]}, 'BAD_TIMESTAMP', 'spec.axes.x.domain'],
+    [{type: 'time', unit: 'days'}, 'INCOMPATIBLE_TIME_AXIS', 'spec.axes.x'],
+    [{type: 'time', includeZero: false}, 'INCOMPATIBLE_TIME_AXIS', 'spec.axes.x'],
+  ] as const)('rejects temporal scale data incompatible with its source units (case %#)', (x, reason, path) => {
+    const chart = spec();
+    expect(planXRange(unsafe({...chart, axes: {...chart.axes, x}}), options)).toMatchObject({
+      status: 'invalid', diagnostic: {reason, path},
+    });
+  });
+
+  it.each([
+    [{hiddenSeriesIds: ['s', 's']}, 'DUPLICATE_ID', 'options.hiddenSeriesIds[1]'],
+    [{viewport: {axes: 'x', value: {x: [50, 10]}}}, 'BAD_VIEWPORT', 'options.viewport.value.x'],
+    [{references: [{id: 'goal', axis: 'x', value: 15}, {id: 'goal', axis: 'x', value: 35}]},
+      'DUPLICATE_ID', 'options.references[1].id'],
+    [{references: [{id: 'goal', axis: 'x', value: null}]}, 'BAD_REFERENCE', 'options.references[0].value'],
+  ] as const)('reports invalid interaction options at the original field (case %#)', (patch, reason, path) => {
+    expect(planXRange(spec(), {...options, ...patch} as PlanOptions)).toMatchObject({
+      status: 'invalid', diagnostic: {reason, path},
+    });
+  });
+
+  it('keeps an empty x viewport equivalent to the automatic window', () => {
+    const automatic = frame(planXRange(spec(), {...options, viewport: {axes: 'x'}}));
+    const explicit = frame(planXRange(spec(), {...options, viewport: {axes: 'x', value: {}}}));
+    expect(explicit.viewport).toEqual(automatic.viewport);
+    expect(explicit.series).toEqual(automatic.series);
+  });
+
+  it('rejects fractional time viewport windows and out-of-bounds numeric ranges', () => {
+    const chart = spec();
+    const timed = unsafe({...chart, axes: {...chart.axes, x: {type: 'time', domain: [0, 100]}}});
+    expect(planXRange(timed, {...options, viewport: {axes: 'x', value: {x: [20.25, 40]}}})).toMatchObject({
+      status: 'invalid', diagnostic: {reason: 'BAD_TIMESTAMP', path: 'options.viewport.value.x'},
+    });
+    expect(planXRange(chart, {...options, viewport: {axes: 'x', value: {x: [70, 120]}}}).status).toBe('invalid');
+  });
+});
+
 describe('X-range source intervals and geometry', () => {
   it('projects independent start/end values rather than cumulative columns', () => {
     const result = frame(planXRange(spec(), options)), [a, b] = result.series[0]!.bars!;

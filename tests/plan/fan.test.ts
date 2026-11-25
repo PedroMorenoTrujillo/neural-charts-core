@@ -1,7 +1,41 @@
 import {describe,it,expect} from 'vitest';
 import {planChart,type PlanFanSpec} from '../../src/plan.js';
+import {planFan} from '../../src/plan/fan.js';
 const spec:PlanFanSpec={family:'fan',title:'Prediction intervals',axes:{x:{type:'linear'},y:{type:'linear',title:'ms'}},bands:[{id:'inner',label:'50%',coverage:.5},{id:'outer',label:'95%',coverage:.95}],data:[{id:'past',x:0,value:10,intervals:[]},{id:'a',x:1,value:12,intervals:[{bandId:'inner',low:10,high:14},{bandId:'outer',low:8,high:16}]},{id:'b',x:2,value:16,intervals:[{bandId:'inner',low:12,high:20},{bandId:'outer',low:6,high:26}]}]};
 const frame=(value:PlanFanSpec=spec,options={width:320,height:300})=>{const r=planChart(value,options);if(r.status==='invalid')throw Error(JSON.stringify(r));return r.frame;};
+it('retains bands when the central estimate is hidden and preserves explicit presentation', () => {
+  const configured = {...spec, description: 'Conditional prediction intervals', centerName: 'Prediction', centerColor: '#aabbcc',
+    bands: spec.bands.map(band => ({...band, color: '#123456'}))};
+  const size = {width: 400, height: 320};
+  const full = frame(configured, size);
+  expect(full.description).toBe(configured.description);
+  expect(full.legend[0]).toMatchObject({id: 'center', name: 'Prediction', color: '#aabbcc', visible: true});
+  const hidden = planChart(configured, {...size, hiddenSeriesIds: ['center']});
+  if (hidden.status !== 'ok') throw Error(JSON.stringify(hidden));
+  expect(hidden.frame.series.map(series => series.id)).toEqual(['outer','inner']);
+  expect(hidden.frame.legend[0]).toMatchObject({id: 'center', visible: false});
+  expect(hidden.frame.observations.every(point => point.fan?.type === 'interval')).toBe(true);
+});
+
+it('diagnoses fan metadata and invalid source references before projecting any band', () => {
+  const size = {width: 400, height: 320};
+  for (const [patch, reason, path] of [
+    [{centerName: 'a'.repeat(201)}, 'BAD_FAN_PRESENTATION', 'spec'],
+    [{centerColor: '#abc'}, 'BAD_FAN_PRESENTATION', 'spec'],
+    [{axes: {...spec.axes, x: {type: 'log'}}}, 'BAD_FAN_AXIS', 'axes.x'],
+    [{bands: [{...spec.bands[0], color: '#abc'}]}, 'BAD_FAN_BAND', 'bands[0]'],
+    [{data: [{...spec.data[0], extra: true}]}, 'BAD_FAN_POINT', 'data[0]'],
+  ] as const) expect(planFan({...spec, ...patch} as PlanFanSpec, size)).toMatchObject({
+    status: 'invalid', diagnostic: {reason, path},
+  });
+  expect(planFan(spec, {...size, references: [{id: 'target', axis: 'x', value: 'unexpected'}]})).toMatchObject({
+    status: 'invalid', diagnostic: {path: 'options.references[0].value'},
+  });
+  expect(planFan({...spec, axes: {...spec.axes, y: {...spec.axes.y, domain: [3,1]}}}, size)).toMatchObject({
+    status: 'invalid', diagnostic: {reason: 'BAD_DOMAIN', path: 'axes.y.domain'},
+  });
+});
+
 describe('shared-frame uncertainty bands',()=>{
   it('preserves source estimates, interval endpoints and identities in one domain',()=>{
     const f=frame();expect(f.family).toBe('fan');expect(f.unit).toBe('ms');expect(f.series.map(s=>s.id)).toEqual(['outer','inner','center']);expect(f.observations[0]?.fan?.type).toBe('center');expect(f.legend?.[0]?.id).toBe('center');expect(f.observations.filter(p=>p.id.seriesId==='center').map(p=>[p.id.pointId,p.value,p.fan])).toEqual([['past',10,{type:'center'}],['a',12,{type:'center'}],['b',16,{type:'center'}]]);

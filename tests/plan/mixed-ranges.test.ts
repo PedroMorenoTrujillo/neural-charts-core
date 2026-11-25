@@ -6,6 +6,32 @@ const data={family:'mixed',title:'Observed interval and measured line',axes:{x:{
  {id:'measured',name:'Original measurement',type:'line',data:[{id:'a',x:'a',y:20},{id:'b',x:'b',y:30},{id:'c',x:'c',y:40}]},
 ]} as const satisfies PlanMixedRangeSpec;
 function run(spec:PlanMixedSpec=data,extra:Partial<PlanOptions>={}){const r=planChart(spec,{width:390,height:300,...extra});if(r.status==='invalid')throw Error(JSON.stringify(r));return r;}
+
+it('preserves line color, viewport ownership and source gap semantics within mixed range layouts', () => {
+  const [range, line] = data.series;
+  const source = {...data, description: 'Measured interval source', series: [range,
+     {...line, color: '#AABBCC', data: line.data.map(point => point.x === 'b' ? {...point, y: null} : point)}],
+  } as const satisfies PlanMixedRangeSpec;
+  const result = run(source, {viewport: {axes: 'x', value: {x: {firstId: 'b', lastId: 'c'}}}});
+  expect(result.frame.description).toBe(source.description);
+  expect(result.frame.legend.find(series => series.id === 'measured')?.color).toBe('#aabbcc');
+  expect(result.frame.observations.filter(point => point.id.seriesId === 'measured').map(point => [point.id.pointId, point.value]))
+    .toEqual([['c', 40]]);
+  expect(result.frame.observations.filter(point => point.id.seriesId === 'spread').map(point => point.id.pointId)).toEqual(['b', 'c']);
+});
+
+it('diagnoses invalid shared range policies and original identity before delegating geometry', () => {
+  const [range, line] = data.series;
+  for (const [patch, reason, path] of [
+    [{series: [range, {...line, id: range.id}]}, 'DUPLICATE_SERIES_ID', 'series[1].id'],
+    [{series: [{...range, curve: 'step-mid'}, line]}, 'RANGE_HAS_FIXED_BOUNDARY_POLICY', 'series[0]'],
+    [{axes: {...data.axes, x: {...data.axes.x, type: 'linear'}}}, 'MIXED_RANGES_REQUIRE_CATEGORY_X', 'axes.x'],
+    [{series: [range, {...line, data: [line.data[0], line.data[0]]}]}, 'DUPLICATE_POINT_ID', 'series[0].data[1].id'],
+  ] as const) expect(planChart({...data, ...patch} as PlanMixedSpec, {width: 390, height: 300})).toMatchObject({
+    status: 'invalid', diagnostic: {reason, path},
+  });
+});
+
 it('range and line share actual category coordinates and a single original-value scale',()=>{
  const {frame}=run();expect(frame.family).toBe('mixed');expect(frame.mixedRanges?.mode).toBe('range-line');expect(frame.legend.map(s=>s.id)).toEqual(['spread','measured']);
  for(const category of ['a','b','c']){const range=frame.observations.find(p=>p.id.seriesId==='spread'&&p.id.pointId===category)!,line=frame.observations.find(p=>p.id.seriesId==='measured'&&p.id.pointId===category)!;expect(range.x).toBe(line.x);expect(range.y).toBe(line.y);expect(range.group).toEqual(line.group);expect(range.lowValue).toBe(line.value-10);expect(range.highValue).toBe(line.value+10);expect(line.lowValue).toBeUndefined();expect(line.highValue).toBeUndefined();}

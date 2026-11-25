@@ -97,6 +97,38 @@ test('requires a conforming manifold mesh without T junctions or coincident vert
   assert.throws(()=>validateMesh({id:'touching',aspectRatio:1,vertices:[{x:0,y:0},{x:.5,y:0},{x:.5,y:.5},{x:1,y:.5},{x:1,y:1}],triangles:[[0,1,2],[2,3,4]]}),/nonManifoldBoundary/);
 });
 
+test('rejects malformed mesh budgets, cropped bounds and positive-area overlaps without shared vertices', () => {
+  const mesh = square();
+  for (const id of [false, '', 'm'.repeat(129)]) {
+    assert.throws(() => validateMesh({...mesh, id}), /mesh\.id/);
+  }
+  for (const vertices of [null, mesh.vertices.slice(0, 2), Array.from({length: 193}, () => mesh.vertices[0])]) {
+    assert.throws(() => validateMesh({...mesh, vertices}), /mesh\.vertices/);
+  }
+  for (const triangles of [null, [], Array.from({length: 65}, () => mesh.triangles[0])]) {
+    assert.throws(() => validateMesh({...mesh, triangles}), /mesh\.triangles/);
+  }
+  for (const transform of [
+    (v: {x: number; y: number}) => ({...v, x: 0.25 + 0.75 * v.x}),
+    (v: {x: number; y: number}) => ({...v, x: 0.75 * v.x}),
+    (v: {x: number; y: number}) => ({...v, y: 0.25 + 0.75 * v.y}),
+    (v: {x: number; y: number}) => ({...v, y: 0.75 * v.y}),
+  ]) assert.throws(() => validateMesh({...mesh, vertices: mesh.vertices.map(transform)}), /mesh\.bounds/);
+  assert.throws(() => validateMesh({...mesh, vertices: [{x: 0, y: 0}, {x: .5, y: .5}, {x: 1, y: 1}], triangles: [[0,1,2]]}), /mesh\.degenerate/);
+  assert.throws(() => validateMesh({
+    ...mesh,
+    vertices: [{x: 0, y: 0}, {x: 1, y: 0}, {x: 0, y: 1}, {x: 1, y: 1}, {x: .1, y: .2}, {x: .7, y: .8}],
+    triangles: [[0,1,2],[3,4,5]],
+  }), /mesh\.overlap/);
+});
+
+test('normalizes independent clockwise triangles without changing the silhouette or fill partition', () => {
+  const mesh = square();
+  const reversed = validateMesh({...mesh, triangles: mesh.triangles.map(([a,b,c]) => [a,c,b])});
+  assert.deepEqual(reversed.triangles, mesh.triangles);
+  assert.deepEqual(fillBand(reversed, .25, .75), fillBand(mesh, .25, .75));
+});
+
 test('mesh ownership does not retain mutable caller vertices or triangle arrays',()=>{
   const source={id:'square',aspectRatio:1,vertices:[{x:0,y:0},{x:1,y:0},{x:1,y:1},{x:0,y:1}],triangles:[[0,1,2],[0,2,3]]};
   const mesh=validateMesh(source),snapshot=fillBand(mesh,.1,.9);

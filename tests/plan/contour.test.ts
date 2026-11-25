@@ -2,11 +2,89 @@ import {describe,expect,test} from 'vitest';
 import {planChart,transformPlanViewport} from '../../src/plan.js';
 import type {PlanContourSpec} from '../../src/public/contour-types.js';
 import {clipContourSegment} from '../../src/plan/contour-clip.js';
+import {contourSegments} from '../../src/plan/contour-geometry.js';
 
 function source():PlanContourSpec{return {family:'contour',title:'Measured field',axes:{x:{type:'linear'},y:{type:'linear'}},grid:{id:'temperature',x:[0,2],y:[0,5],ids:['top-left','top-right','bottom-left','bottom-right'],values:[0,2,0,2],unit:'°C'},contour:{levels:[{id:'one',value:1}]}};}
 function frame(spec=source(),options:Parameters<typeof planChart>[1]={width:390,height:320}){
   const result=planChart(spec,options);if(result.status==='invalid')throw Error(JSON.stringify(result.diagnostic));expect(result.frame.family).toBe('contour');expect(result.frame.contour).toBeDefined();return result.frame;
 }
+
+describe('contour transport limits', () => {
+  const options = {width: 390, height: 320};
+  test('reconstructs disconnected peaks even when subtracting two finite samples would overflow', () => {
+    const segments=contourSegments({x:[0,1],y:[0,1],values:[1.5e308,-1.5e308,-1.5e308,1.5e308]},[1e308]);
+    expect(segments.status).toBe('ready');
+    expect(segments.segments).toHaveLength(2);
+    const [first,last]=segments.segments;
+    expect(first?.start.x).toBe(0);
+    expect(first?.start.y).toBeCloseTo(1/6,14);
+    expect(first?.end.x).toBeCloseTo(1/6,14);
+    expect(first?.end.y).toBe(0);
+    expect(last?.start.x).toBe(1);
+    expect(last?.start.y).toBeCloseTo(5/6,14);
+    expect(last?.end.x).toBeCloseTo(5/6,14);
+    expect(last?.end.y).toBe(1);
+  });
+  test('retains a source isoline count when it collapses to one pixel position',()=>{
+    const input=source(),{unit:sourceUnit,...grid}=input.grid;
+    expect(sourceUnit).toBe('°C');
+    const far={type:'linear',domain:[-1e308,1e308]} as const;
+    const result=planChart({...input,axes:{x:far,y:far},grid},options);
+    expect(result).toMatchObject({status:'empty',frame:{unit:'',observations:[],
+      contour:{segmentCount:1,visibleSegments:0}}});
+  });
+  test.each([0,1,2,3])('keeps a missing value at grid corner %s without inventing an isoline', index => {
+    const input=source(),grid={...input.grid,values:input.grid.values.map((value,i)=>i===index?null:value)};
+    for(const hiddenSeriesIds of [[],['one']]){
+      const result=planChart({...input,grid},{...options,hiddenSeriesIds});
+      if(result.status==='invalid')throw Error(JSON.stringify(result.diagnostic));
+      expect(result.frame.contour).toMatchObject({missingCells:1,knownSamples:3,visibleSegments:0});
+      expect(result.frame.observations).toEqual([]);
+      expect(result.frame.series.every(series=>(series.commands?.length??0)===0)).toBe(true);
+    }
+  });
+  test.each([
+    [{axes: {x: {type: 'time'}, y: {type: 'linear'}}}, 'CONTOUR_LINEAR_AXIS_ONLY', 'spec.axes.x.type'],
+    [{grid: {...source().grid, ids: ['same', 'same', 'lower-left', 'lower-right']}}, 'DUPLICATE_ID', 'spec.grid.ids'],
+    [{contour: {...source().contour, segmentBudget: 1.5}}, 'CONTOUR_SEGMENT_BUDGET', 'spec.contour.segmentBudget'],
+  ] as const)('rejects unsupported coordinates, cell identity or segment limits (case %#)', (patch, reason, path) => {
+    expect(planChart({...source(), ...patch} as PlanContourSpec, options)).toMatchObject({
+      status: 'invalid', diagnostic: {reason, path},
+    });
+  });
+  test('rejects an out-of-bounds viewport before replacing measured samples with a blank result', () => {
+    expect(planChart(source(), {...options, viewport: {axes: 'x', value: {x: [0, 5]}}})).toMatchObject({
+      status: 'invalid', diagnostic: {path: 'viewport.value.x'},
+    });
+  });
+});
+
+describe('contour explicit domain and named level transport', () => {
+  test('keeps the original interpolated values with reversed scales, custom colors and scoped Y', () => {
+    const spec = source();
+    const named = {
+      ...spec, description: 'Signed original measurements',
+      axes: {x: {type: 'linear', domain: [0,2], nice: false}, y: {type: 'linear', domain: [0,5], nice: false, reversed: true}},
+      contour: {...spec.contour, levels: [{id: 'one', name: 'Threshold', value: 1, color: '#AABBCC'}]},
+    } as const satisfies PlanContourSpec;
+    const result = frame(named, {width: 390, height: 320, viewport: {axes: 'y', value: {y: [1,4]}}});
+    expect(result.description).toBe('Signed original measurements');
+    expect(result.legend[0]).toMatchObject({id: 'one', name: 'Threshold', color: '#aabbcc'});
+    expect(result.viewport?.displayed.y).toEqual([1,4]);
+    expect(result.observations).toHaveLength(1);
+    const observation = result.observations[0]!;
+    expect(observation.value).toBe(1);
+    expect(observation.contour).toMatchObject({sourceValues: [0,2,2,0], start: {x: 195, y: 0}, end: {x: 195, y: 320}});
+  });
+
+  test.each([0, 1, 2, 3])('drops the complete measured cell when corner %i is missing', blank => {
+    const spec = source();
+    const values = spec.grid.values.map((value, index) => index === blank ? null : value);
+    const result = frame({...spec, grid: {...spec.grid, values}});
+    expect(result.contour).toMatchObject({knownSamples: 3, missingCells: 1, emptyReason: 'missing'});
+    expect(result.observations).toEqual([]);
+  });
+});
 
 describe('public Contour source/derived contract',()=>{
   test('one numeric field yields one shared frame with explicitly interpolated level observations',()=>{

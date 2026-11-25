@@ -4,6 +4,69 @@ import type {PlanMixedSpec,PlanOptions,PlanFrame} from '../../src/plan.js';
 const spec:PlanMixedSpec={family:'mixed',title:'Rain and temperature',axes:{x:{type:'category',values:[{id:'a'},{id:'b'},{id:'c'}]},y:{type:'linear',domain:[0,400],nice:false},secondaryY:{type:'linear',domain:[10,40],nice:false}},series:[{id:'rain',name:'Rain',type:'column',data:[{id:'a',x:'a',y:100},{id:'b',x:'b',y:200},{id:'c',x:'c',y:300}]},{id:'temperature',name:'Temperature',type:'line',yAxis:'secondary',data:[{id:'a',x:'a',y:20},{id:'b',x:'b',y:25},{id:'c',x:'c',y:30}]}]};
 function result(input:PlanMixedSpec=spec,options:Partial<PlanOptions>={}){return planChart(input,{width:320,height:300,...options});}
 function frame(input:PlanMixedSpec=spec,options:Partial<PlanOptions>={}):PlanFrame{const r=result(input,options);if(r.status==='invalid')throw Error(JSON.stringify(r));return r.frame;}
+
+describe('dual-axis option boundaries', () => {
+  it('rejects a primary zoom window too narrow to have distinct secondary endpoints', () => {
+    const minimum=1e20,maximum=minimum+32768;
+    const source:PlanMixedSpec={...spec,axes:{...spec.axes,secondaryY:{type:'linear',nice:false,domain:[minimum,maximum]}},
+      series:spec.series.map(series=>series.yAxis==='secondary'?{...series,data:series.data.map(point=>({...point,y:minimum+16384}))}:series)};
+    expect(result(source,{viewport:{axes:'y',value:{y:[2,4]}}})).toMatchObject({
+      status:'invalid',diagnostic:{reason:'UNREPRESENTABLE_SECONDARY_VIEWPORT',path:'viewport.y'},
+    });
+  });
+
+  it('reports overflow in a visible secondary stack and retains the primary series when that stack is hidden', () => {
+    const affected=[0,1].map(i=>({id:'large-'+i,name:'Large '+i,type:'column' as const,yAxis:'secondary' as const,
+      data:[{id:'a',x:'a',y:Number.MAX_VALUE}]}));
+    const stacked:PlanMixedSpec={...spec,axes:{...spec.axes,secondaryY:{type:'linear'}},series:[spec.series[0]!,...affected]};
+    expect(result(stacked,{stacking:'sum'})).toMatchObject({
+      status:'invalid',diagnostic:{reason:'STACK_OVERFLOW',path:'stack.categories.a'},
+    });
+    const visible=frame(stacked,{stacking:'sum',hiddenSeriesIds:affected.map(s=>s.id)});
+    expect(visible.observations.map(o=>o.id.seriesId)).toEqual(['rain','rain','rain']);
+    expect(visible.legend.slice(1).map(s=>s.visible)).toEqual([false,false]);
+  });
+
+  it('preserves both declared axes when neither value domain contains measured data', () => {
+    const input: PlanMixedSpec = {
+      ...spec, axes: {...spec.axes, y: {type: 'linear'}, secondaryY: {type: 'linear'}},
+      series: spec.series.map(series => ({ ...series, data: series.data.map(point => ({ ...point, y: null })) })),
+    };
+    expect(result(input)).toMatchObject({
+      status: 'empty', frame: { series: [], observations: [], mixedAxes: {
+        primary: { domain: null, displayed: null }, secondary: { domain: null, displayed: null },
+      } },
+    });
+    expect(result(input, { viewport: { axes: 'y' } })).toMatchObject({
+      status: 'invalid', diagnostic: {reason: 'PRIMARY_DOMAIN_REQUIRED_FOR_Y_VIEWPORT', path: 'axes.y'},
+    });
+  });
+
+  it('diagnoses category limits, invalid retained known-series IDs and stacking with no columns', () => {
+    const values = [...spec.axes.x.values, ...Array.from({ length: 62 }, (_, index) => ({ id: 'extra-' + index }))];
+    expect(result({...spec, axes: {...spec.axes, x: {...spec.axes.x, values}}})).toMatchObject({
+      status: 'invalid', diagnostic: {reason: 'LABEL_LIMIT', path: 'axes.x.values'},
+    });
+    expect(result(spec, { hiddenSeriesIds: ['missing'] })).toMatchObject({
+      status: 'invalid', diagnostic: {reason: 'UNKNOWN_SERIES', path: 'options.hiddenSeriesIds'},
+    });
+    const lineOnly: PlanMixedSpec = {...spec, series: spec.series.map(series => ({...series, type: 'line'}))};
+    expect(result(lineOnly, { stacking: 'sum' })).toMatchObject({
+      status: 'invalid', diagnostic: {reason: 'STACKING_REQUIRES_COLUMNS', path: 'options.stacking'},
+    });
+  });
+
+  it('validates each physical domain before rendering either assigned series', () => {
+    const malformed = {type: 'linear', domain: [40, 0]} as const;
+    for (const axis of ['y', 'secondaryY'] as const) {
+      const source: PlanMixedSpec = {...spec, axes: {...spec.axes, [axis]: malformed}};
+      expect(result(source)).toMatchObject({status: 'invalid', diagnostic: {code: 'INVALID_DOMAIN', path: 'axes.y.domain'}});
+    }
+    const missingLabel: PlanMixedSpec = {...spec, series: spec.series.map(series => ({...series, name: ''}))};
+    expect(result(missingLabel)).toMatchObject({status: 'invalid', diagnostic: {path: 'series[0].name'}});
+  });
+});
+
 describe('coordinated mixed charts with independent source Y scales',()=>{
   it('retains original values and projects each series using its own scale within the same category frame',()=>{
     const f=frame(),rain=f.observations.find(p=>p.id.seriesId==='rain'&&p.id.pointId==='a')!,temp=f.observations.find(p=>p.id.seriesId==='temperature'&&p.id.pointId==='a')!;expect(rain.value).toBe(100);expect(temp.value).toBe(20);expect(rain.x).toBe(temp.x);expect(rain.y).toBeCloseTo(286-272*.25,10);expect(temp.y).toBeCloseTo(286-272/3,10);expect(temp.valueAxis).toBe('secondary');expect(rain.valueAxis).toBe('primary');expect(f.mixedAxes?.primary.domain).toEqual([0,400]);expect(f.mixedAxes?.secondary.domain).toEqual([10,40]);expect(f.secondaryGrid?.map(t=>Number(t.label))).toContain(40);

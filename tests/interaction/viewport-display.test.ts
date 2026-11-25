@@ -28,3 +28,20 @@ test('display transforms retain integer time windows and reject invalid zoom fac
   expect(value(zoomDisplayedViewport(model, { x: [0, 100], y: [-1, 1] }, 3)).value.x).toEqual([33, 67]);
   expect(zoomDisplayedViewport(model, { x: [0, 100], y: [-1, 1] }, NaN).status).toBe('invalid');
 });
+
+test('keeps a useful pan span when displayed ticks temporarily extend across the source bounds', () => {
+  const model = owner([0, 10], [0, 10]);
+  const proposed = value(panDisplayedViewport(model, {x: [-4, 5], y: [5, 14]}, {x: .25, y: -.25}));
+  expect(proposed.value.x).toEqual([0,9]);
+  expect(proposed.value.y).toEqual([expect.closeTo(1, 14),10]);
+  expect(model.value).toEqual({});
+  expect(model.resolved).toEqual({x: [0,10], y: [0,10]});
+});
+
+test('rejects a stale displayed interval that cannot intersect the current source', () => {
+  const model = owner([0, 10], [0, 10]);
+  expect(zoomDisplayedViewport(model, {x: [20, 40], y: [0, 10]}, 2)).toMatchObject({
+    status: 'invalid', diagnostic: {reason: 'UNREPRESENTABLE_VIEWPORT', path: 'viewport.x'},
+  });
+  expect(model.value).toEqual({});
+});

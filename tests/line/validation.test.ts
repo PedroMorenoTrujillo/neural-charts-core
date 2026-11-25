@@ -93,3 +93,116 @@ describe('closed input validation and atomic canonical copy', () => {
     expect(lineDomains(data, { hiddenSeriesIds: ['s', 'hidden'] })).toEqual({ status: 'ok', value: { x: [0, 50], y: null } });
   });
 });
+
+describe('line chart axis and presentation boundaries', () => {
+  it.each([
+    [{ type: 'category' }, 'BAD_LINE_SPEC', 'axes.x.values'],
+    [{ type: 'category', values: [], domain: [0, 2] }, 'BAD_LINE_SPEC', 'axes.x'],
+    [{ type: 'category', values: [], nice: false }, 'BAD_LINE_SPEC', 'axes.x'],
+    [{ type: 'category', values: [], edgeSpacing: -0.1 }, 'BAD_EDGE_SPACING', 'axes.x.edgeSpacing'],
+    [{ type: 'category', values: [], edgeSpacing: 2.1 }, 'BAD_EDGE_SPACING', 'axes.x.edgeSpacing'],
+    [{ type: 'linear', values: [] }, 'BAD_LINE_SPEC', 'axes.x'],
+    [{ type: 'time', edgeSpacing: 1 }, 'BAD_LINE_SPEC', 'axes.x'],
+    [{ type: 'time', domain: [0, 0.5] }, 'BAD_DOMAIN', 'axes.x.domain'],
+    [{ type: 'linear', labels: { maxWidth: 257 } }, 'BAD_LINE_SPEC', 'axes.x.labels.maxWidth'],
+  ] as const)('rejects an invalid or incompatible axis field (%j)', (axis, reason, path) => {
+    const fixture = numeric();
+    rejected({ ...fixture, axes: { ...fixture.axes, x: axis } }, reason, path);
+  });
+
+  it('retains a category axis at each supported spacing boundary', () => {
+    const fixture = numeric();
+    for (const edgeSpacing of [0, 2]) {
+      const axis = { type: 'category', values: [{ id: 'launch', label: 'Launch' }], edgeSpacing };
+      const result = validateLine({ ...fixture, axes: { ...fixture.axes, x: axis }, series: [] });
+      expect(result).toMatchObject({ status: 'ok', value: { axes: { x: axis } } });
+    }
+  });
+
+  it('retains planned typography, labels, direction and independently omitted legend or tooltip fields', () => {
+    const fixture = numeric();
+    const appearance = {
+      theme: 'dark', direction: 'rtl', font: { size: 18, weight: 700, family: 'serif' },
+      labels: 'off', crosshair: 'xy', motion: 'none', legend: { position: 'end' },
+      tooltip: { placement: 'start' },
+    };
+    const axes = {
+      x: { type: 'linear', domain: [-10, -0], ticks: {}, labels: {} },
+      y: { type: 'linear', reversed: true, title: 'Total', labels: { maxWidth: 256 } },
+    };
+    const refs = [{ id: 'target', axis: 'y', value: 3, label: 'Target', color: '#AABBCC', dash: 'dotted' }];
+    expect(validateLine({ ...fixture, ...appearance, axes, references: refs })).toMatchObject({
+      status: 'ok',
+      value: {
+        ...appearance, axes: { ...axes, x: { ...axes.x, domain: [-10, 0] } },
+        references: [{ ...refs[0], color: '#aabbcc' }],
+      },
+    });
+    expect(validateLine({ ...fixture, legend: {}, tooltip: { mode: 'point' }, font: { size: 10 } })).toMatchObject({
+      status: 'ok', value: { legend: {}, tooltip: { mode: 'point' }, font: { size: 10 } },
+    });
+  });
+
+  it.each([
+    [{ font: { size: 9 } }, 'BAD_LINE_SPEC', 'font.size'],
+    [{ font: { size: 19 } }, 'BAD_LINE_SPEC', 'font.size'],
+    [{ font: { weight: 900 } }, 'BAD_LINE_SPEC', 'font.weight'],
+    [{ status: { type: 'ready', message: 'Ready' } }, 'BAD_STATUS', 'status.message'],
+    [{ state: { mode: 'internal', value: { hiddenSeriesIds: [] } } }, 'BAD_STATE', 'state.value'],
+    [{ legend: { position: 'outside' } }, 'BAD_LINE_SPEC', 'legend.position'],
+    [{ tooltip: { placement: 'outside' } }, 'BAD_LINE_SPEC', 'tooltip.placement'],
+    [{ tooltip: { mode: 'sticky' } }, 'BAD_LINE_SPEC', 'tooltip.mode'],
+    [{ references: [{ id: 'target', axis: 'x', value: 1, dash: 'other' }] }, 'BAD_REFERENCE', 'references[0].dash'],
+  ] as const)('diagnoses the specific presentation field that the adapter must repair (%j)', (patch, reason, path) => {
+    rejected({ ...numeric(), ...patch }, reason, path);
+  });
+
+  it('distinguishes a wrong X value type from a missing category and an invalid time reference', () => {
+    const fixture = numeric();
+    const series = [{ ...fixture.series[0], data: [{ id: 'p', x: '1', y: 1 }] }];
+    rejected({ ...fixture, series }, 'MIXED_AXIS_TYPE', 'series[0].data[0].x');
+    const categoryAxes = { ...fixture.axes, x: { type: 'category', values: [{ id: 'launch' }] } };
+    rejected({ ...fixture, series: [], axes: categoryAxes, references: [{ id: 'r', axis: 'x', value: 1 }] }, 'BAD_REFERENCE', 'references[0].value');
+    rejected({ ...fixture, series: [], axes: categoryAxes, references: [{ id: 'r', axis: 'x', value: 'other' }] }, 'BAD_REFERENCE', 'references[0].value');
+    const timeAxes = { ...fixture.axes, x: { type: 'time' } };
+    rejected({ ...fixture, axes: timeAxes, references: [{ id: 'r', axis: 'x', value: 1.5 }] }, 'OUTSIDE_DATE_RANGE', 'references[0].value');
+    expect(validateLine({ ...fixture, axes: timeAxes, references: [{ id: 'r', axis: 'x', value: 1 }] }).status).toBe('ok');
+  });
+
+  it('rejects the total point count across individually bounded series', () => {
+    const fixture = numeric();
+    const data = Array.from({ length: 50_001 }, () => fixture.series[0]!.data[0]);
+    const series = [{ ...fixture.series[0], data }, { ...fixture.series[0], id: 'second', data }];
+    rejected({ ...fixture, series }, 'RESOURCE_LIMIT', 'series');
+  });
+
+  it('does not invoke an indexed accessor or leak state and option inspection exceptions', () => {
+    const fixture = numeric();
+    let reads = 0;
+    const data = [fixture.series[0]!.data[0]];
+    Object.defineProperty(data, '0', { get() { reads++; throw Error('application getter'); } });
+    rejected({ ...fixture, series: [{ ...fixture.series[0], data }] }, 'BAD_LINE_SPEC', 'series[0].data[0]');
+    expect(reads).toBe(0);
+    const throwsOnInspection = new Proxy({}, { ownKeys() { throw Error('application state'); } });
+    expect(validateState(throwsOnInspection, new Set(), 'state.custom')).toMatchObject({
+      status: 'invalid', diagnostic: { reason: 'BAD_STATE', path: 'state.custom' },
+    });
+    expect(validateOptions(throwsOnInspection)).toMatchObject({
+      status: 'invalid', diagnostic: { reason: 'BAD_LINE_SPEC', path: 'options' },
+    });
+  });
+
+  it('keeps selection and viewport owners intact alongside time-domain reference intervals', () => {
+    const fixture = numeric();
+    const axes = {...fixture.axes, x: {type: 'time'}};
+    const selection = {mode: 'controlled', type: 'single', value: [{seriesId: 's', pointId: 'p'}]};
+    const viewport = {mode: 'internal', axes: 'x', gesture: 'zoom', wheel: true, controls: false, initial: {x: [0,1]}};
+    const referenceBands = [{id: 'epoch', axis: 'x', from: 0, to: 1, label: 'Epoch measurement', color: '#AABBCC'}];
+    expect(validateLine({...fixture, axes, selection, viewport, referenceBands, state: {mode: 'internal'}, status: {type: 'ready'}}))
+      .toMatchObject({status: 'ok', value: {selection, viewport, referenceBands: [{...referenceBands[0], color: '#aabbcc'}]}});
+    rejected({...fixture, axes, referenceBands: [{...referenceBands[0], from: .25}]}, 'OUTSIDE_DATE_RANGE', 'referenceBands[0]');
+    expect(validateLine({...fixture, status: {type: 'error', message: 'Network unavailable'}, font: {}})).toMatchObject({
+      status: 'ok', value: {status: {type: 'error', message: 'Network unavailable'}},
+    });
+  });
+});

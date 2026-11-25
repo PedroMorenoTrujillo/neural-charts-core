@@ -12,6 +12,31 @@ const frame = (result: PlanTimelineResult) => {
 };
 const unsafe = (input: unknown) => input as PlanTimelineSpec;
 
+it('keeps an untitled observed event and custom series color without fabricating a caption', () => {
+  const original = spec(), series = original.series[0]!;
+  const planned = frame(planTimeline({...original, description: 'Recorded events', series: [
+    {...series, color: '#AABBCC', data: [{id: 'untitled', x: 10, title: '', description: 'Observed'}, {id: 'named', x: 900, title: 'Launch'}]},
+  ]}, options));
+  expect(planned.description).toBe('Recorded events');
+  expect(planned.legend[0]).toMatchObject({id: 's', color: '#aabbcc'});
+  expect(planned.observations.find(item => item.id.pointId === 'untitled')).toMatchObject({
+    label: '', value: 10, event: {type: 'time', coordinate: 10, title: '', description: 'Observed'},
+  });
+  expect(planned.annotations?.map(annotation => annotation.text)).toEqual(['Launch']);
+  expect(planned.series[0]?.circles?.map(marker => marker.pointId)).toEqual(['untitled','named']);
+});
+
+it('enforces the temporal event cap across individually valid source series', () => {
+  const original = spec();
+  const data = Array.from({length: Math.floor(MAX_TIMELINE_POINTS/2) + 1}, (_, index) => ({
+    id: 'p' + index, title: 'Event ' + index, x: index,
+  }));
+  const series = [{id: 'first', name: 'First', data}, {id: 'next', name: 'Next', data}];
+  expect(planTimeline({...original, series}, options)).toMatchObject({
+    status: 'invalid', diagnostic: {reason: 'RESOURCE_LIMIT', path: 'spec.series'},
+  });
+});
+
 describe('Timeline event semantics and real geometry', () => {
   it('uses original event coordinates while preserving source order and Unix zero', () => {
     const result = frame(planTimeline(spec(), options));

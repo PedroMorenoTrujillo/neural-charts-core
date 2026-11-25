@@ -1,10 +1,24 @@
 import {expect,it} from 'vitest';
 import {planChart,type PlanTilemapSpec,type PlanTilemapOptions,type PlanColorAxisSpec} from '../../src/plan.js';
+import {planTilemap} from '../../src/plan/tilemap.js';
 const size={width:390,height:320};
 const source=(values:readonly(number|null)[]=[0,10,null]):PlanTilemapSpec=>({family:'tilemap',title:'Source cells',series:[{id:'source',name:'One real series',data:values.map((value,i)=>({id:'p'+i,x:i,y:0,value}))}]});
 function ok(spec:unknown,options:unknown=size){const result=planChart(spec as PlanTilemapSpec,options as PlanTilemapOptions);if(result.status==='invalid')throw Error(JSON.stringify(result));return result;}
 const invalid=(spec:unknown,options:unknown=size)=>expect(planChart(spec as PlanTilemapSpec,options as PlanTilemapOptions).status).toBe('invalid');
 const classes:PlanColorAxisSpec={type:'classes',missingColor:'#EEEEEE',unclassifiedColor:'#999999',classes:[{id:'negative',label:'Negative',maxExclusive:0,color:'#2244CC'},{id:'positive',label:'Ten or more',minInclusive:10,color:'#CC4422'}]};
+
+it('enforces one source and one visibility entry while preserving the series color',()=>{
+  const spec=source(),row=spec.series[0];
+  const withColor=ok({...spec,series:[{...row,color:'#123ABC'}]}).frame;
+  expect(withColor.legend[0]).toMatchObject({id:'source',color:'#123abc'});
+  expect(withColor.series[0]?.color).toBe('#123abc');
+  expect(planTilemap({...spec,series:[]} as unknown as PlanTilemapSpec,size))
+    .toMatchObject({status:'invalid',diagnostic:{reason:'ONE_SERIES_REQUIRED',path:'spec.series'}});
+  expect(planTilemap(spec,{...size,stacking:'sum'} as PlanTilemapOptions))
+    .toMatchObject({status:'invalid',diagnostic:{reason:'STACKING_UNSUPPORTED',path:'options.stacking'}});
+  expect(planTilemap(spec,{...size,hiddenSeriesIds:['source','source']}))
+    .toMatchObject({status:'invalid',diagnostic:{reason:'RESOURCE_LIMIT',path:'options.hiddenSeriesIds'}});
+});
 
 it('four real cell geometries remain on the single original series with correct numeric identities',()=>{
   for(const shape of ['hexagon','circle','diamond','square'] as const){

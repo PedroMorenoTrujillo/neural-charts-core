@@ -1,9 +1,46 @@
 import { expect, test } from 'vitest';
 import fc from 'fast-check';
 import { computeStack } from '../../src/stacked/stack.js';
+import { pickStacked, projectStacked } from '../../src/stacked/geometry.js';
+import { normalizeColumn } from '../../src/column/normalize.js';
+import { validateColumn } from '../../src/column/validate.js';
 import type { ChartResult } from '../../src/public/chart-types.js';
 function value<T>(result: ChartResult<T>): T { if (result.status !== 'ok') throw Error(JSON.stringify(result.diagnostic)); return result.value; }
 const point = (id: string, x: string, y: number | null) => ({ id, x, y });
+
+test('preserves a real zero-sized stacked target inside its slot while rejecting empty space', () => {
+  const columns = value(validateColumn({
+    family: 'column', title: 'Measured counts', maxBarWidth: 6, orientation: 'horizontal',
+    axes: {x: {type:'category',values:[{id:'a'},{id:'b'}]}, y:{type:'linear',reversed:true}},
+    series: [{id:'one',name:'One',data:[point('zero','a',0),point('positive','b',4)]}],
+  }));
+  const projected = value(projectStacked(normalizeColumn(columns),{hiddenSeriesIds:[]},
+    {x:10,y:20,width:120,height:100},[0,5],'sum'));
+  const [zero,positive] = projected.rects;
+  expect(zero).toMatchObject({width:0,height:6,point:{id:'zero'}});
+  expect(pickStacked(projected,zero!.x-1,zero!.anchor.y)).toBe(zero);
+  expect(pickStacked(projected,zero!.x-3,zero!.anchor.y)).toBeNull();
+  expect(pickStacked(projected,zero!.x,zero!.anchor.y+7)).toBeNull();
+  expect(pickStacked(projected,zero!.x,20)).toBeNull();
+  expect(pickStacked(projected,positive!.x+positive!.width/2,positive!.anchor.y)).toBe(positive);
+});
+
+test('reports geometry errors before producing partial stacked bars from invalid scales', () => {
+  const columns=normalizeColumn(value(validateColumn({
+    family:'column', title:'Intervals',axes:{x:{type:'category',values:[{id:'a'}]},y:{type:'linear'}},
+    series:[{id:'one',name:'One',data:[point('a','a',1)]}],
+  })));
+  const plot={x:10,y:20,width:120,height:100},state={hiddenSeriesIds:[]};
+  expect(projectStacked(columns,state,plot,[10,1],'sum')).toMatchObject({
+    status:'invalid',diagnostic:{reason:'REVERSED',path:'domain'},
+  });
+  expect(projectStacked(columns,state,{...plot,x:Number.MAX_VALUE,width:Number.MAX_VALUE},[0,10],'sum')).toMatchObject({
+    status:'invalid',diagnostic:{reason:'NONFINITE',path:'range'},
+  });
+  expect(projectStacked(columns,state,{...plot,width:0},[0,10],'sum')).toMatchObject({
+    status:'invalid',diagnostic:{reason:'BAD_PLOT',path:'plot'},
+  });
+});
 
 test('hand-computed positive/negative prefixes never collapse to a net stack', () => {
   const result = value(computeStack(['a', 'b'], [

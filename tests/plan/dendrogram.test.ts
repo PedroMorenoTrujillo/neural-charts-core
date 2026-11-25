@@ -1,10 +1,40 @@
 import {expect,test} from 'vitest';
 import {planChart} from '../../src/plan.js';
+import {planDendrogram} from '../../src/plan/dendrogram.js';
 import type {PlanDendrogramSpec,PlanDendrogramNode,PlanSpec,PlanOptions} from '../../src/plan.js';
 const size={width:390,height:300};
 const source:PlanDendrogramSpec={family:'dendrogram',title:'Clusters',unit:'km',root:{id:'root',height:10,children:[{id:'ab',height:2,children:[{id:'a',label:'Alpha'},{id:'b',label:'Beta'}]},{id:'c',label:'Gamma'}]}};
 function frame(spec=source,options:PlanOptions=size){const r=planChart(spec,options);if(r.status==='invalid')throw Error(JSON.stringify(r.diagnostic));return r.frame;}
 const invalid=(spec:unknown,options:unknown=size)=>expect(planChart(spec as PlanSpec,options as PlanOptions).status).toBe('invalid');
+
+test('retains an exact distance unit and source label when a compact layout abbreviates the label', () => {
+  const long = 'Long descriptive branch name that cannot fit in the physical tick label';
+  const spec: PlanDendrogramSpec = {
+    family: 'dendrogram', title: 'Clusters', description: 'Distances measured in source units', unit: 'km',
+    orientation: 'vertical', root: {id: 'root', height: 5, children: [{id: 'a', label: long}, {id: 'b', label: 'B'}]},
+  };
+  const result = frame(spec, {width: 220, height: 240});
+  expect(result.description).toBe(spec.description);
+  expect(result.unit).toBe('km');
+  expect(result.observations.find(point => point.id.pointId === 'a')?.label).toBe(long);
+  expect(result.annotations?.some(label => label.text.endsWith('…') && long.startsWith(label.text.slice(0,-1)))).toBe(true);
+  const solitary = frame({...spec, root: {id: 'isolated', label: 'Single', height: 0}});
+  expect(solitary.observations).toMatchObject([{id: {pointId: 'isolated'}, value: 0}]);
+  expect(solitary.series[0]?.commands).toEqual([]);
+});
+
+test('rejects oversized hierarchy depth and malformed metadata atomically', () => {
+  let root: PlanDendrogramNode = {id: 'leaf'};
+  for (let i = 0; i < 17; i++) root = {id: 'level-' + i, children: [root]};
+  expect(planDendrogram({...source, root}, size)).toMatchObject({
+    status: 'invalid', diagnostic: {reason: 'DENDROGRAM_NODE_LIMIT', path: 'root'},
+  });
+  for (const patch of [{description: 'x'.repeat(1_001)}, {unit: 'x'.repeat(65)}, {title: 'x'.repeat(201)}]) {
+    expect(planDendrogram({...source, ...patch}, size)).toMatchObject({
+      status: 'invalid', diagnostic: {reason: 'BAD_DESCRIPTION', path: 'title'},
+    });
+  }
+});
 test('leaf alignment uses merge heights, not tree depth',()=>{
   const f=frame(),[root,ab,a,b,c]=f.observations;expect(a!.x).toBe(b!.x);expect(b!.x).toBe(c!.x);expect((a!.x-ab!.x)/(a!.x-root!.x)).toBeCloseTo(.2);expect(f.observations.map(p=>p.id.pointId)).toEqual(['root','ab','a','b','c']);expect(root?.value).toBe(10);expect(ab?.dendrogram).toEqual({type:'cluster',heightMode:'distance',heightSource:'source',leafCount:2,depth:1,unit:'km'});expect(a?.dendrogram?.heightSource).toBe('leafZero');expect(f.legend).toEqual([]);expect(f.labels.at(-1)?.label).toBe('10');
 });

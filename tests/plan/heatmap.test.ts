@@ -1,9 +1,29 @@
 import {expect,test} from 'vitest';
 import {planChart} from '../../src/plan.js';
+import {planHeatmap} from '../../src/plan/heatmap.js';
 import type {PlanHeatmapSpec} from '../../src/plan.js';
 const size={width:390,height:300};
 const source:PlanHeatmapSpec={family:'heatmap',title:'Original measurements',axes:{x:{type:'category',values:[{id:'mon',label:'Monday'},{id:'tue',label:'Tuesday'}]},y:{type:'category',values:[{id:'morning',label:'Morning'},{id:'evening',label:'Evening'}]}},data:[{id:'known-zero',rowId:'morning',columnId:'mon',value:0},{id:'negative',rowId:'morning',columnId:'tue',value:-4},{id:'unknown',rowId:'evening',columnId:'tue',value:null}]};
 function frame(spec=source,options=size){const r=planChart(spec,options);if(r.status==='invalid')throw Error(JSON.stringify(r.diagnostic));return r.frame;}
+test('retains transport metadata and label identity when the other axis has no categories',()=>{
+  for(const axis of ['x','y'] as const){
+    const result=planHeatmap({...source,data:[],description:'Counts per period',unit:'requests',axes:{...source.axes,[axis]:{type:'category',values:[]}}},{...size,hiddenSeriesIds:[]});
+    if(result.status==='invalid')throw Error(JSON.stringify(result.diagnostic));
+    const {frame:f}=result;
+    expect(result.status).toBe('empty');
+    expect(f).toMatchObject({description:'Counts per period',unit:'requests',heatmapLayout:{status:'noSource',rows:[],columns:[]}});
+    expect(axis==='x'?f.yLabels?.map(label=>[label.label,label.y]):f.labels.map(label=>[label.label,label.x]))
+      .toEqual(axis==='x'?[['Morning',0],['Evening',0]]:[['Monday',0],['Tuesday',0]]);
+  }
+});
+test('validates axis direction and rejects inaccessible input before returning painted data',()=>{
+  const wrongAxis={...source,axes:{...source.axes,x:{...source.axes.x,reversed:1}}} as unknown as PlanHeatmapSpec;
+  expect(planHeatmap(wrongAxis,size)).toMatchObject({status:'invalid',diagnostic:{path:'spec.axes.x.reversed'}});
+  for(const [cause,message] of [[Error('Heatmap data unavailable'),'Heatmap data unavailable'],['not readable','BAD_SPEC']] as const){
+    const inaccessible=new Proxy(source,{ownKeys(){throw cause;}});
+    expect(planHeatmap(inaccessible,size)).toMatchObject({status:'invalid',diagnostic:{path:'spec',reason:'BAD_SPEC',message}});
+  }
+});
 test('public planner keeps zero, negative and explicit unknown cells distinct from absent coordinates',()=>{
   const f=frame();expect(f.family).toBe('heatmap');expect(f.observations.map(p=>({id:p.id.pointId,value:p.value}))).toEqual([{id:'known-zero',value:0},{id:'negative',value:-4}]);
   expect(f.heatmapLayout).toMatchObject({status:'ready',sourceCount:3,knownCount:2,missingCount:1,absentCount:1,paintedCellCount:3});

@@ -9,6 +9,26 @@ test('analytic area preserves disks, containment, coincidence, tangency and disj
   expect(circleIntersectionArea([c(),c(3)])).toBe(0);
   expect(circleIntersectionArea([c(),c(0,0,0)])).toBe(0);
 });
+
+test('reports a triple intersection with no common X support as empty', () => {
+  expect(circleIntersectionArea([c(0,0,2), c(1,0,2), c(10,0,1)])).toBe(0);
+  expect(circleIntersectionArea([c(-2,0,1), c(0,0,1), c(2,0,1)])).toBe(0);
+});
+
+test('fits one circle and anchors coincident membership while leaving missing target pairs unconstrained', () => {
+  const single = fitVennCircles([1], []);
+  const radius = Math.sqrt(1 / Math.PI);
+  expect(single.circles).toEqual([c(0,0,radius)]);
+  expect(vennAnchors(single.circles).get(1)).toMatchObject({x: 0, y: 0});
+  const fit = fitVennCircles([1,1,1], [{mask: 3, area: 1}]);
+  const anchors = vennAnchors(fit.circles);
+  expect(fit.circles.every(circle => circle.radius === radius)).toBe(true);
+  expect(fit.maxError).toBeLessThan(1e-8);
+  for (const [mask, anchor] of anchors) {
+    expect(vennMembership(fit.circles, anchor.x, anchor.y)).toBe(mask);
+    expect(anchor.clearance).toBeGreaterThan(0);
+  }
+});
 test('two unit circles match the closed-form lens area',()=>{
   for(const d of [.001,.1,.5,1,1.5,1.999]){
     const expected=2*Math.acos(d/2)-d*Math.sqrt(4-d*d)/2;

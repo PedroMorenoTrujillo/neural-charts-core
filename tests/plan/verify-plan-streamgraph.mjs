@@ -13,6 +13,23 @@ function y(value){return 150-value*27.2;}
 function deepFrozen(value){if(value&&typeof value==='object'){assert.ok(Object.isFrozen(value));for(const child of Object.values(value))deepFrozen(child);}}
 function polygonAt(series,index){return series.areaCommands.slice(index*5,index*5+5);}
 
+check('preserves formatted UTC labels and original values after a time viewport change',()=>{
+  const day=86400000,origin=Date.UTC(2026,0,1);
+  const spec={...source,axes:{...source.axes,x:{type:'time',domain:[origin,origin+4*day]}},series:source.series.map(s=>({...s,data:s.data.map((p,i)=>({...p,x:origin+i*day}))}))};
+  const f=frame(spec,{...options,viewport:{axes:'x',value:{x:[origin+day,origin+3*day]}}});
+  assert.deepEqual(f.viewport.displayed.x,[origin+day,origin+3*day]);
+  assert.ok(f.labels.every(tick=>tick.type==='time'&&Number.isSafeInteger(tick.value)));
+  assert.deepEqual(f.observations.map(o=>o.xValue),[origin+day,origin+2*day,origin+day,origin+2*day]);
+  assert.deepEqual(f.observations.map(o=>o.value),[4,1,2,3]);
+});
+check('leaves a domainless stream empty when no visible source values remain',()=>{
+  const spec={...source,axes:{...source.axes,y:{type:'linear'}},series:source.series.map(s=>({...s,data:s.data.map(p=>({...p,y:null}))}))};
+  const result=planChart(spec,options);
+  assert.equal(result.status,'empty',JSON.stringify(result));
+  assert.deepEqual(result.frame.observations,[]);
+  assert.deepEqual(result.frame.grid,[]);
+});
+
 check('silhouette bands and eligible anchors are both genuinely centered around zero',()=>{
   const f=frame();assert.equal(f.family,'streamgraph');assert.equal(f.unit,'Activity');assert.equal(f.observations.length,6);
   const a=polygonAt(f.series[0],0),b=polygonAt(f.series[1],0);assert.equal(a.at(-1).type,'Z');assert.equal(b.at(-1).type,'Z');

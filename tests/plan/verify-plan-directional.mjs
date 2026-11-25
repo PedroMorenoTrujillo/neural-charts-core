@@ -12,6 +12,19 @@ const single=(data,p)=>({...data,series:[{...data.series[0],data:[p]}]});
 const invalid=(data,opts=options)=>assert.equal(planChart(data,opts).status,'invalid');
 const close=(a,b)=>assert.ok(Math.abs(a-b)<1e-8,`${a} != ${b}`);
 
+check('unitless vector inputs keep only measured observations and reject malformed source arrays',()=>{
+  const {unit,...withoutUnit}=vector;
+  assert.equal(unit,'m/s');
+  assert.equal(frame(withoutUnit).unit,'');
+  const missing=single(withoutUnit,vector.series[0].data[3]);
+  const empty=planChart(missing,options);
+  assert.equal(empty.status,'empty',JSON.stringify(empty));
+  assert.deepEqual(empty.frame.observations,[]);
+  const malformed=planChart({...vector,series:[{...vector.series[0],data:{}}]},options);
+  assert.equal(malformed.status,'invalid',JSON.stringify(malformed));
+  assert.deepEqual([malformed.diagnostic.reason,malformed.diagnostic.path],['INPUT_LIMIT','series']);
+});
+
 check('Vector metadata preserves source components, coordinates, magnitude, zero and missingness',()=>{
   const f=frame(vector);assert.equal(f.family,'vector');assert.equal(f.unit,'m/s');assert.equal(f.observations.length,3);
   assert.deepEqual(point(f,'east').vector,{dx:3,dy:0});assert.equal(point(f,'east').value,3);assert.equal(point(f,'east').xValue,2);assert.equal(point(f,'east').yValue,2);assert.equal(point(f,'zero').value,0);assert.equal(point(f,'missing'),undefined);
@@ -83,5 +96,27 @@ check('Input mutation cannot alter immutable directional metadata and geometry',
   for(const data of [vector,wind]){const source=structuredClone(data),snapshot=structuredClone(source),f=frame(source);assert.deepEqual(source,snapshot);assert.equal(Object.isFrozen(source),false);assert.equal(Object.isFrozen(f),true);assert.equal(Object.isFrozen(f.observations[0].vector??f.observations[0].wind),true);}
 });
 
+check('a field of zero vectors retains measured points and metadata without an invented direction', () => {
+  const spec = {...vector, description: 'Stationary measurements', series: [
+    {...vector.series[0], color:'#AABBCC', data:[{id:'stationary',x:5,y:5,dx:0,dy:0}]},
+  ]};
+  const result = frame(spec);
+  assert.equal(result.description, spec.description);
+  assert.equal(result.legend[0].color, '#aabbcc');
+  assert.equal(result.observations.length, 1);
+  assert.equal(result.observations[0].value, 0);
+  assert.deepEqual(result.observations[0].vector, {dx:0,dy:0});
+  assert.deepEqual(result.series[0].commands.map(command => command.type), ['M','A','A']);
+  assert.deepEqual(result.series[0].areaCommands, []);
+});
+check('rejects series transport and aggregate source limits explicitly', () => {
+  const many = Array.from({length:17}, (_,i) => ({...vector.series[0],id:String(i)}));
+  const excessive = planChart({...vector,series:many},options);
+  assert.equal(excessive.status, 'invalid');
+  assert.equal(excessive.diagnostic.reason, 'INPUT_LIMIT');
+  const decorated = planChart({...vector,series:[{...vector.series[0],marker:'unknown'}]}, options);
+  assert.equal(decorated.status,'invalid');
+  assert.equal(decorated.diagnostic.reason,'BAD_SERIES');
+});
 writeFileSync(new URL('../../work/reports/core-plan-directional-current.json',import.meta.url),JSON.stringify({status:'passed',checks,semantics:'Vector components retain independent source position and derived magnitude; wind direction is meteorological from north and raw speed remains m/s. Static bounded glyphs; existing numeric projection/viewport owners reused.'},null,2)+'\n');
 console.log(`PASS ${checks.length} directional Core contract checks`);
